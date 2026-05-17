@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build and boundary checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify generated files are ignored
+        run: |
+          if git status --short --ignored dist node_modules | grep -v '^!! '; then
+            echo "Unexpected tracked or unignored generated files detected."
+            git status --short --ignored dist node_modules
+            exit 1
+          fi
+
+      - name: Check repository boundary markers
+        run: |
+          home_path_marker="/Users""/"
+          workspace_marker="Alembic""Workspace"
+          forbidden_pattern="${home_path_marker}|${workspace_marker}|\.\./Alembic|\.\./AlembicPlugin|#(service|http|agent|tools|core|repo|infra)/|sqlite|drizzle|express|commander|child_process|fs/promises|node:fs|node:path"
+
+          if grep -R -n -E "${forbidden_pattern}" \
+            src AGENTS.md package.json vite.config.ts tsconfig.json; then
+            echo "Forbidden boundary marker found in Dashboard source."
+            exit 1
+          fi

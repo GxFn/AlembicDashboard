@@ -10,13 +10,18 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 
 不要在旧工作区或旧克隆路径下工作；当前统一以本 workspace 内的 Alembic 系列仓库为准。
 
+## 文档存储提示
+
+- 新建长期迁移、计划、验收、扫描、边界和跨仓库任务文档时，统一写到 workspace 根目录的 `docs/AlembicDashboard/`，不要散落到各子仓库或 workspace `docs/` 根层级。
+- AlembicCore 迁移手册、公开 API 边界、阶段验收、外层接入和删除任务统一写到 `docs/AlembicCore/`；本仓库只执行其中分配给 `AlembicDashboard` 窗口的任务。
+- 仓库内 `docs/` 只放随源码长期维护的产品文档、发布文档或用户文档；不要放跨仓库协作临时文档。
+- 长期文档不得写入用户本机绝对路径、API key、token 或其它私密信息。
+
 ## 操作范围
 
 - 本仓库任务只修改当前 `AlembicDashboard` 仓库内的文件，并只在该仓库内提交。
 - 不要主动修改、整理、格式化、提交或回退 `AlembicCore`、`AlembicAgent`、`AlembicPlugin`、`Alembic` 或其他相邻项目。
 - 其他 Alembic 仓库只可作为只读背景参考；如果 Dashboard 功能必须依赖其他仓库变更，先说明边界和所需接口，再等待用户明确授权。
-- 新建迁移说明、协作文档或跨仓库设计记录时，统一保存到 workspace 根目录的 `docs/AlembicDashboard/`，不要散落到各子仓库。
-- 需要引用 AlembicCore 迁移计划、公开 API 边界或外层接入任务时，统一查看 workspace 根目录的 `docs/AlembicCore/`；Dashboard 自身计划仍放 `docs/AlembicDashboard/`。
 
 ## 仓库定位
 
@@ -69,7 +74,7 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 - 状态管理放在 `src/state/`、`src/store/` 或本项目约定目录。
 - 测试放在 `test/` 或与源码同目录的 `*.test.ts(x)`。
 - 构建产物如 `dist/` 必须保持 ignored，不提交。
-- workspace 级迁移和协作文档保存在 workspace 根目录的 `docs/AlembicDashboard/`。
+- workspace 级长期协作文档按上方 `文档存储提示` 归档。
 
 ## 技术栈与编码约定
 

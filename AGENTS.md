@@ -16,6 +16,7 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 - 不要主动修改、整理、格式化、提交或回退 `AlembicCore`、`AlembicAgent`、`AlembicPlugin`、`Alembic` 或其他相邻项目。
 - 其他 Alembic 仓库只可作为只读背景参考；如果 Dashboard 功能必须依赖其他仓库变更，先说明边界和所需接口，再等待用户明确授权。
 - 新建迁移说明、协作文档或跨仓库设计记录时，统一保存到 workspace 根目录的 `docs/AlembicDashboard/`，不要散落到各子仓库。
+- 需要引用 AlembicCore 迁移计划、公开 API 边界或外层接入任务时，统一查看 workspace 根目录的 `docs/AlembicCore/`；Dashboard 自身计划仍放 `docs/AlembicDashboard/`。
 
 ## 仓库定位
 

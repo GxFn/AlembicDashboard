@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, createContext, useContext } from 'react';
 import { MessageSquare, X, Send, Brain, Loader2, Check, RotateCcw, ChevronRight, ArrowRight, Sparkles, Plus, X as XIcon } from 'lucide-react';
 import MarkdownWithHighlight from './MarkdownWithHighlight';
-import api from '../../api';
+import api, { isHostManagedUnavailable } from '../../api';
 import { notify } from '../../utils/notification';
 import { KnowledgeEntry } from '../../types';
 import { useChatTopics, type ChatMessage } from '../../hooks/useChatTopics';
@@ -377,6 +377,8 @@ export const GlobalChatPanel: React.FC = () => {
       } catch (err: unknown) {
         if (isAbortError(err)) {
           setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('globalChat.system.cancelled') } : m));
+        } else if (isHostManagedUnavailable(err)) {
+          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('globalChat.hostManagedRefineUnavailable') } : m));
         } else {
           setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('globalChat.refinePreviewFailed', { error: getErrorMessage(err) }) } : m));
         }
@@ -413,7 +415,10 @@ export const GlobalChatPanel: React.FC = () => {
           if (partialText) chatHistoryRef.current.push({ role: 'model', content: partialText });
           setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: partial } : m));
         } else {
-          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('globalChat.requestFailed', { error: getErrorMessage(err) }) } : m));
+          const content = isHostManagedUnavailable(err)
+            ? t('globalChat.hostManagedChatUnavailable')
+            : t('globalChat.requestFailed', { error: getErrorMessage(err) });
+          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content } : m));
         }
       } finally {
         abortRef.current = null;

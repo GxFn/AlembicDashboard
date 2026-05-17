@@ -5,7 +5,7 @@ import { useGlobalChat } from '../Shared/GlobalChatDrawer';
 import { useChatTopics, ChatMessage } from '../../hooks/useChatTopics';
 import { createStreamEventHandler } from '../../hooks/useChatStream';
 import { useI18n } from '../../i18n';
-import api from '../../api';
+import api, { isHostManagedUnavailable } from '../../api';
 import { getErrorMessage, isAbortError } from '../../utils/error';
 
 /* ═══════════════════════════════════════════════════════════
@@ -174,6 +174,8 @@ const AiChatView: React.FC = () => {
       if (isAbortError(err)) {
         const partial = t('aiChat.cancelled');
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: partial } : m));
+      } else if (isHostManagedUnavailable(err)) {
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('aiChat.hostManagedUnavailable') } : m));
       } else {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('aiChat.requestFailed', { error: getErrorMessage(err) }) } : m));
       }

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileSearch, Box, Trash2, Edit3, Layers, Copy, Brain, Inbox, Sparkles, Clock, Code2, CheckCircle2, BarChart3, ArrowUpDown, Rocket, Wand2, Loader2, Globe, RefreshCw, RotateCcw } from 'lucide-react';
+import { FileSearch, Box, Trash2, Edit3, Layers, Copy, Brain, Inbox, Sparkles, Clock, Code2, CheckCircle2, BarChart3, ArrowUpDown, Rocket, Wand2, Loader2, Globe, RefreshCw, RotateCcw, Info } from 'lucide-react';
 import { useDrawerWide } from '../../hooks/useDrawerWide';
 import { ProjectData, KnowledgeEntry, Recipe } from '../../types';
-import api from '../../api';
+import api, { isHostManagedUnavailable } from '../../api';
 import { notify } from '../../utils/notification';
 import { categoryConfigs } from '../../constants';
 import CodeBlock, { normalizeCode } from '../Shared/CodeBlock';
@@ -192,6 +192,14 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
   const [filters, setFilters] = useState({
     sort: 'score-desc' as 'score-desc' | 'score-asc' | 'confidence-desc' | 'default',
   });
+  const [hostManagedCandidateAiMessage, setHostManagedCandidateAiMessage] = useState<string | null>(null);
+  const hostManagedCandidateAiUnavailable = Boolean(hostManagedCandidateAiMessage);
+
+  const showHostManagedCandidateAi = useCallback(() => {
+    const message = t('candidates.hostManagedUnavailableBody');
+    setHostManagedCandidateAiMessage(message);
+    notify(message, { title: t('candidates.hostManagedTitle'), type: 'info' });
+  }, [t]);
 
   const candidateEntries = data?.candidates ? Object.entries(data.candidates) : [];
   const sortedEntries = sortTargetNames(candidateEntries, isShellTarget, isSilentTarget, isPendingTarget);
@@ -269,10 +277,18 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
 
   /** AI 补齐单个候选语义字段 */
   const handleEnrichCandidate = useCallback(async (candidateId: string) => {
+    if (hostManagedCandidateAiUnavailable) {
+      showHostManagedCandidateAi();
+      return;
+    }
     if (enrichingIds.has(candidateId)) return;
     setEnrichingIds(prev => new Set(prev).add(candidateId));
     try {
       const result = await api.enrichCandidates([candidateId]);
+      if (result.hostManaged) {
+        showHostManagedCandidateAi();
+        return;
+      }
       if (result.enriched > 0) {
         notify(`${result.results?.[0]?.filledFields?.length || 0} ${t('candidates.approveSuccess')}`, { title: t('candidates.aiRefine') });
       } else {
@@ -286,14 +302,22 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
         // intentionally ignored: optional drawer refresh after enrichment; page-level data is already up-to-date
       }
     } catch (err: unknown) {
+      if (isHostManagedUnavailable(err)) {
+        showHostManagedCandidateAi();
+        return;
+      }
       notify(getErrorMessage(err, t('common.operationFailed')), { title: t('common.operationFailed'), type: 'error' });
     } finally {
       setEnrichingIds(prev => { const next = new Set(prev); next.delete(candidateId); return next; });
     }
-  }, [enrichingIds, onRefresh]);
+  }, [enrichingIds, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi, t]);
 
   /** 批量 AI 补齐当前 Target 下所有候选 */
   const handleEnrichAll = useCallback(async () => {
+    if (hostManagedCandidateAiUnavailable) {
+      showHostManagedCandidateAi();
+      return;
+    }
     if (enrichingAll || !effectiveTarget || !data?.candidates?.[effectiveTarget]) return;
     const items = data.candidates[effectiveTarget].items;
     if (items.length === 0) return;
@@ -303,16 +327,24 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
       for (let i = 0; i < items.length; i += 20) {
         const batch = items.slice(i, i + 20).map(c => c.id);
         const result = await api.enrichCandidates(batch);
+        if (result.hostManaged) {
+          showHostManagedCandidateAi();
+          return;
+        }
         total += result.enriched;
       }
       notify(`${total}/${items.length} ${t('candidates.batchDeleteDone', { count: total })}`, { title: t('candidates.aiRefine') });
       onRefresh?.();
     } catch (err: unknown) {
+      if (isHostManagedUnavailable(err)) {
+        showHostManagedCandidateAi();
+        return;
+      }
       notify(getErrorMessage(err, t('common.operationFailed')), { title: t('common.operationFailed'), type: 'error' });
     } finally {
       setEnrichingAll(false);
     }
-  }, [enrichingAll, effectiveTarget, data?.candidates, onRefresh]);
+  }, [enrichingAll, effectiveTarget, data?.candidates, onRefresh, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi, t]);
 
   /** 润色面板中某条候选已更新 — 局部刷新抽屉（不整页刷新） */
   const handleCandidateUpdated = useCallback(async (candidateId: string) => {
@@ -326,6 +358,10 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
 
   /** Phase 6: AI 润色所有 Bootstrap 候选 — 打开全局 AI Chat 润色模式 */
   const handleRefineBootstrap = useCallback(() => {
+    if (hostManagedCandidateAiUnavailable) {
+      showHostManagedCandidateAi();
+      return;
+    }
     if (!effectiveTarget || !data?.candidates?.[effectiveTarget]) return;
     const items = data.candidates[effectiveTarget].items;
     const ids = items.map(c => c.id);
@@ -334,10 +370,14 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
       candidates: items,
       onCandidateUpdated: handleCandidateUpdated,
     });
-  }, [effectiveTarget, data?.candidates, globalChat, handleCandidateUpdated]);
+  }, [effectiveTarget, data?.candidates, globalChat, handleCandidateUpdated, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi]);
 
   /** 单条候选润色 — 打开全局 AI Chat 润色模式 */
   const handleRefineSingle = useCallback((candidateId: string) => {
+    if (hostManagedCandidateAiUnavailable) {
+      showHostManagedCandidateAi();
+      return;
+    }
     if (!effectiveTarget || !data?.candidates?.[effectiveTarget]) return;
     setExpandedId(candidateId);
     const items = data.candidates[effectiveTarget].items;
@@ -346,7 +386,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
       candidates: items,
       onCandidateUpdated: handleCandidateUpdated,
     });
-  }, [effectiveTarget, data?.candidates, globalChat, handleCandidateUpdated]);
+  }, [effectiveTarget, data?.candidates, globalChat, handleCandidateUpdated, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -404,13 +444,13 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
           {stats && stats.total > 0 && (
             <button
               onClick={handleEnrichAll}
-              disabled={enrichingAll || refining}
+              disabled={hostManagedCandidateAiUnavailable || enrichingAll || refining}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                enrichingAll || refining
+                hostManagedCandidateAiUnavailable || enrichingAll || refining
                   ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
                   : 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20'
               }`}
-              title={t('candidates.enrichTitle')}
+              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.enrichTitle')}
             >
               {enrichingAll ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
               {enrichingAll ? t('common.loading') : t('candidates.aiEnrich')}
@@ -420,13 +460,13 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
           {stats && stats.total > 0 && (
             <button
               onClick={handleRefineBootstrap}
-              disabled={refining || enrichingAll || isRefining}
+              disabled={hostManagedCandidateAiUnavailable || refining || enrichingAll || isRefining}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                refining || enrichingAll || isRefining
+                hostManagedCandidateAiUnavailable || refining || enrichingAll || isRefining
                   ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
                   : 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20'
               }`}
-              title={t('candidates.refineTitle')}
+              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.refineTitle')}
             >
               {refining || isRefining ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
               {refining || isRefining ? t('common.loading') : t('candidates.aiRefine')}
@@ -463,6 +503,23 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
           )}
         </div>
       </div>
+
+      {hostManagedCandidateAiMessage && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 shadow-sm">
+          <Info size={16} className="mt-0.5 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold">{t('candidates.hostManagedTitle')}</p>
+            <p className="mt-0.5 text-xs leading-relaxed">{hostManagedCandidateAiMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHostManagedCandidateAiMessage(null)}
+            className="text-xs font-medium text-amber-700 hover:text-amber-900"
+          >
+            {t('common.close')}
+          </button>
+        </div>
+      )}
 
       {/* ── AI 润色实时进度条 ── */}
       {refineProgress && (
@@ -836,10 +893,10 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                             {/* 功能按钮组 */}
                             <button
                               onClick={() => handleEnrichCandidate(cand.id)}
-                              disabled={enrichingIds.has(cand.id)}
-                              title={t('candidates.enrichTitleSingle')}
+                              disabled={hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id)}
+                              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.enrichTitleSingle')}
                               className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-medium ${
-                                enrichingIds.has(cand.id)
+                                hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id)
                                   ? 'text-[var(--fg-muted)] cursor-not-allowed'
                                   : 'text-amber-500 hover:text-amber-600 hover:bg-amber-500/10'
                               }`}
@@ -848,10 +905,10 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                             </button>
                             <button
                               onClick={() => handleRefineSingle(cand.id)}
-                              disabled={refiningIds.has(cand.id)}
-                              title={t('candidates.refineTitleSingle')}
+                              disabled={hostManagedCandidateAiUnavailable || refiningIds.has(cand.id)}
+                              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.refineTitleSingle')}
                               className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-medium ${
-                                refiningIds.has(cand.id)
+                                hostManagedCandidateAiUnavailable || refiningIds.has(cand.id)
                                   ? 'text-[var(--fg-muted)] cursor-not-allowed'
                                   : 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10'
                               }`}
@@ -1082,10 +1139,10 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleEnrichCandidate(cand.id)}
-                    disabled={enrichingIds.has(cand.id)}
-                    title={t('candidates.enrichTitleBottom')}
+                    disabled={hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id)}
+                    title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.enrichTitleBottom')}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                      enrichingIds.has(cand.id) ? 'text-[var(--fg-muted)] cursor-not-allowed' : 'text-amber-600 hover:bg-amber-50 border border-amber-200'
+                      hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id) ? 'text-[var(--fg-muted)] cursor-not-allowed' : 'text-amber-600 hover:bg-amber-50 border border-amber-200'
                     }`}
                   >
                     {enrichingIds.has(cand.id) ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
@@ -1093,10 +1150,10 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                   </button>
                   <button
                     onClick={() => handleRefineSingle(cand.id)}
-                    disabled={refiningIds.has(cand.id)}
-                    title={t('candidates.refineTitleBottom')}
+                    disabled={hostManagedCandidateAiUnavailable || refiningIds.has(cand.id)}
+                    title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.refineTitleBottom')}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                      refiningIds.has(cand.id) ? 'text-[var(--fg-muted)] cursor-not-allowed' : 'text-emerald-600 hover:bg-emerald-50 border border-emerald-200'
+                      hostManagedCandidateAiUnavailable || refiningIds.has(cand.id) ? 'text-[var(--fg-muted)] cursor-not-allowed' : 'text-emerald-600 hover:bg-emerald-50 border border-emerald-200'
                     }`}
                   >
                     {refiningIds.has(cand.id) ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}

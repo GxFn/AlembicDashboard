@@ -50,6 +50,40 @@ type CandidateInput = Partial<ExtractedRecipe & KnowledgeEntry> & {
   isMarked?: boolean;
 };
 
+export interface HostManagedUnavailableDetails {
+  code: 'HOST_AI_MANAGED';
+  message: string;
+  hostManaged: true;
+  unavailable?: boolean;
+  status?: number;
+  data?: unknown;
+}
+
+export class HostManagedUnavailableError extends Error {
+  readonly code = 'HOST_AI_MANAGED';
+  readonly hostManaged = true;
+  readonly unavailable?: boolean;
+  readonly status?: number;
+  readonly data?: unknown;
+
+  constructor(details: HostManagedUnavailableDetails) {
+    super(details.message);
+    this.name = 'HostManagedUnavailableError';
+    this.unavailable = details.unavailable;
+    this.status = details.status;
+    this.data = details.data;
+    Object.setPrototypeOf(this, HostManagedUnavailableError.prototype);
+  }
+}
+
+export function isHostManagedUnavailable(err: unknown): err is HostManagedUnavailableError {
+  return err instanceof HostManagedUnavailableError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: unknown }).code === 'HOST_AI_MANAGED');
+}
+
 export interface DaemonJobRecord {
   id: string;
   kind: 'bootstrap' | 'rescan';
@@ -324,6 +358,74 @@ async function resolveKnowledgeId(idOrName: string): Promise<string> {
   });
   if (found?.id) return found.id;
   throw new Error(`Knowledge entry not found: ${idOrName}`);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
+}
+
+function readString(record: Record<string, unknown> | null, key: string): string | undefined {
+  const value = record?.[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function parseHostManagedUnavailable(
+  payload: unknown,
+  status?: number,
+  fallbackMessage = 'This AI capability is managed by the host environment.',
+): HostManagedUnavailableDetails | null {
+  const root = asRecord(payload);
+  const data = asRecord(root?.data);
+  const error = asRecord(root?.error);
+  const code = readString(error, 'code') || readString(root, 'code') || readString(data, 'reason');
+  const message =
+    readString(error, 'message') ||
+    readString(root, 'message') ||
+    readString(data, 'message') ||
+    fallbackMessage;
+  const hostManaged =
+    code === 'HOST_AI_MANAGED' ||
+    root?.hostManaged === true ||
+    data?.hostManaged === true ||
+    status === 501 ||
+    status === 410;
+
+  if (!hostManaged) {
+    return null;
+  }
+
+  return {
+    code: 'HOST_AI_MANAGED',
+    message,
+    hostManaged: true,
+    unavailable: root?.unavailable === true || data?.unavailable === true || status === 501 || status === 410,
+    status,
+    data: data || root || payload,
+  };
+}
+
+function throwHostManagedIfPayload(payload: unknown, status?: number, fallbackMessage?: string): void {
+  const details = parseHostManagedUnavailable(payload, status, fallbackMessage);
+  if (details) {
+    throw new HostManagedUnavailableError(details);
+  }
+}
+
+function throwHostManagedFromError(err: unknown, fallbackMessage?: string): never {
+  const maybeAxios = asRecord(err);
+  const response = asRecord(maybeAxios?.response);
+  const status = typeof response?.status === 'number' ? response.status : undefined;
+  const data = response?.data;
+  throwHostManagedIfPayload(data, status, fallbackMessage);
+  throw err;
+}
+
+async function readJsonSafely(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1102,27 +1204,65 @@ export const api = {
   },
 
   /** AI 语义字段补全 — 对候选批量补充缺失字段 */
-  async enrichCandidates(candidateIds: string[]): Promise<{ enriched: number; total: number; results: Array<{ id: string; enriched: boolean; filledFields: string[] }> }> {
-    const res = await http.post('/candidates/enrich', { candidateIds });
-    return res.data?.data || { enriched: 0, total: 0, results: [] };
+  async enrichCandidates(candidateIds: string[]): Promise<{
+    enriched: number;
+    total: number;
+    results: Array<{ id: string; enriched: boolean; filledFields?: string[]; skipped?: boolean; reason?: string }>;
+    hostManaged?: boolean;
+    unavailable?: boolean;
+    message?: string;
+  }> {
+    try {
+      const res = await http.post('/candidates/enrich', { candidateIds });
+      const fallback = { enriched: 0, total: 0, results: [] };
+      const data = (res.data?.data || fallback) as typeof fallback & {
+        hostManaged?: boolean;
+        unavailable?: boolean;
+        message?: string;
+      };
+      const hostManaged = parseHostManagedUnavailable(res.data, res.status, data.message);
+      return {
+        ...data,
+        hostManaged: data.hostManaged === true || Boolean(hostManaged),
+        unavailable: data.unavailable === true || hostManaged?.unavailable,
+        message: data.message || hostManaged?.message,
+      };
+    } catch (err: unknown) {
+      throwHostManagedFromError(err, 'Candidate enrichment is managed by the host environment.');
+    }
   },
 
   /** ② 内容润色 — 对 Bootstrap 候选进行 AI 精炼（支持自定义提示词） */
   async bootstrapRefine(candidateIds?: string[], userPrompt?: string, dryRun?: boolean): Promise<{ refined: number; total: number; errors: unknown[]; results: unknown[] }> {
-    const res = await http.post('/candidates/bootstrap-refine', { candidateIds, userPrompt, dryRun }, { timeout: 300000 });
-    return res.data?.data || { refined: 0, total: 0, errors: [], results: [] };
+    try {
+      const res = await http.post('/candidates/bootstrap-refine', { candidateIds, userPrompt, dryRun }, { timeout: 300000 });
+      throwHostManagedIfPayload(res.data, res.status, 'Candidate refinement is managed by the host environment.');
+      return res.data?.data || { refined: 0, total: 0, errors: [], results: [] };
+    } catch (err: unknown) {
+      throwHostManagedFromError(err, 'Candidate refinement is managed by the host environment.');
+    }
   },
 
   /** 对话式润色 — 预览：单条候选 dryRun，返回 before/after 对比 */
   async refinePreview(candidateId: string, userPrompt?: string): Promise<{ candidateId: string; before: Record<string, unknown>; after: Record<string, unknown>; preview: Record<string, unknown> }> {
-    const res = await http.post('/candidates/refine-preview', { candidateId, userPrompt }, { timeout: 120000 });
-    return res.data?.data || {};
+    try {
+      const res = await http.post('/candidates/refine-preview', { candidateId, userPrompt }, { timeout: 120000 });
+      throwHostManagedIfPayload(res.data, res.status, 'Candidate refine preview is managed by the host environment.');
+      return res.data?.data || {};
+    } catch (err: unknown) {
+      throwHostManagedFromError(err, 'Candidate refine preview is managed by the host environment.');
+    }
   },
 
   /** 对话式润色 — 应用：确认写入变更（优先传 preview 避免二次 AI 调用） */
   async refineApply(candidateId: string, userPrompt?: string, preview?: Record<string, unknown>): Promise<{ refined: number; total: number; candidate: KnowledgeEntry }> {
-    const res = await http.post('/candidates/refine-apply', { candidateId, userPrompt, preview }, { timeout: 120000 });
-    return res.data?.data || {};
+    try {
+      const res = await http.post('/candidates/refine-apply', { candidateId, userPrompt, preview }, { timeout: 120000 });
+      throwHostManagedIfPayload(res.data, res.status, 'Candidate refine apply requires a host-generated preview.');
+      return res.data?.data || {};
+    } catch (err: unknown) {
+      throwHostManagedFromError(err, 'Candidate refine apply requires a host-generated preview.');
+    }
   },
 
   /** 获取全量知识图谱（边 + 节点标签） */
@@ -1258,9 +1398,13 @@ export const api = {
       body: JSON.stringify({ prompt, history, ...(lang ? { lang } : {}) }),
       signal,
     });
-    if (!startRes.ok) throw new Error(`Chat start failed: ${startRes.status}`);
-
     const contentType = startRes.headers.get('content-type') || '';
+
+    if (!startRes.ok) {
+      const errorData = contentType.includes('application/json') ? await readJsonSafely(startRes) : null;
+      throwHostManagedIfPayload(errorData, startRes.status, 'AI chat is managed by the host environment.');
+      throw new Error(`Chat start failed: ${startRes.status}`);
+    }
 
     // ── 兼容检测: 旧后端返回 text/event-stream, 新后端返回 JSON ──
     if (contentType.includes('text/event-stream')) {
@@ -1279,8 +1423,11 @@ export const api = {
     }
 
     // ── 新后端: 获取 sessionId → EventSource ──
-    const startData = await startRes.json();
-    const sessionId = startData.sessionId;
+    const startData = await readJsonSafely(startRes);
+    throwHostManagedIfPayload(startData, startRes.status, 'AI chat is managed by the host environment.');
+    const startRecord = asRecord(startData);
+    const startPayload = asRecord(startRecord?.data) || startRecord;
+    const sessionId = readString(startPayload, 'sessionId');
     if (!sessionId) throw new Error(`No sessionId returned: ${JSON.stringify(startData)}`);
 
     // ── Step 2: 通过 EventSource 消费 SSE 事件 ──
@@ -1393,10 +1540,18 @@ export const api = {
       body: JSON.stringify({ candidateId, userPrompt }),
       signal,
     });
-    if (!startRes.ok) throw new Error(`Refine stream start failed: ${startRes.status}`);
-    const startData = await startRes.json();
-    const sessionId = startData.sessionId;
-    if (!sessionId) throw new Error('No sessionId returned');
+    const contentType = startRes.headers.get('content-type') || '';
+    if (!startRes.ok) {
+      const errorData = contentType.includes('application/json') ? await readJsonSafely(startRes) : null;
+      throwHostManagedIfPayload(errorData, startRes.status, 'Candidate refine preview is managed by the host environment.');
+      throw new Error(`Refine stream start failed: ${startRes.status}`);
+    }
+    const startData = await readJsonSafely(startRes);
+    throwHostManagedIfPayload(startData, startRes.status, 'Candidate refine preview is managed by the host environment.');
+    const startRecord = asRecord(startData);
+    const startPayload = asRecord(startRecord?.data) || startRecord;
+    const sessionId = readString(startPayload, 'sessionId');
+    if (!sessionId) throw new Error(`No sessionId returned: ${JSON.stringify(startData)}`);
 
     // Step 2: EventSource 消费 SSE 事件
     return new Promise((resolve, reject) => {

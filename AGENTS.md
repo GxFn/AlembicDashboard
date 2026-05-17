@@ -33,6 +33,15 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 - 与 `AlembicCore` 相关的能力只作为共享类型、契约或后端能力结果展示；不得把 Core 运行时逻辑复制到 Dashboard。
 - 与 `AlembicAgent` 相关的能力只作为 Agent 任务、工具调用、执行计划、诊断结果和状态展示；不得在 Dashboard 中直接实现 Agent 决策或 tool execution。
 
+## 抽取后契约
+
+- `AlembicDashboard` 是 Dashboard 前端源码唯一维护点；外层仓库只能消费本仓库源码构建出的前端产物，不再维护自己的 `dashboard/src`、`dashboard/public` 或 Vite 配置副本。
+- 当前前端基线来自 `Alembic/dashboard`，并作为权威实现保留；`AlembicPlugin/dashboard` 只能作为兼容审计材料，不能反向覆盖或降级本仓库实现。
+- 如果共享 Dashboard 需要插件侧补齐 API、字段或运行时配置，优先由插件接入层提供兼容；不要通过删除 AI、Wiki、Skills 推荐、Signal、Guard、Bootstrap、Project Intelligence 等完整前端能力来适配旧后端。
+- `package.json` 保持可复现的前端构建入口；`npm run build` 必须执行 TypeScript 检查和 Vite production build。
+- `package-lock.json` 是依赖复现契约，依赖变更必须连同 lockfile 一起提交。
+- `dist/`、`node_modules/`、`.vite/` 等生成物只用于本地验证，必须保持 ignored，不提交。
+
 ## 本仓库必须保留的边界
 
 - Dashboard 页面、布局、组件、交互、图表、状态管理和数据获取。

@@ -209,9 +209,6 @@ const App: React.FC = () => {
   const [llmReady, setLlmReady] = useState(true); // 默认 true，加载后更新
   const [showLlmConfig, setShowLlmConfig] = useState(false);
 
-  // SignalCollector 后台推荐计数
-  const [signalSuggestionCount, setSignalSuggestionCount] = useState(0);
-
   // SignalMonitor side panel
   const [showSignalMonitor, setShowSignalMonitor] = useState(false);
 
@@ -283,25 +280,6 @@ const App: React.FC = () => {
       setIsCancellingBootstrap(false);
     }
   };
-
-  // SignalCollector 轮询：每 5 分钟检查是否有新建议
-  useEffect(() => {
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const status = await api.getSignalStatus();
-        if (!cancelled) {
-          // 优先使用 pendingSuggestions 实际数量，降级到 snapshot 历史计数
-          const pending = status?.suggestions?.length || 0;
-          const fromSnapshot = status?.snapshot?.lastResult?.newSuggestions || 0;
-          setSignalSuggestionCount(pending || fromSnapshot);
-        }
-      } catch { /* silent */ }
-    };
-    poll();
-    const timer = setInterval(poll, 5 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, []);
 
   // Bootstrap 异步填充完成时刷新数据 & 弹出通知（只在 App 层做一次，避免 tab 切换导致重复通知）
   const bootstrapNotifiedRef = useRef<string | null>(null);
@@ -1102,7 +1080,6 @@ const App: React.FC = () => {
     activeTab={activeTab} 
     navigateToTab={navigateToTab} 
     candidateCount={candidateCount}
-    signalSuggestionCount={signalSuggestionCount}
     currentUser={auth.authEnabled ? auth.user?.username : (permission.user !== 'anonymous' ? permission.user : undefined)}
     currentRole={permission.role}
     permissionMode={permission.mode}
@@ -1156,7 +1133,7 @@ const App: React.FC = () => {
       ) : activeTab === 'panorama' ? (
       <PanoramaView />
       ) : activeTab === 'skills' ? (
-      <SkillsView onRefresh={fetchData} signalSuggestionCount={signalSuggestionCount} onSuggestionCountChange={setSignalSuggestionCount} />
+      <SkillsView onRefresh={fetchData} />
       ) : activeTab === 'jobs' ? (
       <JobsView onOpenCandidates={() => navigateToTab('candidates')} />
       ) : activeTab === 'candidates' ? (

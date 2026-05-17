@@ -10,7 +10,6 @@ interface SidebarProps {
   activeTab: TabType;
   navigateToTab: (tab: TabType, options?: { preserveSearch?: boolean }) => void;
   candidateCount: number;
-  signalSuggestionCount?: number;
   currentUser?: string;
   currentRole?: string;
   permissionMode?: string;
@@ -69,7 +68,6 @@ function NavButton({
 
 const Sidebar: React.FC<SidebarProps> = ({
   activeTab, navigateToTab, candidateCount,
-  signalSuggestionCount = 0,
   currentUser, onLogout,
 }) => {
   const { t, lang, setLang } = useI18n();
@@ -85,7 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { tab: 'spm', icon: Boxes, label: t('sidebar.moduleExplorer') },
     /* ── 质量治理 ── */
     { tab: 'guard', icon: Shield, label: t('sidebar.guard') },
-    { tab: 'skills', icon: ScrollText, label: t('sidebar.skills'), badge: signalSuggestionCount > 0 ? signalSuggestionCount : undefined },
+    { tab: 'skills', icon: ScrollText, label: t('sidebar.skills') },
     { tab: 'jobs', icon: Activity, label: t('sidebar.jobs') },
     /* ── 参考 & 监控 ── */
     { tab: 'wiki', icon: BookOpen, label: t('sidebar.repoWiki') },

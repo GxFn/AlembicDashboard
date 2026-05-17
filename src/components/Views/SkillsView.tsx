@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollText, Plus, RefreshCw, ChevronRight, ChevronDown,
   Sparkles, X, Send, Package, FolderOpen, Copy, Check,
-  AlertCircle, Loader2, FileText, Lightbulb, BookOpen, Bot, User, Cpu,
-  Pencil, Trash2, Save, Zap,
+  AlertCircle, Loader2, FileText, Bot, User, Cpu,
+  Pencil, Trash2, Save,
 } from 'lucide-react';
 import api from '../../api';
 import { getErrorMessage, getErrorStatus } from '../../utils/error';
@@ -49,11 +49,9 @@ const CREATED_BY_CONFIG: Record<string, { label: string; color: string; icon: ty
 
 interface SkillsViewProps {
   onRefresh?: () => void;
-  signalSuggestionCount?: number;
-  onSuggestionCountChange?: (count: number) => void;
 }
 
-const SkillsView: React.FC<SkillsViewProps> = ({ onRefresh, signalSuggestionCount = 0, onSuggestionCountChange }) => {
+const SkillsView: React.FC<SkillsViewProps> = ({ onRefresh }) => {
   const { t } = useI18n();
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,11 +60,6 @@ const SkillsView: React.FC<SkillsViewProps> = ({ onRefresh, signalSuggestionCoun
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filter, setFilter] = useState<'all' | 'builtin' | 'project'>('all');
   const [copied, setCopied] = useState(false);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [creatingSuggestion, setCreatingSuggestion] = useState<string | null>(null);
-
   /* ── Edit & Delete state ── */
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -171,78 +164,6 @@ const SkillsView: React.FC<SkillsViewProps> = ({ onRefresh, signalSuggestionCoun
     }
   };
 
-  /* ── Fetch skill suggestions (merge rule-based + AI signal) ── */
-  const handleSuggest = async () => {
-    setLoadingSuggestions(true);
-    setShowSuggestions(true);
-    try {
-      // 并行获取两个来源
-      const [ruleData, signalData] = await Promise.allSettled([
-        api.suggestSkills(),
-        api.getSignalStatus(),
-      ]);
-
-      const ruleSuggestions = ruleData.status === 'fulfilled' ? (ruleData.value.suggestions || []) : [];
-      const signalSuggestions = signalData.status === 'fulfilled' ? (signalData.value.suggestions || []) : [];
-
-      // 合并去重（以 name 为 key，signal AI 建议优先）
-      const merged = new Map<string, any>();
-      for (const s of ruleSuggestions) merged.set(s.name, s);
-      for (const s of signalSuggestions) merged.set(s.name, { ...merged.get(s.name), ...s });
-      const list = [...merged.values()];
-
-      setSuggestions(list);
-      // 同步角标数量为实际推荐数
-      onSuggestionCountChange?.(list.length);
-    } catch (err: unknown) {
-      notify(getErrorMessage(err, ''), { title: t('skills.aiRecommendFailed'), type: 'error' });
-      setSuggestions([]);
-      onSuggestionCountChange?.(0);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
-  /* ── 角标 > 0 时自动加载推荐 ── */
-  useEffect(() => {
-    if (signalSuggestionCount > 0 && suggestions.length === 0 && !showSuggestions) {
-      handleSuggest();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* ── Create skill from suggestion (AI generate content) ── */
-  const handleCreateFromSuggestion = async (suggestion: any) => {
-    setCreatingSuggestion(suggestion.name);
-    try {
-      // 使用 AI 生成 Skill 内容
-      const desc = suggestion.description || suggestion.rationale || suggestion.name;
-      const prompt = `${t('skillsView.aiPromptPrefix')}\n\n名称：${suggestion.name}\n描述：${desc}\n推荐原因：${suggestion.rationale}\n\n请直接生成 Skill 正文内容（Markdown 格式），不需要 frontmatter，不需要输出 JSON 元数据。内容应该详细、实用，包含具体的操作指南和示例。`;
-      const aiResult = await api.aiGenerateSkill(prompt);
-      let content = aiResult.reply || suggestion.body || `# ${desc}\n\n${suggestion.rationale || ''}`;
-      // 剥离 AI 可能输出的 JSON 元数据首行
-      content = content.replace(/^\s*\{["']name["']\s*:.*\}\s*\n?/, '').trim();
-
-      await api.createSkill({
-        name: suggestion.name,
-        description: desc,
-        content,
-        createdBy: 'user-ai',
-      });
-      notify(t('skills.createAddedToKB'), { title: `Skill "${suggestion.name}" ${t('skills.createSuccess')}` });
-      setSuggestions(prev => {
-        const next = prev.filter(s => s.name !== suggestion.name);
-        onSuggestionCountChange?.(next.length);
-        return next;
-      });
-      fetchSkills();
-    } catch (err: unknown) {
-      notify(getErrorMessage(err, ''), { title: t('skills.createFailed'), type: 'error' });
-    } finally {
-      setCreatingSuggestion(null);
-    }
-  };
-
   /* ── Filter ── */
   const filteredSkills = skills.filter(s => {
     if (filter === 'all') return true;
@@ -279,19 +200,6 @@ const SkillsView: React.FC<SkillsViewProps> = ({ onRefresh, signalSuggestionCoun
             <RefreshCw size={16} />
           </button>
           <button
-            onClick={handleSuggest}
-            disabled={loadingSuggestions}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-              loadingSuggestions
-                ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
-                : 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20'
-            }`}
-            title={t('skills.aiRecommendTooltip')}
-          >
-            {loadingSuggestions ? <Loader2 size={14} className="animate-spin" /> : <Lightbulb size={14} />}
-            {t('skills.aiRecommend')}
-          </button>
-          <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20 transition-all"
           >
@@ -325,63 +233,6 @@ const SkillsView: React.FC<SkillsViewProps> = ({ onRefresh, signalSuggestionCoun
           </button>
         ))}
       </div>
-
-      {/* ── Skill Suggestions Panel ── */}
-      {showSuggestions && (
-        <div className="mb-4 border border-amber-200 bg-amber-50/50 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Lightbulb size={16} className="text-amber-600" />
-              <span className="text-sm font-semibold text-amber-800">{t('skills.aiRecommendDesc')}</span>
-              {suggestions.length > 0 && (
-                <span className="px-1.5 py-0.5 bg-amber-200 text-amber-700 text-[10px] font-bold rounded-full">{suggestions.length}</span>
-              )}
-            </div>
-            <button onClick={() => setShowSuggestions(false)} className="p-1 text-amber-400 hover:text-amber-600">
-              <X size={14} />
-            </button>
-          </div>
-          {loadingSuggestions ? (
-            <div className="flex items-center gap-2 text-amber-600 text-xs py-2">
-              <Loader2 size={14} className="animate-spin" />
-              {t('skills.aiRecommending')}
-            </div>
-          ) : suggestions.length === 0 ? (
-            <p className="text-xs text-amber-600/70">{t('skills.noRecommendations')}</p>
-          ) : (
-            <div className="space-y-2">
-              {suggestions.map(s => (
-                <div key={s.name} className="flex items-start gap-3 p-3 bg-[var(--bg-surface)] rounded-lg border border-amber-100">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-xs font-semibold text-[var(--fg-primary)]">{s.name}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                        s.priority === 'high' ? 'bg-red-100 text-red-600'
-                        : s.priority === 'medium' ? 'bg-amber-100 text-amber-600'
-                        : 'bg-[var(--bg-subtle)] text-[var(--fg-secondary)]'
-                      }`}>{s.priority}</span>
-                      <span className="text-[10px] text-[var(--fg-muted)]">{s.source}</span>
-                    </div>
-                    <p className="text-xs text-[var(--fg-secondary)] mb-1">{s.description}</p>
-                    <p className="text-[11px] text-[var(--fg-muted)] line-clamp-2">{s.rationale}</p>
-                  </div>
-                  <button
-                    onClick={() => handleCreateFromSuggestion(s)}
-                    disabled={creatingSuggestion === s.name}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-xs font-medium disabled:opacity-50"
-                  >
-                    {creatingSuggestion === s.name ? (
-                      <><Loader2 size={12} className="animate-spin" /> {t('skills.creating')}</>
-                    ) : (
-                      <><Zap size={12} /> {t('skills.acceptRecommend')}</>
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Content ── */}
       <div className="flex-1 flex gap-4 xl:gap-6 min-h-0 overflow-hidden">

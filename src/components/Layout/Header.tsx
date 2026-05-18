@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Cpu, ChevronDown, ChevronRight, MessageSquare, Settings, Search, Zap, Radio, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye } from 'lucide-react';
+import { Plus, Cpu, ChevronDown, ChevronRight, MessageSquare, Settings, Search, Zap, Radio, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server } from 'lucide-react';
 import api from '../../api';
 import { getSocket } from '../../lib/socket';
 import { useGlobalChat } from '../Shared/GlobalChatDrawer';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
+import type { RuntimeBoundary } from '../../types';
 import { Button } from '../ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/Tooltip';
 import {
@@ -25,6 +26,47 @@ function midEllipsis(s: string, max: number): string {
   if (s.length <= max) return s;
   const keep = Math.floor((max - 1) / 2);
   return s.slice(0, keep) + '…' + s.slice(s.length - keep);
+}
+
+function runtimeRouteLabelKey(route: string): string {
+  switch (route) {
+    case 'local-alembic':
+      return 'header.runtimeRouteLocalAlembic';
+    case 'embedded-runtime':
+      return 'header.runtimeRouteEmbedded';
+    case 'local-install':
+      return 'header.runtimeRouteLocalInstall';
+    case 'unavailable':
+      return 'header.runtimeRouteUnavailable';
+    case 'unknown':
+      return 'header.runtimeRouteUnknown';
+    default:
+      return '';
+  }
+}
+
+function runtimeRouteTone(route: string): string {
+  switch (route) {
+    case 'local-alembic':
+      return 'bg-emerald-500/10 text-emerald-600 border-emerald-300/40';
+    case 'embedded-runtime':
+    case 'local-install':
+      return 'bg-sky-500/10 text-sky-600 border-sky-300/40';
+    case 'unavailable':
+      return 'bg-red-500/10 text-red-600 border-red-300/40';
+    default:
+      return 'bg-[var(--bg-subtle)] text-[var(--fg-subtle)] border-[var(--border-default)]';
+  }
+}
+
+function availabilityLabelKey(value: boolean | null | undefined): string {
+  if (value === true) {
+    return 'header.runtimeAvailable';
+  }
+  if (value === false) {
+    return 'header.runtimeUnavailable';
+  }
+  return 'header.runtimeUnknown';
 }
 
 interface AiProvider {
@@ -63,6 +105,8 @@ interface HeaderProps {
   onOpenCommandPalette?: () => void;
   /** 项目名称 */
   projectName?: string;
+  /** 后端运行路线与能力摘要（只展示，不决定策略） */
+  runtimeBoundary?: RuntimeBoundary;
   /** 候选总数（用于面包屑插值） */
   candidateCount?: number;
   /** Signal Monitor 开关 */
@@ -77,6 +121,7 @@ const Header: React.FC<HeaderProps> = ({
   activeTab,
   onOpenCommandPalette,
   projectName,
+  runtimeBoundary,
   candidateCount = 0,
   showSignalMonitor = false,
   onToggleSignalMonitor,
@@ -181,6 +226,17 @@ const Header: React.FC<HeaderProps> = ({
     : undefined;
 
   const tabLabel = activeTab ? t(TAB_LABELS[activeTab], { count: candidateCount }) : '';
+  const runtimeRouteLabel = runtimeBoundary
+    ? runtimeRouteLabelKey(runtimeBoundary.route)
+      ? t(runtimeRouteLabelKey(runtimeBoundary.route))
+      : runtimeBoundary.route
+    : '';
+  const fileMonitorLabel = runtimeBoundary
+    ? t(availabilityLabelKey(runtimeBoundary.capabilities.fileMonitor?.available))
+    : '';
+  const internalAiLabel = runtimeBoundary
+    ? t(availabilityLabelKey(runtimeBoundary.capabilities.internalAi?.available))
+    : '';
 
   return (
     <TooltipProvider>
@@ -195,6 +251,33 @@ const Header: React.FC<HeaderProps> = ({
               <ChevronRight size={14} className="text-[var(--fg-subtle)]/50 shrink-0" />
               <span className="text-sm text-[var(--fg-default)] font-semibold truncate">{tabLabel}</span>
             </>
+          )}
+          {runtimeBoundary && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={cn(
+                  'inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border cursor-default shrink-0',
+                  runtimeRouteTone(runtimeBoundary.route),
+                )}>
+                  <Server size={10} />
+                  {runtimeRouteLabel}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-sm text-xs">
+                <p className="font-medium mb-1">{t('header.runtimeBoundary')}</p>
+                <p>{t('header.runtimeRoute')}: {runtimeRouteLabel}</p>
+                <p>{t('header.runtimeMode')}: {runtimeBoundary.mode}</p>
+                {runtimeBoundary.project.projectId && (
+                  <p>{t('header.runtimeProjectId')}: {runtimeBoundary.project.projectId}</p>
+                )}
+                <p>{t('header.runtimeDataRootSource')}: {runtimeBoundary.project.dataRootSource}</p>
+                <p>{t('header.runtimeFileMonitor')}: {fileMonitorLabel}</p>
+                <p>{t('header.runtimeInternalAi')}: {internalAiLabel}</p>
+                {runtimeBoundary.hostAgentRoute?.source && (
+                  <p>{t('header.runtimeHostAgent')}: {runtimeBoundary.hostAgentRoute.source}</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
           )}
           {testMode && (
             <div className="flex items-center gap-1.5 ml-2 shrink-0">

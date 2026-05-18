@@ -1098,6 +1098,7 @@ const App: React.FC = () => {
       activeTab={activeTab}
       onOpenCommandPalette={() => setCommandPaletteOpen(true)}
       projectName={data?.projectName}
+      runtimeBoundary={data?.runtimeBoundary}
       candidateCount={candidateCount}
       showSignalMonitor={showSignalMonitor}
       onToggleSignalMonitor={() => setShowSignalMonitor(v => !v)}

@@ -80,6 +80,78 @@ export interface Recipe {
   updatedAt?: string | number | null;
 }
 
+export type RuntimeMode = 'daemon' | 'api' | 'plugin' | 'unknown' | (string & {});
+export type RuntimeRouteKind =
+  | 'local-alembic'
+  | 'embedded-runtime'
+  | 'local-install'
+  | 'unavailable'
+  | 'unknown'
+  | (string & {});
+export type RuntimeDataRootSource = 'project-root' | 'ghost-registry' | 'unknown' | (string & {});
+export type RuntimeAiConfigSource = 'empty' | 'process-env' | 'workspace-settings' | 'unknown' | (string & {});
+
+export interface RuntimeProjectIdentity {
+  projectRoot: string;
+  dataRoot: string;
+  projectId: string | null;
+  dataRootSource: RuntimeDataRootSource;
+}
+
+export interface RuntimeApiCapability {
+  available: boolean | null;
+  baseUrl?: string | null;
+  healthPath?: string | null;
+}
+
+export interface RuntimeDashboardCapability {
+  available: boolean | null;
+  url?: string | null;
+}
+
+export interface RuntimeFileMonitorCapability {
+  available: boolean | null;
+  mode?: string | null;
+  endpoint?: string | null;
+  acceptedEventSources?: string[];
+}
+
+export interface RuntimeJobsCapability {
+  available: boolean | null;
+  kinds?: string[];
+}
+
+export interface RuntimeInternalAiCapability {
+  available: boolean | null;
+  configSource: RuntimeAiConfigSource;
+  provider: string | null;
+  model: string | null;
+}
+
+export interface RuntimeHostAgentRoute {
+  available?: boolean | null;
+  owner?: string | null;
+  source?: string | null;
+}
+
+export interface RuntimeBoundary {
+  mode: RuntimeMode;
+  route: RuntimeRouteKind;
+  apiVersion?: string | null;
+  packageName?: string | null;
+  version?: string | null;
+  dashboardUrl?: string | null;
+  project: RuntimeProjectIdentity;
+  capabilities: {
+    api?: RuntimeApiCapability;
+    dashboard?: RuntimeDashboardCapability;
+    fileMonitor?: RuntimeFileMonitorCapability;
+    jobs?: RuntimeJobsCapability;
+    internalAi?: RuntimeInternalAiCapability;
+  };
+  hostAgentRoute?: RuntimeHostAgentRoute;
+}
+
 export interface ProjectData {
   rootSpec: {
   recipes?: {
@@ -96,6 +168,7 @@ export interface ProjectData {
   projectRoot: string;
   projectName: string;
   watcherStatus?: string;
+  runtimeBoundary?: RuntimeBoundary;
   /** 当前使用的 AI 提供商与模型（供 UI 展示） */
   aiConfig?: { provider: string; model: string };
   /** 全局 ID→标题 查找表 (UUID → 人类可读标题) */

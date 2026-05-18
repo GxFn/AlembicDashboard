@@ -24,6 +24,7 @@ import type {
   KnowledgeLifecycle,
   KnowledgeKind,
   ProposalRecord,
+  RuntimeBoundary,
   WarningRecord,
 } from './types';
 
@@ -49,6 +50,122 @@ type RawKnowledgeRecord = Partial<KnowledgeEntry> & {
 type CandidateInput = Partial<ExtractedRecipe & KnowledgeEntry> & {
   isMarked?: boolean;
 };
+
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asRuntimeRecord(value: unknown): UnknownRecord | null {
+  return isRecord(value) ? value : null;
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function booleanOrNull(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: unknown): RuntimeBoundary {
+  const projectInfo = asRuntimeRecord(projectInfoValue) ?? {};
+  const daemon = asRuntimeRecord(daemonHealthValue) ?? {};
+  const enhancement = asRuntimeRecord(daemon.enhancement) ?? asRuntimeRecord(projectInfo.enhancement) ?? {};
+  const capabilities = asRuntimeRecord(daemon.capabilities) ?? asRuntimeRecord(projectInfo.capabilities) ?? {};
+  const apiCapability = asRuntimeRecord(capabilities.api);
+  const dashboardCapability = asRuntimeRecord(capabilities.dashboard);
+  const fileMonitorCapability = asRuntimeRecord(capabilities.fileMonitor);
+  const jobsCapability = asRuntimeRecord(capabilities.jobs);
+  const internalAiCapability = asRuntimeRecord(capabilities.internalAi);
+  const hostAgentRoute =
+    asRuntimeRecord(daemon.hostAgentRoute) ??
+    asRuntimeRecord(enhancement.hostAgentRoute) ??
+    asRuntimeRecord(projectInfo.hostAgentRoute);
+
+  const projectRoot = firstString(daemon.projectRoot, projectInfo.projectRoot) ?? '';
+  const dataRoot = firstString(daemon.dataRoot, projectInfo.dataRoot, projectRoot) ?? '';
+
+  return {
+    mode: firstString(daemon.mode, projectInfo.runtimeMode) ?? 'unknown',
+    route: firstString(enhancement.route, daemon.route, projectInfo.route) ?? 'unknown',
+    apiVersion: firstString(enhancement.apiVersion),
+    packageName: firstString(enhancement.packageName),
+    version: firstString(enhancement.version, daemon.version, projectInfo.version),
+    dashboardUrl: firstString(daemon.dashboardUrl, dashboardCapability?.url),
+    project: {
+      projectRoot,
+      dataRoot,
+      projectId: firstString(daemon.projectId, projectInfo.projectId),
+      dataRootSource: firstString(daemon.dataRootSource, projectInfo.dataRootSource) ?? 'unknown',
+    },
+    capabilities: {
+      api: apiCapability
+        ? {
+            available: booleanOrNull(apiCapability.available),
+            baseUrl: firstString(apiCapability.baseUrl),
+            healthPath: firstString(apiCapability.healthPath),
+          }
+        : undefined,
+      dashboard: dashboardCapability
+        ? {
+            available: booleanOrNull(dashboardCapability.available),
+            url: firstString(dashboardCapability.url),
+          }
+        : undefined,
+      fileMonitor: fileMonitorCapability
+        ? {
+            available: booleanOrNull(fileMonitorCapability.available),
+            mode: firstString(fileMonitorCapability.mode),
+            endpoint: firstString(fileMonitorCapability.endpoint),
+            acceptedEventSources: stringArray(fileMonitorCapability.acceptedEventSources),
+          }
+        : undefined,
+      jobs: jobsCapability
+        ? {
+            available: booleanOrNull(jobsCapability.available),
+            kinds: stringArray(jobsCapability.kinds),
+          }
+        : undefined,
+      internalAi: internalAiCapability
+        ? {
+            available: booleanOrNull(internalAiCapability.available),
+            configSource: firstString(internalAiCapability.configSource) ?? 'unknown',
+            provider: firstString(internalAiCapability.provider),
+            model: firstString(internalAiCapability.model),
+          }
+        : undefined,
+    },
+    hostAgentRoute: hostAgentRoute
+      ? {
+          available: booleanOrNull(hostAgentRoute.available),
+          owner: firstString(hostAgentRoute.owner),
+          source: firstString(hostAgentRoute.source),
+        }
+      : undefined,
+  };
+}
+
+function watcherStatusFromRuntime(boundary: RuntimeBoundary): string {
+  const available = boundary.capabilities.fileMonitor?.available;
+  if (available === true) {
+    return 'active';
+  }
+  if (available === false) {
+    return 'unavailable';
+  }
+  return 'unknown';
+}
 
 export interface HostManagedUnavailableDetails {
   code: 'HOST_AI_MANAGED';
@@ -645,10 +762,11 @@ export const api = {
   // ── Data (bulk fetch) ──────
 
   async fetchData(): Promise<ProjectData> {
-    const [knowledgeRes, aiConfigRes, projectInfoRes] = await Promise.all([
+    const [knowledgeRes, aiConfigRes, projectInfoRes, daemonHealthRes] = await Promise.all([
       http.get('/knowledge?limit=1000').catch(() => ({ data: { success: true, data: { data: [] } } })),
       http.get('/ai/config').catch(() => ({ data: { success: true, data: { provider: '', model: '' } } })),
       http.get('/modules/project-info').catch(() => ({ data: { success: true, data: { projectRoot: '' } } })),
+      http.get('/daemon/health').catch(() => null),
     ]);
 
     // All knowledge entries from V3 backend
@@ -679,9 +797,11 @@ export const api = {
       if (e.id && e.title) idTitleMap[e.id] = e.title;
     }
 
-    // Project root for per-project storage isolation
-    const projectRoot = projectInfoRes.data?.data?.projectRoot || '';
-    const projectName = projectInfoRes.data?.data?.projectName || '';
+    // Project/runtime identity comes from backend contracts. Dashboard only normalizes it for display.
+    const projectInfo = projectInfoRes.data?.data || {};
+    const runtimeBoundary = normalizeRuntimeBoundary(projectInfo, daemonHealthRes?.data?.data);
+    const projectRoot = runtimeBoundary.project.projectRoot || '';
+    const projectName = firstString(projectInfo.projectName) || '';
 
     return {
       rootSpec: {},
@@ -689,7 +809,8 @@ export const api = {
       candidates,
       projectRoot,
       projectName,
-      watcherStatus: 'active',
+      watcherStatus: watcherStatusFromRuntime(runtimeBoundary),
+      runtimeBoundary,
       aiConfig: { provider: aiConfig.provider || '', model: aiConfig.model || '' },
       idTitleMap,
     };

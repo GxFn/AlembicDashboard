@@ -330,7 +330,7 @@ const Constraints: React.FC<ConstraintsProps> = ({ label, constraints }) => {
 };
 
 /* ══════════════════════════════════════════════════════════
- * 10. Delivery (Cursor — indigo theme)
+ * 10. Delivery (Agent — indigo theme)
  * ══════════════════════════════════════════════════════════ */
 export interface DeliveryData {
   topicHint?: string | null;
@@ -353,7 +353,7 @@ const Delivery: React.FC<DeliveryProps> = ({ delivery, language }) => {
   return (
     <div className="px-6 py-4 border-b border-[var(--border-default)]">
       <label className="text-[10px] font-bold text-[var(--fg-muted)] uppercase mb-2 block flex items-center gap-1.5">
-        <Layers size={11} className="text-indigo-500 dark:text-indigo-400" /> Cursor Delivery
+        <Layers size={11} className="text-indigo-500 dark:text-indigo-400" /> Agent Delivery
       </label>
       <div className="rounded-xl border border-indigo-200 dark:border-indigo-800/40 bg-gradient-to-br from-indigo-50/60 to-slate-50/40 dark:from-indigo-900/15 dark:to-slate-900/10 p-4 text-xs space-y-2">
         {topicHint && <div><span className="text-indigo-600 dark:text-indigo-400 font-medium">Topic：</span><span className="text-[var(--fg-primary)]">{topicHint}</span></div>}

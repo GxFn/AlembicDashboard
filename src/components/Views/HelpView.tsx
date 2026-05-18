@@ -117,9 +117,9 @@ const HelpView: React.FC = () => {
                     <td className="px-4 py-3 border-b text-xs" dangerouslySetInnerHTML={{ __html: t('help.developerCap') }} />
                   </tr>
                   <tr className="hover:bg-[var(--bg-subtle)]">
-                    <td className="px-4 py-3 border-b font-medium text-green-700">{t('help.roleCursorAgent')}</td>
-                    <td className="px-4 py-3 border-b">{t('help.cursorAgentResp')}</td>
-                    <td className="px-4 py-3 border-b text-xs" dangerouslySetInnerHTML={{ __html: t('help.cursorAgentCap') }} />
+                    <td className="px-4 py-3 border-b font-medium text-green-700">{t('help.roleCodexHostAgent')}</td>
+                    <td className="px-4 py-3 border-b">{t('help.codexHostAgentResp')}</td>
+                    <td className="px-4 py-3 border-b text-xs" dangerouslySetInnerHTML={{ __html: t('help.codexHostAgentCap') }} />
                   </tr>
                   <tr className="hover:bg-[var(--bg-subtle)]">
                     <td className="px-4 py-3 font-medium text-purple-700">{t('help.roleChatAgent')}</td>
@@ -226,17 +226,17 @@ const HelpView: React.FC = () => {
                   <li dangerouslySetInnerHTML={{ __html: t('help.guardCompBullet3') }} />
                 </ul>
               </div>
-              {/* 8. IDE Integration */}
+              {/* 8. Codex host agent + internal AI */}
               <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
                 <h4 className="font-semibold text-teal-900 mb-2 flex items-center gap-2">
                   <MonitorSmartphone size={ICON_SIZES.lg} />
-                  {t('help.ideIntegrationLabel')}
+                  {t('help.hostAgentIntegrationLabel')}
                 </h4>
-                <p className="text-teal-800 text-sm mb-3">{t('help.ideIntegrationDesc')}</p>
+                <p className="text-teal-800 text-sm mb-3">{t('help.hostAgentIntegrationDesc')}</p>
                 <ul className="text-teal-700 text-xs space-y-1 list-disc list-inside">
-                  <li dangerouslySetInnerHTML={{ __html: t('help.ideIntegrationBullet1') }} />
-                  <li dangerouslySetInnerHTML={{ __html: t('help.ideIntegrationBullet2') }} />
-                  <li dangerouslySetInnerHTML={{ __html: t('help.ideIntegrationBullet3') }} />
+                  <li dangerouslySetInnerHTML={{ __html: t('help.hostAgentIntegrationBullet1') }} />
+                  <li dangerouslySetInnerHTML={{ __html: t('help.hostAgentIntegrationBullet2') }} />
+                  <li dangerouslySetInnerHTML={{ __html: t('help.hostAgentIntegrationBullet3') }} />
                 </ul>
               </div>
               {/* 9. Security */}
@@ -273,7 +273,7 @@ const HelpView: React.FC = () => {
             </div>
             <div className="mt-2 flex items-center justify-center gap-3 text-xs">
               <span className="bg-rose-100 text-rose-700 px-3 py-1.5 rounded-lg font-medium">↕ {t('help.archOverviewSecurity')} ↕</span>
-              <span className="bg-teal-100 text-teal-700 px-3 py-1.5 rounded-lg font-medium">↕ {t('help.archOverviewIDE')} ↕</span>
+              <span className="bg-teal-100 text-teal-700 px-3 py-1.5 rounded-lg font-medium">↕ {t('help.archOverviewHostAgent')} ↕</span>
             </div>
           </div>
 
@@ -565,8 +565,8 @@ const HelpView: React.FC = () => {
           </div>
         </Section>
 
-        {/* Cursor 集成 */}
-        <Section id="cursor-integration" title={t('help.cursorIntegration')} icon={<MessageSquare size={ICON_SIZES.xl} className="text-blue-600" />} isExpanded={expandedSections.has('cursor-integration')} onToggle={toggleSection}>
+        {/* Codex host agent */}
+        <Section id="host-agent-integration" title={t('help.hostAgentIntegration')} icon={<MessageSquare size={ICON_SIZES.xl} className="text-blue-600" />} isExpanded={expandedSections.has('host-agent-integration')} onToggle={toggleSection}>
           {/* Skills */}
           <div className="mb-5">
             <h3 className="font-semibold text-[var(--fg-primary)] mb-3">{t('help.skills10')}</h3>
@@ -648,35 +648,35 @@ const HelpView: React.FC = () => {
             </div>
           </div>
 
-          {/* VSCode Extension */}
+          {/* Internal AI jobs */}
           <div className="mt-5">
             <h3 className="font-semibold text-[var(--fg-primary)] mb-3 flex items-center gap-2">
               <MonitorSmartphone size={ICON_SIZES.lg} className="text-blue-600" />
-              {t('help.vscodeExtension')}
+              {t('help.internalAiWorkflows')}
             </h3>
-            <p className="text-[var(--fg-secondary)] text-sm mb-3">{t('help.vscodeExtDesc')}</p>
+            <p className="text-[var(--fg-secondary)] text-sm mb-3">{t('help.internalAiWorkflowsDesc')}</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
               <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
-                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.vscodeExtTaskTool')}</h4>
-                <p className="text-[var(--fg-secondary)] text-xs">{t('help.vscodeExtTaskToolDesc')}</p>
+                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.internalAiTaskJobs')}</h4>
+                <p className="text-[var(--fg-secondary)] text-xs">{t('help.internalAiTaskJobsDesc')}</p>
               </div>
               <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
-                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.vscodeExtGuardDiag')}</h4>
-                <p className="text-[var(--fg-secondary)] text-xs">{t('help.vscodeExtGuardDiagDesc')}</p>
+                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.internalAiGuardReview')}</h4>
+                <p className="text-[var(--fg-secondary)] text-xs">{t('help.internalAiGuardReviewDesc')}</p>
               </div>
               <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
-                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.vscodeExtCodeLens')}</h4>
-                <p className="text-[var(--fg-secondary)] text-xs">{t('help.vscodeExtCodeLensDesc')}</p>
+                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.internalAiKnowledgeFlow')}</h4>
+                <p className="text-[var(--fg-secondary)] text-xs">{t('help.internalAiKnowledgeFlowDesc')}</p>
               </div>
             </div>
             <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
               <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-2">Commands</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs text-[var(--fg-secondary)]">
-                <p>{t('help.vscodeExtCmd1')}</p>
-                <p>{t('help.vscodeExtCmd2')}</p>
-                <p>{t('help.vscodeExtCmd3')}</p>
-                <p>{t('help.vscodeExtCmd4')}</p>
-                <p>{t('help.vscodeExtCmd5')}</p>
+                <p>{t('help.internalAiCmd1')}</p>
+                <p>{t('help.internalAiCmd2')}</p>
+                <p>{t('help.internalAiCmd3')}</p>
+                <p>{t('help.internalAiCmd4')}</p>
+                <p>{t('help.internalAiCmd5')}</p>
               </div>
             </div>
           </div>
@@ -731,12 +731,12 @@ const HelpView: React.FC = () => {
                   <span className="text-[var(--fg-secondary)] text-xs">{t('help.cliColdstartDesc')}</span>
                 </div>
                 <div className="flex justify-between bg-[var(--bg-subtle)] px-3 py-2 rounded">
-                  <code>asd cursor-rules</code>
-                  <span className="text-[var(--fg-secondary)] text-xs">{t('help.cliCursorRulesDesc')}</span>
+                  <code>asd ai status</code>
+                  <span className="text-[var(--fg-secondary)] text-xs">{t('help.cliAiStatusDesc')}</span>
                 </div>
                 <div className="flex justify-between bg-[var(--bg-subtle)] px-3 py-2 rounded">
-                  <code>asd mirror</code>
-                  <span className="text-[var(--fg-secondary)] text-xs">{t('help.cliMirrorDesc')}</span>
+                  <code>asd ai configure</code>
+                  <span className="text-[var(--fg-secondary)] text-xs">{t('help.cliAiConfigureDesc')}</span>
                 </div>
               </div>
             </div>

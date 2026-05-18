@@ -10,7 +10,7 @@ const CODE_GUTTER_TEXT = '#6f7787';
 interface HighlightedCodeEditorProps {
   value: string;
   onChange: (value: string) => void;
-  onCursorChange?: (cursorPos: number) => void;
+  onCaretChange?: (caretPos: number) => void;
   language?: string;
   height?: string;
   className?: string;
@@ -108,7 +108,7 @@ const VirtualLineNumbers: React.FC<{
 const HighlightedCodeEditor: React.FC<HighlightedCodeEditorProps> = ({
   value,
   onChange,
-  onCursorChange,
+  onCaretChange,
   language = 'javascript',
   height = '400px',
   className = '',
@@ -197,15 +197,15 @@ const HighlightedCodeEditor: React.FC<HighlightedCodeEditorProps> = ({
 
   const handleInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value);
-    if (onCursorChange) {
-      onCursorChange(e.target.selectionStart || 0);
+    if (onCaretChange) {
+      onCaretChange(e.target.selectionStart || 0);
     }
-  }, [onChange, onCursorChange]);
+  }, [onChange, onCaretChange]);
 
-  const handleCursorUpdate = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-    if (!onCursorChange) return;
-    onCursorChange((e.currentTarget as HTMLTextAreaElement).selectionStart || 0);
-  }, [onCursorChange]);
+  const handleCaretUpdate = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    if (!onCaretChange) return;
+    onCaretChange((e.currentTarget as HTMLTextAreaElement).selectionStart || 0);
+  }, [onCaretChange]);
 
   const lineCount = useMemo(() => (value || '').split('\n').length, [value]);
 
@@ -281,9 +281,9 @@ const HighlightedCodeEditor: React.FC<HighlightedCodeEditorProps> = ({
           ref={textareaRef}
           value={value}
           onChange={handleInput}
-          onSelect={handleCursorUpdate}
-          onKeyUp={handleCursorUpdate}
-          onClick={handleCursorUpdate}
+          onSelect={handleCaretUpdate}
+          onKeyUp={handleCaretUpdate}
+          onClick={handleCaretUpdate}
           onScroll={handleScroll}
           rows={rows}
           placeholder={placeholder}

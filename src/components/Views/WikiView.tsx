@@ -86,7 +86,7 @@ function getFileTypeConfig(filePath: string) {
 
 /** 来源标签配置 */
 const SOURCE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  'cursor-devdocs': { label: 'Cursor Docs',  color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
+  'cursor-devdocs': { label: 'Codex Docs',  color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
 
 };
 

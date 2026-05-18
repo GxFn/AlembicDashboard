@@ -12,7 +12,7 @@ import Select from '../ui/Select';
  *  ScanResultCard — Pipeline Unification v2 审核卡片
  *
  *  基于全新字段结构重构：
- *  - Cursor Delivery (doClause / dontClause / whenClause) 作为核心编辑区
+ *  - Agent Delivery (doClause / dontClause / whenClause) 作为核心编辑区
  *  - content.markdown (项目特写) + content.pattern (代码模板) 分离
  *  - TopicHint 路由控制
  *  - 移除: 内容语言切换、知识类型、适用范围等冗余控件
@@ -485,11 +485,11 @@ const ScanResultCard: React.FC<ScanResultCardProps> = ({
       {/* ═══ SECTION 3: Content Area ═══ */}
       <div className="px-6 pb-6 pt-4 space-y-4">
 
-        {/* ── 3.1 Cursor Delivery — DO / DON'T / WHEN ── */}
+        {/* ── 3.1 Agent Delivery — DO / DON'T / WHEN ── */}
         <div className="rounded-xl border border-cyan-200 dark:border-cyan-800/40 bg-gradient-to-br from-cyan-50/60 to-blue-50/40 dark:from-cyan-900/15 dark:to-blue-900/10 p-4 space-y-3">
           <div className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider flex items-center gap-1.5">
             <Zap size={12} />
-            {t('scanResult.cursorDelivery')}
+            {t('scanResult.agentDelivery')}
           </div>
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-start">
             <span className="text-[10px] font-bold text-emerald-600 uppercase pt-1.5 select-none">Do</span>

@@ -70,6 +70,25 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
+function firstRecord(...values: unknown[]): UnknownRecord | null {
+  for (const value of values) {
+    const record = asRuntimeRecord(value);
+    if (record) {
+      return record;
+    }
+  }
+  return null;
+}
+
+function firstBoolean(...values: unknown[]): boolean | null {
+  for (const value of values) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return null;
+}
+
 function booleanOrNull(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
@@ -78,11 +97,59 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+function firstStringArray(...values: unknown[]): string[] {
+  for (const value of values) {
+    const strings = stringArray(value);
+    if (strings.length > 0) {
+      return strings;
+    }
+  }
+  return [];
+}
+
+function stringRecord(value: unknown): Record<string, string> | undefined {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const entries = Object.entries(record).filter((entry): entry is [string, string] =>
+    typeof entry[1] === 'string'
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: unknown): RuntimeBoundary {
   const projectInfo = asRuntimeRecord(projectInfoValue) ?? {};
   const daemon = asRuntimeRecord(daemonHealthValue) ?? {};
+  const daemonCapabilities = asRuntimeRecord(daemon.capabilities);
+  const projectInfoCapabilities = asRuntimeRecord(projectInfo.capabilities);
   const enhancement = asRuntimeRecord(daemon.enhancement) ?? asRuntimeRecord(projectInfo.enhancement) ?? {};
-  const capabilities = asRuntimeRecord(daemon.capabilities) ?? asRuntimeRecord(projectInfo.capabilities) ?? {};
+  const capabilities = daemonCapabilities ?? projectInfoCapabilities ?? {};
+  const daemonRuntimeBoundary = asRuntimeRecord(daemon.runtimeBoundary);
+  const daemonCapabilityRuntimeBoundary = asRuntimeRecord(daemonCapabilities?.runtimeBoundary);
+  const projectInfoRuntimeBoundary = asRuntimeRecord(projectInfo.runtimeBoundary);
+  const projectInfoCapabilityRuntimeBoundary = asRuntimeRecord(projectInfoCapabilities?.runtimeBoundary);
+  const runtimeBoundary = firstRecord(
+    daemonRuntimeBoundary,
+    daemonCapabilityRuntimeBoundary,
+    projectInfoRuntimeBoundary,
+    projectInfoCapabilityRuntimeBoundary
+  );
+  const runtimeBoundarySource = daemonRuntimeBoundary
+    ? 'data.runtimeBoundary'
+    : daemonCapabilityRuntimeBoundary
+      ? 'capabilities.runtimeBoundary'
+      : projectInfoRuntimeBoundary
+        ? 'projectInfo.runtimeBoundary'
+        : projectInfoCapabilityRuntimeBoundary
+          ? 'projectInfo.capabilities.runtimeBoundary'
+          : null;
+  const runtimeWorkspace = asRuntimeRecord(runtimeBoundary?.workspace);
+  const runtimeDaemon = asRuntimeRecord(runtimeBoundary?.daemon);
+  const runtimeDashboard = asRuntimeRecord(runtimeBoundary?.dashboard);
+  const runtimeFileMonitor = asRuntimeRecord(runtimeBoundary?.fileMonitor);
+  const runtimeJobs = asRuntimeRecord(runtimeBoundary?.jobs);
+  const runtimeInternalAi = asRuntimeRecord(runtimeBoundary?.internalAi);
   const apiCapability = asRuntimeRecord(capabilities.api);
   const dashboardCapability = asRuntimeRecord(capabilities.dashboard);
   const fileMonitorCapability = asRuntimeRecord(capabilities.fileMonitor);
@@ -93,56 +160,92 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
     asRuntimeRecord(enhancement.hostAgentRoute) ??
     asRuntimeRecord(projectInfo.hostAgentRoute);
 
-  const projectRoot = firstString(daemon.projectRoot, projectInfo.projectRoot) ?? '';
-  const dataRoot = firstString(daemon.dataRoot, projectInfo.dataRoot, projectRoot) ?? '';
+  const workspaceMode = firstString(runtimeWorkspace?.mode);
+  const projectRoot = firstString(daemon.projectRoot, runtimeWorkspace?.projectRoot, projectInfo.projectRoot) ?? '';
+  const dataRoot = firstString(daemon.dataRoot, runtimeWorkspace?.dataRoot, projectInfo.dataRoot, projectRoot) ?? '';
+  const dataRootSource = firstString(
+    daemon.dataRootSource,
+    runtimeWorkspace?.dataRootSource,
+    projectInfo.dataRootSource,
+    workspaceMode === 'ghost' ? 'ghost-registry' : null,
+    workspaceMode === 'standard' ? 'project-root' : null
+  ) ?? 'unknown';
 
   return {
-    mode: firstString(daemon.mode, projectInfo.runtimeMode) ?? 'unknown',
-    route: firstString(enhancement.route, daemon.route, projectInfo.route) ?? 'unknown',
+    owner: firstString(runtimeBoundary?.owner),
+    source: runtimeBoundarySource,
+    mode: firstString(daemon.mode, runtimeDaemon?.mode, projectInfo.runtimeMode) ?? 'unknown',
+    route: firstString(enhancement.route, runtimeBoundary?.route, daemon.route, projectInfo.route) ?? 'unknown',
     apiVersion: firstString(enhancement.apiVersion),
     packageName: firstString(enhancement.packageName),
     version: firstString(enhancement.version, daemon.version, projectInfo.version),
-    dashboardUrl: firstString(daemon.dashboardUrl, dashboardCapability?.url),
+    dashboardUrl: firstString(daemon.dashboardUrl, dashboardCapability?.url, runtimeDashboard?.url),
+    daemon: runtimeDaemon
+      ? {
+          apiBaseUrl: firstString(runtimeDaemon.apiBaseUrl),
+          owner: firstString(runtimeDaemon.owner),
+          stateContract: firstString(runtimeDaemon.stateContract),
+        }
+      : undefined,
     project: {
       projectRoot,
       dataRoot,
-      projectId: firstString(daemon.projectId, projectInfo.projectId),
-      dataRootSource: firstString(daemon.dataRootSource, projectInfo.dataRootSource) ?? 'unknown',
+      projectId: firstString(daemon.projectId, runtimeWorkspace?.projectId, projectInfo.projectId),
+      dataRootSource,
+      runtimeDir: firstString(daemon.runtimeDir, runtimeWorkspace?.runtimeDir, projectInfo.runtimeDir),
+      databasePath: firstString(daemon.databasePath, runtimeWorkspace?.databasePath, projectInfo.databasePath),
+      schemaMigrationVersion: firstString(daemon.schemaMigrationVersion, projectInfo.schemaMigrationVersion),
+      workspaceMode: workspaceMode ?? 'unknown',
+      workspaceContract: firstString(runtimeWorkspace?.contract),
     },
     capabilities: {
-      api: apiCapability
+      api: apiCapability || runtimeDaemon
         ? {
-            available: booleanOrNull(apiCapability.available),
-            baseUrl: firstString(apiCapability.baseUrl),
-            healthPath: firstString(apiCapability.healthPath),
+            available: booleanOrNull(apiCapability?.available),
+            baseUrl: firstString(apiCapability?.baseUrl, runtimeDaemon?.apiBaseUrl),
+            healthPath: firstString(apiCapability?.healthPath),
           }
         : undefined,
-      dashboard: dashboardCapability
+      dashboard: dashboardCapability || runtimeDashboard
         ? {
-            available: booleanOrNull(dashboardCapability.available),
-            url: firstString(dashboardCapability.url),
+            available: firstBoolean(dashboardCapability?.available),
+            url: firstString(dashboardCapability?.url, runtimeDashboard?.url),
+            frontendOwner: firstString(runtimeDashboard?.frontendOwner),
+            handoff: firstString(runtimeDashboard?.handoff),
+            serverOwner: firstString(runtimeDashboard?.serverOwner),
           }
         : undefined,
-      fileMonitor: fileMonitorCapability
+      fileMonitor: fileMonitorCapability || runtimeFileMonitor
         ? {
-            available: booleanOrNull(fileMonitorCapability.available),
-            mode: firstString(fileMonitorCapability.mode),
-            endpoint: firstString(fileMonitorCapability.endpoint),
-            acceptedEventSources: stringArray(fileMonitorCapability.acceptedEventSources),
+            available: firstBoolean(fileMonitorCapability?.available, runtimeFileMonitor?.available),
+            mode: firstString(fileMonitorCapability?.mode, runtimeFileMonitor?.mode, runtimeFileMonitor?.source),
+            endpoint: firstString(fileMonitorCapability?.endpoint, runtimeFileMonitor?.endpoint),
+            acceptedEventSources: firstStringArray(
+              fileMonitorCapability?.acceptedEventSources,
+              runtimeFileMonitor?.acceptedEventSources
+            ),
+            compatibilityAliases: stringRecord(fileMonitorCapability?.compatibilityAliases),
+            dispatcher: firstString(runtimeFileMonitor?.dispatcher),
+            longLivedOwner: firstString(runtimeFileMonitor?.longLivedOwner),
           }
         : undefined,
-      jobs: jobsCapability
+      jobs: jobsCapability || runtimeJobs
         ? {
-            available: booleanOrNull(jobsCapability.available),
-            kinds: stringArray(jobsCapability.kinds),
+            available: firstBoolean(jobsCapability?.available),
+            kinds: firstStringArray(jobsCapability?.kinds, runtimeJobs?.kinds),
+            endpoints: stringRecord(jobsCapability?.endpoints) ?? stringRecord(runtimeJobs?.endpoints),
+            owner: firstString(runtimeJobs?.owner),
+            store: firstString(runtimeJobs?.store),
           }
         : undefined,
-      internalAi: internalAiCapability
+      internalAi: internalAiCapability || runtimeInternalAi
         ? {
-            available: booleanOrNull(internalAiCapability.available),
-            configSource: firstString(internalAiCapability.configSource) ?? 'unknown',
-            provider: firstString(internalAiCapability.provider),
-            model: firstString(internalAiCapability.model),
+            available: firstBoolean(internalAiCapability?.available, runtimeInternalAi?.available),
+            configSource: firstString(internalAiCapability?.configSource, runtimeInternalAi?.configSource) ?? 'unknown',
+            provider: firstString(internalAiCapability?.provider, runtimeInternalAi?.provider),
+            model: firstString(internalAiCapability?.model, runtimeInternalAi?.model),
+            owner: firstString(runtimeInternalAi?.owner),
+            runtimeOwner: firstString(runtimeInternalAi?.runtimeOwner),
           }
         : undefined,
     },

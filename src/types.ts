@@ -83,19 +83,28 @@ export interface Recipe {
 export type RuntimeMode = 'daemon' | 'api' | 'plugin' | 'unknown' | (string & {});
 export type RuntimeRouteKind =
   | 'local-alembic'
+  | 'local-alembic-daemon'
   | 'embedded-runtime'
+  | 'embedded-plugin-runtime'
   | 'local-install'
+  | 'local-alembic-install'
   | 'unavailable'
   | 'unknown'
   | (string & {});
 export type RuntimeDataRootSource = 'project-root' | 'ghost-registry' | 'unknown' | (string & {});
 export type RuntimeAiConfigSource = 'empty' | 'process-env' | 'workspace-settings' | 'unknown' | (string & {});
+export type RuntimeWorkspaceMode = 'ghost' | 'standard' | 'unknown' | (string & {});
 
 export interface RuntimeProjectIdentity {
   projectRoot: string;
   dataRoot: string;
   projectId: string | null;
   dataRootSource: RuntimeDataRootSource;
+  runtimeDir?: string | null;
+  databasePath?: string | null;
+  schemaMigrationVersion?: string | null;
+  workspaceMode?: RuntimeWorkspaceMode;
+  workspaceContract?: string | null;
 }
 
 export interface RuntimeApiCapability {
@@ -107,6 +116,9 @@ export interface RuntimeApiCapability {
 export interface RuntimeDashboardCapability {
   available: boolean | null;
   url?: string | null;
+  frontendOwner?: string | null;
+  handoff?: string | null;
+  serverOwner?: string | null;
 }
 
 export interface RuntimeFileMonitorCapability {
@@ -114,11 +126,17 @@ export interface RuntimeFileMonitorCapability {
   mode?: string | null;
   endpoint?: string | null;
   acceptedEventSources?: string[];
+  compatibilityAliases?: Record<string, string>;
+  dispatcher?: string | null;
+  longLivedOwner?: string | null;
 }
 
 export interface RuntimeJobsCapability {
   available: boolean | null;
   kinds?: string[];
+  endpoints?: Record<string, string>;
+  owner?: string | null;
+  store?: string | null;
 }
 
 export interface RuntimeInternalAiCapability {
@@ -126,6 +144,8 @@ export interface RuntimeInternalAiCapability {
   configSource: RuntimeAiConfigSource;
   provider: string | null;
   model: string | null;
+  owner?: string | null;
+  runtimeOwner?: string | null;
 }
 
 export interface RuntimeHostAgentRoute {
@@ -135,12 +155,19 @@ export interface RuntimeHostAgentRoute {
 }
 
 export interface RuntimeBoundary {
+  owner?: string | null;
+  source?: string | null;
   mode: RuntimeMode;
   route: RuntimeRouteKind;
   apiVersion?: string | null;
   packageName?: string | null;
   version?: string | null;
   dashboardUrl?: string | null;
+  daemon?: {
+    apiBaseUrl?: string | null;
+    owner?: string | null;
+    stateContract?: string | null;
+  };
   project: RuntimeProjectIdentity;
   capabilities: {
     api?: RuntimeApiCapability;

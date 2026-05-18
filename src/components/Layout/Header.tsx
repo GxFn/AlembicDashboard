@@ -31,10 +31,13 @@ function midEllipsis(s: string, max: number): string {
 function runtimeRouteLabelKey(route: string): string {
   switch (route) {
     case 'local-alembic':
+    case 'local-alembic-daemon':
       return 'header.runtimeRouteLocalAlembic';
     case 'embedded-runtime':
+    case 'embedded-plugin-runtime':
       return 'header.runtimeRouteEmbedded';
     case 'local-install':
+    case 'local-alembic-install':
       return 'header.runtimeRouteLocalInstall';
     case 'unavailable':
       return 'header.runtimeRouteUnavailable';
@@ -48,9 +51,12 @@ function runtimeRouteLabelKey(route: string): string {
 function runtimeRouteTone(route: string): string {
   switch (route) {
     case 'local-alembic':
+    case 'local-alembic-daemon':
       return 'bg-emerald-500/10 text-emerald-600 border-emerald-300/40';
     case 'embedded-runtime':
+    case 'embedded-plugin-runtime':
     case 'local-install':
+    case 'local-alembic-install':
       return 'bg-sky-500/10 text-sky-600 border-sky-300/40';
     case 'unavailable':
       return 'bg-red-500/10 text-red-600 border-red-300/40';
@@ -237,6 +243,7 @@ const Header: React.FC<HeaderProps> = ({
   const internalAiLabel = runtimeBoundary
     ? t(availabilityLabelKey(runtimeBoundary.capabilities.internalAi?.available))
     : '';
+  const dashboardHandoff = runtimeBoundary?.capabilities.dashboard?.handoff;
 
   return (
     <TooltipProvider>
@@ -271,8 +278,14 @@ const Header: React.FC<HeaderProps> = ({
                   <p>{t('header.runtimeProjectId')}: {runtimeBoundary.project.projectId}</p>
                 )}
                 <p>{t('header.runtimeDataRootSource')}: {runtimeBoundary.project.dataRootSource}</p>
+                {runtimeBoundary.project.workspaceMode && runtimeBoundary.project.workspaceMode !== 'unknown' && (
+                  <p>{t('header.runtimeWorkspaceMode')}: {runtimeBoundary.project.workspaceMode}</p>
+                )}
                 <p>{t('header.runtimeFileMonitor')}: {fileMonitorLabel}</p>
                 <p>{t('header.runtimeInternalAi')}: {internalAiLabel}</p>
+                {dashboardHandoff && (
+                  <p>{t('header.runtimeDashboardHandoff')}: {dashboardHandoff}</p>
+                )}
                 {runtimeBoundary.hostAgentRoute?.source && (
                   <p>{t('header.runtimeHostAgent')}: {runtimeBoundary.hostAgentRoute.source}</p>
                 )}

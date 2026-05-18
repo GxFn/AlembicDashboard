@@ -45,6 +45,30 @@ export const en: DeepString<typeof zh> = {
     expand: 'Expand',
   },
 
+  /* ═══════════════════════════════ sources ═══════════════════════════════ */
+  sources: {
+    hostAgent: 'Codex Host Agent',
+    alembicAgent: 'Alembic internal AI',
+    hostEdit: 'Host edit',
+    legacyIdeAgent: 'Legacy IDE Agent (compat)',
+    legacyIdeEdit: 'Legacy IDE edit (compat)',
+    legacyAgent: 'AI Agent (compat)',
+    bootstrapScan: 'AI Full Scan',
+    mcp: 'MCP Submit',
+    manual: 'Manual Create',
+    fileWatcher: 'File Watcher',
+    clipboard: 'Clipboard',
+    cli: 'CLI',
+    submitWithCheck: 'AI Review Submit',
+    bootstrapFallback: 'Rule Fallback',
+    rescanEvolution: 'Rescan Evolution',
+    fileChange: 'File Change',
+    decayScan: 'Decay Scan',
+    consolidation: 'Consolidation',
+    relevanceAudit: 'Relevance Audit',
+    metabolism: 'Metabolism',
+  },
+
   /* ═══════════════════════════════ sidebar ═══════════════════════════════ */
   sidebar: {
     recipes: 'Recipes',

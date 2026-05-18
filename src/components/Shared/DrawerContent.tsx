@@ -53,9 +53,10 @@ export interface ReasoningProps {
   labels: ReasoningLabels;
   /** 过滤掉 "Submitted via …" 的 whyStandard */
   filterSubmitted?: boolean;
+  formatSource?: (source: string) => string;
 }
 
-const Reasoning: React.FC<ReasoningProps> = ({ reasoning, labels, filterSubmitted = false }) => {
+const Reasoning: React.FC<ReasoningProps> = ({ reasoning, labels, filterSubmitted = false, formatSource }) => {
   if (!reasoning) return null;
   const r = reasoning;
   const showWhy = r.whyStandard && (!filterSubmitted || !/^Submitted via /i.test(r.whyStandard));
@@ -72,7 +73,9 @@ const Reasoning: React.FC<ReasoningProps> = ({ reasoning, labels, filterSubmitte
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] text-[var(--fg-muted)] font-bold">{labels.source}</span>
             {r.sources.map((src, i) => (
-              <code key={i} className="text-[10px] px-2 py-0.5 bg-[var(--bg-surface)] border border-amber-200 rounded text-amber-700 font-mono">{src}</code>
+              <code key={i} className="text-[10px] px-2 py-0.5 bg-[var(--bg-surface)] border border-amber-200 rounded text-amber-700 font-mono">
+                {formatSource ? formatSource(src) : src}
+              </code>
             ))}
           </div>
         )}

@@ -42,6 +42,30 @@ export const zh = {
     expand: '展开',
   },
 
+  /* ═══════════════════════════════ sources ═══════════════════════════════ */
+  sources: {
+    hostAgent: 'Codex 宿主 Agent',
+    alembicAgent: 'Alembic internal AI',
+    hostEdit: '宿主编辑',
+    legacyIdeAgent: '旧 IDE Agent（兼容）',
+    legacyIdeEdit: '旧 IDE 编辑（兼容）',
+    legacyAgent: 'AI Agent（兼容）',
+    bootstrapScan: 'AI 全量扫描',
+    mcp: 'MCP 提交',
+    manual: '手动创建',
+    fileWatcher: '文件监听',
+    clipboard: '剪贴板',
+    cli: 'CLI',
+    submitWithCheck: 'AI 审查提交',
+    bootstrapFallback: '规则降级',
+    rescanEvolution: '增量扫描演进',
+    fileChange: '文件变化',
+    decayScan: '衰退扫描',
+    consolidation: '知识合并',
+    relevanceAudit: '相关性审计',
+    metabolism: '知识代谢',
+  },
+
   /* ═══════════════════════════════ sidebar ═══════════════════════════════ */
   sidebar: {
     recipes: 'Recipes',

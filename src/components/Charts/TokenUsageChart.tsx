@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import api from '../../api';
 import { useI18n } from '../../i18n';
 import { getErrorMessage } from '../../utils/error';
+import { formatSourceLabel } from '../../utils/sourceLabels';
 
 interface DailyRow {
   date: string;
@@ -156,9 +157,10 @@ const TokenUsageChart: React.FC = () => {
                 {bySource.map((s) => {
                   const pct = summary.total_tokens > 0 ? (s.total_tokens / summary.total_tokens) * 100 : 0;
                   const barColor = SOURCE_COLORS[s.source] || 'bg-slate-400';
+                  const sourceLabel = formatSourceLabel(s.source, t);
                   return (
                     <div key={s.source} className="flex items-center gap-3">
-                      <span className="w-20 text-xs text-slate-600 text-right truncate">{s.source}</span>
+                      <span className="w-20 text-xs text-slate-600 text-right truncate" title={sourceLabel}>{sourceLabel}</span>
                       <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
                         <div className={`${barColor} h-full rounded-full transition-all`} style={{ width: `${pct}%`, minWidth: pct > 0 ? '4px' : '0' }} />
                       </div>

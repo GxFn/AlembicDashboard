@@ -11,6 +11,7 @@ import type { BadgeItem, MetaItem } from '../Shared/DrawerMeta';
 import DrawerContent from '../Shared/DrawerContent';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
+import { formatSourceLabel } from '../../utils/sourceLabels';
 import { ICON_SIZES } from '../../constants/icons';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
@@ -161,22 +162,6 @@ function formatComplexityLabel(complexity: string, t: TranslateFn): string {
     return t('knowledge.complexityBeginner');
   }
   return complexity;
-}
-
-function formatSourceLabel(source: string, t: TranslateFn): string {
-  if (source === 'bootstrap-scan') {
-    return t('recipes.sourceBootstrap');
-  }
-  if (source === 'agent') {
-    return t('recipes.sourceAiScan');
-  }
-  if (source === 'mcp') {
-    return t('knowledge.sourceMcp');
-  }
-  if (source === 'manual') {
-    return t('knowledge.sourceManual');
-  }
-  return source;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1069,6 +1054,7 @@ const RecipesView: React.FC<RecipesViewProps> = ({
                   <DrawerContent.Reasoning
                     reasoning={recipe.reasoning}
                     labels={{ section: t('recipes.reasoning'), source: t('recipes.sourceColon'), confidence: t('recipes.confidenceColon'), alternatives: t('recipes.alternativesLabel') }}
+                    formatSource={(source) => formatSourceLabel(source, t)}
                   />
 
                   {/* 5. Quality — V3 质量评级 */}

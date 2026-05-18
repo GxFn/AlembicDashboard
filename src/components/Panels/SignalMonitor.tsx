@@ -3,6 +3,7 @@ import { Radio, Activity, X } from 'lucide-react';
 import api, { type SignalEntry } from '../../api';
 import { getSocket } from '../../lib/socket';
 import { useI18n } from '../../i18n';
+import { formatSourceLabel } from '../../utils/sourceLabels';
 
 interface SignalEvent {
   type: string;
@@ -79,7 +80,8 @@ const SignalMonitor: React.FC<SignalMonitorProps> = ({ open, onClose }) => {
     ? events.filter(
         (e) =>
           e.type.toLowerCase().includes(filter.toLowerCase()) ||
-          e.source.toLowerCase().includes(filter.toLowerCase()),
+          e.source.toLowerCase().includes(filter.toLowerCase()) ||
+          formatSourceLabel(e.source, t).toLowerCase().includes(filter.toLowerCase()),
       )
     : events;
 
@@ -195,21 +197,24 @@ const SignalMonitor: React.FC<SignalMonitorProps> = ({ open, onClose }) => {
           </div>
         ) : (
           <div className="divide-y divide-[var(--border-muted)]">
-            {filtered.map((e, i) => (
-              <div key={`${e.type}-${e.timestamp}-${i}`} className="p-2 hover:bg-[var(--bg-elevated)] transition-colors">
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-xs font-mono font-semibold ${typeColors[e.type] ?? 'text-[var(--text-secondary)]'}`}>
-                    {e.type}
-                  </span>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">
-                    {new Date(e.timestamp).toLocaleTimeString()}
-                  </span>
+            {filtered.map((e, i) => {
+              const sourceLabel = formatSourceLabel(e.source, t);
+              return (
+                <div key={`${e.type}-${e.timestamp}-${i}`} className="p-2 hover:bg-[var(--bg-elevated)] transition-colors">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-mono font-semibold ${typeColors[e.type] ?? 'text-[var(--text-secondary)]'}`}>
+                      {e.type}
+                    </span>
+                    <span className="text-[10px] text-[var(--text-tertiary)]">
+                      {new Date(e.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-tertiary)] mt-0.5 truncate" title={sourceLabel}>
+                    {sourceLabel}
+                  </div>
                 </div>
-                <div className="text-[11px] text-[var(--text-tertiary)] mt-0.5 truncate">
-                  {e.source}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

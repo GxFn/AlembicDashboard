@@ -20,6 +20,7 @@ import api, {
 } from '../../api';
 import { useI18n } from '../../i18n';
 import { getErrorMessage } from '../../utils/error';
+import { formatSourceLabel } from '../../utils/sourceLabels';
 
 /* ═══ Constants ═══ */
 
@@ -66,7 +67,9 @@ function getBadgeClass(key: string, map: Record<string, string>): string {
 /* ═══ Sub-components ═══ */
 
 function SignalCard({ signal }: { signal: SignalEntry }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
+  const sourceLabel = formatSourceLabel(signal.source, t);
   return (
     <div
       className="border border-[var(--border-default)] rounded-lg p-3 hover:bg-[var(--bg-muted)]/40 transition-colors cursor-pointer"
@@ -76,7 +79,7 @@ function SignalCard({ signal }: { signal: SignalEntry }) {
         <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${getBadgeClass(signal.type, SIGNAL_TYPE_COLORS)}`}>
           {signal.type}
         </span>
-        <span className="text-[var(--fg-default)] font-medium truncate">{signal.source}</span>
+        <span className="text-[var(--fg-default)] font-medium truncate" title={sourceLabel}>{sourceLabel}</span>
         {signal.target && (
           <span className="text-[var(--fg-subtle)] truncate">→ {signal.target}</span>
         )}

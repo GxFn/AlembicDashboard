@@ -18,6 +18,7 @@ import type { BadgeItem, MetaItem } from '../Shared/DrawerMeta';
 import DrawerContent from '../Shared/DrawerContent';
 import { useI18n } from '../../i18n';
 import { getErrorMessage } from '../../utils/error';
+import { formatSourceLabel, getSourceLabelInfo } from '../../utils/sourceLabels';
 import Select from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Drawer } from '../Layout/Drawer';
@@ -133,19 +134,6 @@ function confidenceColor(c: number | null | undefined): { ring: string; text: st
   if (c >= 0.4) return { ring: 'stroke-amber-500', text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10', labelKey: 'candidates.confidenceMediumLowLabel' };
   return { ring: 'stroke-red-500', text: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10', labelKey: 'candidates.confidenceLowLabel' };
 }
-
-/** 来源 label */
-const SOURCE_LABEL_KEYS: Record<string, { labelKey: string; color: string }> = {
-  'bootstrap-scan': { labelKey: 'candidates.sourceAiScanLabel', color: 'text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/20' },
-  'mcp': { labelKey: 'candidates.sourceMcpLabel', color: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20' },
-  'manual': { labelKey: 'candidates.sourceManualLabel', color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-  'file-watcher': { labelKey: 'candidates.sourceFileWatcherLabel', color: 'text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20' },
-  'clipboard': { labelKey: 'candidates.sourceClipboardLabel', color: 'text-pink-600 dark:text-pink-400 bg-pink-500/10 border-pink-500/20' },
-  'cli': { labelKey: 'CLI', color: 'text-[var(--fg-secondary)] bg-[var(--bg-subtle)] border-[var(--border-default)]' },
-  'agent': { labelKey: 'AI Agent', color: 'text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/20' },
-  'submit_with_check': { labelKey: 'candidates.sourceSubmitCheckLabel', color: 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/20' },
-  'bootstrap-fallback': { labelKey: 'candidates.sourceFallbackLabel', color: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
-};
 
 /** 小型 SVG 环形置信度 */
 const ConfidenceRing: React.FC<{ value: number | null | undefined; size?: number }> = ({ value, size = 36 }) => {
@@ -743,7 +731,8 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                     const isExpanded = expandedId === cand.id;
                     const confidence = cand.reasoning?.confidence ?? null;
                     const overall = (cand.quality?.overall ?? 0) > 0 ? (cand.quality?.overall ?? null) : null;
-                    const srcInfo = SOURCE_LABEL_KEYS[cand.source || ''] || { labelKey: cand.source || '', color: 'text-[var(--fg-secondary)] bg-[var(--bg-subtle)] border-[var(--border-default)]' };
+                    const srcInfo = getSourceLabelInfo(cand.source);
+                    const sourceLabel = formatSourceLabel(cand.source, t);
                     const candCatCfg = categoryConfigs[cand.category || ''] || categoryConfigs['All'] || {};
 
 
@@ -777,7 +766,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                                 )}
                                 {cand.source && cand.source !== 'unknown' && (
                                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${srcInfo.color}`}>
-                                    {srcInfo.labelKey.startsWith('candidates.') ? t(srcInfo.labelKey) : srcInfo.labelKey}
+                                    {sourceLabel}
                                   </span>
                                 )}
                                 {cand.complexity && (
@@ -979,7 +968,8 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
 
         const r = cand.reasoning;
         const candCatCfg = categoryConfigs[cand.category || ''] || categoryConfigs['All'] || {};
-        const srcInfo = SOURCE_LABEL_KEYS[cand.source || ''] || { labelKey: cand.source || '', color: 'text-[var(--fg-secondary)] bg-[var(--bg-subtle)] border-[var(--border-default)]' };
+        const srcInfo = getSourceLabelInfo(cand.source);
+        const sourceLabel = formatSourceLabel(cand.source, t);
 
         return (
           <PageOverlay className="z-30 flex justify-end" onClick={() => { setExpandedId(null); }}>
@@ -1031,7 +1021,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                     if (cand.language) b.push({ label: cand.language, className: 'uppercase font-bold text-[var(--fg-secondary)] bg-[var(--bg-subtle)] border-[var(--border-default)]' });
                     if (cand.complexity) b.push({ label: cand.complexity === 'advanced' ? t('knowledge.complexityAdvanced') : cand.complexity === 'intermediate' ? t('knowledge.complexityIntermediate') : t('knowledge.complexityBeginner'), className: cand.complexity === 'advanced' ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' : cand.complexity === 'intermediate' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' });
                     if (cand.trigger) b.push({ label: cand.trigger, className: 'font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' });
-                    if (cand.source && cand.source !== 'unknown') b.push({ label: srcInfo.labelKey.startsWith('candidates.') ? t(srcInfo.labelKey) : srcInfo.labelKey, className: srcInfo.color });
+                    if (cand.source && cand.source !== 'unknown') b.push({ label: sourceLabel, className: srcInfo.color });
                     if (cand.lifecycle === 'staging') {
                       b.push({ label: 'staging', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' });
                     } else if (cand.lifecycle && cand.lifecycle !== 'pending') {
@@ -1042,7 +1032,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                   metadata={(() => {
                     const m: MetaItem[] = [];
                     if (cand.scope) m.push({ icon: Globe, iconClass: 'text-teal-400', label: t('candidates.path'), value: cand.scope === 'universal' ? t('common.all') : cand.scope === 'project-specific' ? t('candidates.category') : cand.scope === 'module-level' ? t('candidates.category') : cand.scope });
-                    if (cand.source && cand.source !== 'unknown') m.push({ icon: Globe, iconClass: 'text-violet-400', label: t('candidates.source'), value: srcInfo.labelKey.startsWith('candidates.') ? t(srcInfo.labelKey) : srcInfo.labelKey });
+                    if (cand.source && cand.source !== 'unknown') m.push({ icon: Globe, iconClass: 'text-violet-400', label: t('candidates.source'), value: sourceLabel });
                     if (cand.createdAt && formatDate(cand.createdAt, t)) m.push({ icon: Clock, iconClass: 'text-[var(--fg-muted)]', label: t('candidates.createdAt'), value: formatDate(cand.createdAt, t) });
                     return m;
                   })()}
@@ -1057,6 +1047,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                 <DrawerContent.Reasoning
                   reasoning={r}
                   labels={{ section: t('knowledge.reasoning'), source: `${t('candidates.source')}:`, confidence: `${t('candidates.confidence')}:`, alternatives: `${t('candidates.viewDetail')}:` }}
+                  formatSource={(source) => formatSourceLabel(source, t)}
                   filterSubmitted
                 />
 

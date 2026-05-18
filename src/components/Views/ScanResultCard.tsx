@@ -7,6 +7,7 @@ import CodeBlock from '../Shared/CodeBlock';
 import HighlightedCodeEditor from '../Shared/HighlightedCodeEditor';
 import { useI18n } from '../../i18n';
 import Select from '../ui/Select';
+import { formatSourceLabel } from '../../utils/sourceLabels';
 
 /* ═══════════════════════════════════════════════════════
  *  ScanResultCard — Pipeline Unification v2 审核卡片
@@ -170,7 +171,7 @@ const ScanResultCard: React.FC<ScanResultCardProps> = ({
               ) : null}
               {res.source && res.source !== 'unknown' && (
                 <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 border border-violet-100">
-                  {res.source === 'agent' ? 'AI Agent' : res.source === 'bootstrap-scan' ? t('scanResult.aiScan') : res.source}
+                  {formatSourceLabel(res.source, t)}
                 </span>
               )}
             </div>
@@ -533,7 +534,7 @@ const ScanResultCard: React.FC<ScanResultCardProps> = ({
               <p className="text-slate-600">{res.reasoning.whyStandard}</p>
             )}
             {res.reasoning.sources && res.reasoning.sources.length > 0 && (
-              <p className="text-slate-400">{t('scanResult.sourceLabel')} {res.reasoning.sources.join(', ')}</p>
+              <p className="text-slate-400">{t('scanResult.sourceLabel')} {res.reasoning.sources.map(source => formatSourceLabel(source, t)).join(', ')}</p>
             )}
           </div>
         )}

@@ -15,6 +15,7 @@ import type {
 import api from '../../api';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
+import { formatSourceLabel } from '../../utils/sourceLabels';
 import { categoryConfigs } from '../../constants';
 import { normalizeCode } from '../Shared/CodeBlock';
 import Pagination from '../Shared/Pagination';
@@ -108,19 +109,6 @@ function codePreview(code: string | undefined, maxLines = 4): string {
   if (!code) return '';
   return normalizeCode(code).split('\n').slice(0, maxLines).join('\n');
 }
-
-/* ═══ 来源标签 ════════════════════════════════════════ */
-
-const SOURCE_LABEL_KEYS: Record<string, { labelKey: string; color: string }> = {
-  'bootstrap-scan': { labelKey: 'knowledge.sourceBootstrap', color: 'text-violet-600 bg-violet-50 border-violet-200' },
-  'mcp': { labelKey: 'knowledge.sourceMcp', color: 'text-blue-600 bg-blue-50 border-blue-200' },
-  'manual': { labelKey: 'knowledge.sourceManual', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-  'file-watcher': { labelKey: 'knowledge.sourceFileWatcher', color: 'text-orange-600 bg-orange-50 border-orange-200' },
-  'clipboard': { labelKey: 'knowledge.sourceClipboard', color: 'text-pink-600 bg-pink-50 border-pink-200' },
-  'cli': { labelKey: 'knowledge.sourceCli', color: 'text-[var(--fg-secondary)] bg-[var(--bg-subtle)] border-[var(--border-default)]' },
-  'agent': { labelKey: 'knowledge.sourceAgent', color: 'text-violet-600 bg-violet-50 border-violet-200' },
-  'submit_with_check': { labelKey: 'knowledge.sourceSubmitCheck', color: 'text-teal-600 bg-teal-50 border-teal-200' },
-};
 
 /* ═══ Props ════════════════════════════════════════════ */
 
@@ -675,7 +663,7 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
                     )}
                     <span className="text-[10px] text-[var(--fg-muted)] ml-auto">
                       {entry.trigger && <span className="text-blue-400 mr-2">{entry.trigger}</span>}
-                      {entry.source && <span className="mr-2">{entry.source}</span>}
+                      {entry.source && <span className="mr-2">{formatSourceLabel(entry.source, t)}</span>}
                       {formatDate(entry.updatedAt, t)}
                     </span>
                   </div>
@@ -765,7 +753,7 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
                   const m: MetaItem[] = [];
                   if (selected.scope) m.push({ icon: Globe, iconClass: 'text-teal-400', label: t('knowledge.scope'), value: selected.scope === 'universal' ? t('knowledge.scopeUniversal') : selected.scope === 'project-specific' ? t('knowledge.scopeProject') : selected.scope === 'module-level' ? t('knowledge.scopeModule') : selected.scope });
                   if (selected.complexity) m.push({ icon: Layers, iconClass: 'text-orange-400', label: t('knowledge.complexity'), value: selected.complexity === 'advanced' ? t('knowledge.complexityAdvanced') : selected.complexity === 'intermediate' ? t('knowledge.complexityIntermediate') : selected.complexity === 'beginner' ? t('knowledge.complexityBeginner') : selected.complexity });
-                  if (selected.source && selected.source !== 'unknown') m.push({ icon: Globe, iconClass: 'text-violet-400', label: t('knowledge.source'), value: SOURCE_LABEL_KEYS[selected.source || ''] ? t(SOURCE_LABEL_KEYS[selected.source || ''].labelKey) : (selected.source || '-') });
+                  if (selected.source && selected.source !== 'unknown') m.push({ icon: Globe, iconClass: 'text-violet-400', label: t('knowledge.source'), value: formatSourceLabel(selected.source, t) || '-' });
                   if (selected.createdAt) m.push({ icon: Clock, iconClass: 'text-[var(--fg-muted)]', label: t('knowledge.createdAt'), value: formatDate(selected.createdAt, t) });
                   if (selected.updatedAt) m.push({ icon: Clock, iconClass: 'text-[var(--fg-muted)]', label: t('knowledge.updatedAt'), value: formatDate(selected.updatedAt, t) });
                   if (selected.publishedAt) m.push({ icon: CheckCircle2, iconClass: 'text-emerald-400', label: t('knowledge.published'), value: formatDate(selected.publishedAt, t) });
@@ -846,6 +834,7 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
               <DrawerContent.Reasoning
                 reasoning={r}
                 labels={{ section: t('knowledge.reasoning'), source: `${t('knowledge.source')}:`, confidence: `${t('knowledge.confidence')}:`, alternatives: `${t('knowledge.alternatives')}:` }}
+                formatSource={(source) => formatSourceLabel(source, t)}
                 filterSubmitted
               />
 

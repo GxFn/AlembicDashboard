@@ -22,6 +22,7 @@ import {
 } from '../ui/Dialog';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
+import { formatSourceLabel } from '../../utils/sourceLabels';
 
 interface EvolutionPanelProps {
   recipeId: string;
@@ -345,6 +346,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
   t,
 }) => {
   const sc = proposalStatusConfig[p.status];
+  const sourceLabel = formatSourceLabel(p.source, t);
   return (
     <div className="border border-[var(--border-default)] rounded-lg bg-[var(--bg-surface)] overflow-hidden">
       {/* Header row */}
@@ -367,7 +369,7 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
         <div className="px-3 pb-3 space-y-2 border-t border-[var(--border-default)]">
           {/* Meta */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--fg-muted)] mt-2">
-            <span>{t('evolution.source')}: {p.source}</span>
+            <span>{t('evolution.source')}: {sourceLabel}</span>
             <span>{t('evolution.confidence')}: {Math.round(p.confidence * 100)}%</span>
             <span>{t('evolution.proposed')}: {new Date(p.proposedAt).toLocaleDateString('zh-CN')}</span>
             <span>{t('evolution.expires')}: {new Date(p.expiresAt).toLocaleDateString('zh-CN')}</span>
@@ -606,6 +608,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const isDeprecate = proposal.type === 'deprecate';
   const isPending = proposal.status === 'pending';
   const changes = extractSuggestedChanges(proposal.evidence);
+  const sourceLabel = formatSourceLabel(proposal.source, t);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); } }}>
@@ -638,7 +641,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             </div>
             <div className="flex flex-wrap gap-x-3 text-[10px] text-[var(--fg-muted)]">
               <span>{t('evolution.confidence')}: {Math.round(proposal.confidence * 100)}%</span>
-              <span>{t('evolution.source')}: {proposal.source}</span>
+              <span>{t('evolution.source')}: {sourceLabel}</span>
             </div>
           </div>
 

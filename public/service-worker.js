@@ -3,11 +3,9 @@
  * 将此文件放在 public 目录：public/service-worker.js
  */
 
-const CACHE_NAME = 'alembic-v1';
-const DYNAMIC_CACHE = 'alembic-dynamic-v1';
+const CACHE_NAME = 'alembic-static-v2';
+const DYNAMIC_CACHE = 'alembic-runtime-v2';
 const ASSETS_TO_CACHE = [
-  '/', // HTML 页面
-  '/index.html',
   '/manifest.json',
   '/favicon.ico',
 ];
@@ -45,7 +43,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// 获取事件 - 网络优先，降级到缓存
+// 获取事件 - 入口 HTML 和 API 永远优先取网络，避免旧 Dashboard bundle 长期滞留。
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
@@ -54,55 +52,63 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API 请求：网络优先，离线时返回模拟数据
-  if (request.url.includes('/api/')) {
+  const url = new URL(request.url);
+  const isSameOrigin = url.origin === self.location.origin;
+  const isNavigation =
+    request.mode === 'navigate' || (isSameOrigin && (url.pathname === '/' || url.pathname === '/index.html'));
+
+  if (isNavigation) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // 缓存成功的响应
           if (response.ok) {
             const responseClone = response.clone();
             caches.open(DYNAMIC_CACHE).then((cache) => {
-              cache.put(request, responseClone);
+              cache.put('/index.html', responseClone);
             });
           }
           return response;
         })
         .catch(() => {
-          // 网络失败，尝试从缓存获取
-          return caches.match(request).then((cachedResponse) => {
+          return caches.match('/index.html').then((cachedResponse) => {
             if (cachedResponse) {
               return cachedResponse;
             }
-            // 返回离线页面或空响应
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: {
-                  code: 'OFFLINE',
-                  message: 'You are currently offline. Some data may be unavailable.',
-                },
-              }),
-              {
-                status: 503,
-                statusText: 'Service Unavailable',
-                headers: new Headers({
-                  'Content-Type': 'application/json',
-                }),
-              }
-            );
+            return fetch('/index.html');
           });
         })
     );
-  } else {
-    // 静态资源：缓存优先，降级到网络
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request).catch(() => {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'OFFLINE',
+              message: 'You are currently offline. Some data may be unavailable.',
+            },
+          }),
+          {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({
+              'Content-Type': 'application/json',
+            }),
+          }
+        );
+      })
+    );
+    return;
+  }
+
+  if (isSameOrigin) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(request).then((response) => {
-          // 缓存新的响应
+        const networkResponse = fetch(request).then((response) => {
           if (response.ok) {
             const responseClone = response.clone();
             caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -111,8 +117,11 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         });
+        return cachedResponse || networkResponse;
       })
     );
+  } else {
+    event.respondWith(fetch(request));
   }
 });
 

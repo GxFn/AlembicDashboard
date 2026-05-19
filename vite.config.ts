@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import type { Socket } from 'net'
 
+// 本地 `alembic ui --port` 会通过 VITE_API_URL 告诉 Dashboard dev server 后端地址。
+const apiTarget = (process.env.VITE_API_URL || 'http://127.0.0.1:3000').replace(/\/$/, '')
+
 // ── EPIPE/ECONNRESET 静默 ──────────────────────────────────────
 // 问题: Vite 内部在 proxyReqWs 事件上注册 socket.on('error', logger),
 // 注册顺序在 opts.configure() 之后。Node EventEmitter 会调用所有 listener,
@@ -27,7 +30,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3000',
+        target: apiTarget,
         timeout: 300000,      // 5 分钟（AI 扫描需要较长时间）
         configure: (proxy) => {
           proxy.on('error', (err) => {
@@ -42,7 +45,7 @@ export default defineConfig({
         },
       },
       '/socket.io': {
-        target: 'http://127.0.0.1:3000',
+        target: apiTarget,
         ws: true,             // WebSocket 升级
         changeOrigin: true,
         configure: (proxy) => {

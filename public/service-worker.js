@@ -3,11 +3,11 @@
  * 将此文件放在 public 目录：public/service-worker.js
  */
 
-const CACHE_NAME = 'alembic-static-v2';
-const DYNAMIC_CACHE = 'alembic-runtime-v2';
+const CACHE_NAME = 'alembic-static-v3';
+const DYNAMIC_CACHE = 'alembic-runtime-v3';
 const ASSETS_TO_CACHE = [
   '/manifest.json',
-  '/favicon.ico',
+  '/logo.svg',
 ];
 
 // 安装事件 - 缓存关键资源

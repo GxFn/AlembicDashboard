@@ -1,12 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#06B6D4"/>
-      <stop offset="100%" stop-color="#0891B2"/>
-    </linearGradient>
-  </defs>
-  <!-- 方形背景 -->
-  <rect width="32" height="32" fill="url(#bg)"/>
-  <!-- AS 字母标志 -->
-  <text x="16" y="22" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="900" font-size="16" fill="white" letter-spacing="-0.5">AS</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 512 512" role="img" aria-label="Alembic">
+  <rect width="512" height="512" rx="96" fill="#0F172A"/>
+  <path d="M156 380h200L276 112h-40L156 380Z" fill="#F8FAFC"/>
+  <path d="M213 318h86l-31-105h-24l-31 105Z" fill="#2563EB"/>
+  <path d="M128 384h256" stroke="#60A5FA" stroke-width="28" stroke-linecap="round"/>
 </svg>

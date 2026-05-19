@@ -56,6 +56,38 @@ const DIM_I18N_KEYS: Record<string, string> = {
   'bootstrap': 'bootstrap.dimLabels.bootstrap',
 };
 
+const DIMENSION_ALIASES: Record<string, string> = {
+  architecture: 'architecture',
+  'architecture & design': 'architecture',
+  'architecture patterns': 'architecture',
+};
+
+function normalizeDimensionKey(raw?: string | null): string {
+  if (!raw) return '';
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) return '';
+  const dimensionKey = DIMENSION_ALIASES[normalized] || normalized;
+  return DIM_I18N_KEYS[dimensionKey] ? dimensionKey : '';
+}
+
+function dimensionLabel(raw: string | undefined, t: (key: string) => string): string {
+  const key = normalizeDimensionKey(raw);
+  return key ? t(DIM_I18N_KEYS[key]) : raw || 'general';
+}
+
+function candidateDimensionKey(cand: KnowledgeEntry): string {
+  return (
+    normalizeDimensionKey(cand.dimensionId) ||
+    normalizeDimensionKey(cand.topicHint) ||
+    normalizeDimensionKey(cand.category)
+  );
+}
+
+function candidateCategoryLabel(cand: KnowledgeEntry, t: (key: string) => string): string {
+  const dimensionKey = candidateDimensionKey(cand);
+  return dimensionKey ? dimensionLabel(dimensionKey, t) : cand.category || 'general';
+}
+
 interface CandidatesViewProps {
   data: ProjectData | null;
   isShellTarget: (name: string) => boolean;
@@ -528,7 +560,8 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
               const group = data?.candidates[targetName];
               const count = group?.items?.length ?? 0;
               const isSelected = effectiveTarget === targetName;
-              const catCfg = categoryConfigs[targetName] || categoryConfigs['All'];
+              const targetDimension = normalizeDimensionKey(targetName);
+              const catCfg = categoryConfigs[targetDimension || targetName] || categoryConfigs['All'];
               return (
                 <button
                   key={targetName}
@@ -542,7 +575,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                     const Icon = catCfg?.icon || Box;
                     return <Icon size={ICON_SIZES.sm} className={isSelected ? '' : 'text-[var(--fg-muted)]'} />;
                   })()}
-                  <span>{DIM_I18N_KEYS[targetName] ? t(DIM_I18N_KEYS[targetName]) : targetName}</span>
+                  <span>{dimensionLabel(targetName, t)}</span>
                   {isSilent && silentLabel && <span className="text-[9px] text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-700 px-1 rounded">{silentLabel}</span>}
                   <span className={`text-[10px] font-normal rounded-full px-1.5 ${isSelected ? 'bg-[var(--bg-subtle)]' : 'bg-[var(--bg-subtle)] text-[var(--fg-muted)]'}`}>{count}</span>
                 </button>
@@ -654,20 +687,23 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
               setTargetPages(prev => ({ ...prev, [targetName]: { page: 1, pageSize: size } }));
             };
 
-            const catCfg = categoryConfigs[targetName] || categoryConfigs['All'];
+            const targetDimension = normalizeDimensionKey(targetName);
+            const catCfg = categoryConfigs[targetDimension || targetName] || categoryConfigs['All'];
 
             return (
               <div key={targetName} className="space-y-3">
                 {/* ── 工具栏 ── */}
-                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-sm">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {(() => {
-                      const Icon = catCfg?.icon || Box;
-                      return <Icon size={18} className={catCfg?.color || 'text-blue-600'} />;
-                    })()}
-                    <span className="text-base font-bold text-[var(--fg-primary)] truncate">{DIM_I18N_KEYS[targetName] ? t(DIM_I18N_KEYS[targetName]) : targetName}</span>
-                    {isSilent && <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 rounded">{silentLabel}</span>}
-                    {isShell && !isSilent && <span className="text-[10px] font-bold text-[var(--fg-muted)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5 rounded">SHELL</span>}
+                <div className="flex flex-col gap-3 px-4 py-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-sm lg:flex-row lg:items-center lg:gap-3 lg:py-2.5">
+                  <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2 lg:flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      {(() => {
+                        const Icon = catCfg?.icon || Box;
+                        return <Icon size={18} className={catCfg?.color || 'text-blue-600'} />;
+                      })()}
+                      <span className="min-w-0 truncate text-base font-bold text-[var(--fg-primary)]">{dimensionLabel(targetName, t)}</span>
+                      {isSilent && <span className="shrink-0 text-[10px] font-bold text-amber-600 dark:text-amber-400 border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 rounded">{silentLabel}</span>}
+                      {isShell && !isSilent && <span className="shrink-0 text-[10px] font-bold text-[var(--fg-muted)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5 rounded">SHELL</span>}
+                    </div>
                     <span className="text-[11px] text-[var(--fg-muted)] flex items-center gap-1">
                       <Clock size={11} />
                       {t('candidates.scannedAt', { time: formatDate(group.scanTime, t) || new Date(group.scanTime).toLocaleString() })}
@@ -675,8 +711,8 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                   </div>
 
                   {/* 筛选控件 */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-default)]">
+                  <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
+                    <div className="flex shrink-0 items-center gap-1 px-2 py-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-default)]">
                       <ArrowUpDown size={12} className="text-[var(--fg-muted)]" />
                       <Select
                         value={filters.sort}
@@ -691,32 +727,32 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                         className="border-none bg-transparent"
                       />
                     </div>
-                    <div className="h-4 w-px bg-[var(--border-default)]" />
+                    <div className="hidden h-4 w-px bg-[var(--border-default)] sm:block" />
                     <button
                       onClick={() => onAuditAllInTarget(paginatedItems, targetName)}
-                      className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors"
+                      className="whitespace-nowrap text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors"
                     >
                       {t('candidates.approveCurrentPage')}
                     </button>
                   </div>
 
-                  <div className="h-5 w-px bg-[var(--border-default)]" />
+                  <div className="hidden h-5 w-px bg-[var(--border-default)] lg:block" />
 
                   {/* 统计 */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-[var(--fg-muted)] font-medium">{t('candidates.totalCount', { count: totalItems })}</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="whitespace-nowrap text-[11px] text-[var(--fg-muted)] font-medium">{t('candidates.totalCount', { count: totalItems })}</span>
                     {totalItems > 0 && (
-                      <span className="text-[11px] text-emerald-600 font-medium ml-1.5 pl-2 border-l border-[var(--border-default)]">
+                      <span className="whitespace-nowrap text-[11px] text-emerald-600 font-medium sm:ml-1.5 sm:pl-2 sm:border-l sm:border-[var(--border-default)]">
                         {t('candidates.confidence')} {Math.round((group.items.reduce((s, c) => s + (c.reasoning?.confidence ?? 0), 0) / totalItems) * 100)}%
                       </span>
                     )}
                   </div>
 
                   {/* 全部删除（与清理重建同风格） */}
-                  <div className="ml-auto">
+                  <div className="ml-auto lg:ml-0">
                     <button
                       onClick={() => handleDeleteAllInTarget(targetName)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] transition-all text-[var(--fg-muted)] hover:text-red-600 hover:bg-red-50"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] transition-all text-[var(--fg-muted)] hover:text-red-600 hover:bg-red-50 whitespace-nowrap"
                       title={t('candidates.deleteAll')}
                     >
                       <Trash2 size={12} />
@@ -733,7 +769,9 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                     const overall = (cand.quality?.overall ?? 0) > 0 ? (cand.quality?.overall ?? null) : null;
                     const srcInfo = getSourceLabelInfo(cand.source);
                     const sourceLabel = formatSourceLabel(cand.source, t);
-                    const candCatCfg = categoryConfigs[cand.category || ''] || categoryConfigs['All'] || {};
+                    const candDimension = candidateDimensionKey(cand);
+                    const candCatCfg = categoryConfigs[candDimension || cand.category || ''] || categoryConfigs['All'] || {};
+                    const candCategoryLabel = candidateCategoryLabel(cand, t);
 
 
 
@@ -752,12 +790,12 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                             <div className="flex-1 min-w-0">
                               {/* 第一行：类别 + 来源 + 知识类型 */}
                               <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase flex items-center gap-1 border bg-[var(--bg-subtle)] ${candCatCfg?.color || 'text-[var(--fg-muted)]'} border-[var(--border-default)]`}>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border bg-[var(--bg-subtle)] ${candCatCfg?.color || 'text-[var(--fg-muted)]'} border-[var(--border-default)]`}>
                                   {(() => {
                                     const Icon = candCatCfg?.icon || Layers;
                                     return <Icon size={10} />;
                                   })()}
-                                  {cand.category || 'general'}
+                                  {candCategoryLabel}
                                 </span>
                                 {cand.knowledgeType && (
                                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
@@ -967,7 +1005,8 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
         const goToNext = () => { if (hasNext) { setExpandedId(allItems[currentIndex + 1].id); } };
 
         const r = cand.reasoning;
-        const candCatCfg = categoryConfigs[cand.category || ''] || categoryConfigs['All'] || {};
+        const candDimension = candidateDimensionKey(cand);
+        const candCatCfg = categoryConfigs[candDimension || cand.category || ''] || categoryConfigs['All'] || {};
         const srcInfo = getSourceLabelInfo(cand.source);
         const sourceLabel = formatSourceLabel(cand.source, t);
 
@@ -1016,7 +1055,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                 <DrawerMeta
                   badges={(() => {
                     const b: BadgeItem[] = [];
-                    b.push({ label: cand.category || 'general', className: `font-bold uppercase bg-[var(--bg-subtle)] ${candCatCfg?.color || 'text-[var(--fg-muted)]'} border-[var(--border-default)]` });
+                    b.push({ label: candidateCategoryLabel(cand, t), className: `font-bold bg-[var(--bg-subtle)] ${candCatCfg?.color || 'text-[var(--fg-muted)]'} border-[var(--border-default)]` });
                     if (cand.knowledgeType) b.push({ label: cand.knowledgeType, className: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' });
                     if (cand.language) b.push({ label: cand.language, className: 'uppercase font-bold text-[var(--fg-secondary)] bg-[var(--bg-subtle)] border-[var(--border-default)]' });
                     if (cand.complexity) b.push({ label: cand.complexity === 'advanced' ? t('knowledge.complexityAdvanced') : cand.complexity === 'intermediate' ? t('knowledge.complexityIntermediate') : t('knowledge.complexityBeginner'), className: cand.complexity === 'advanced' ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' : cand.complexity === 'intermediate' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' });

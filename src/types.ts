@@ -494,6 +494,8 @@ export interface KnowledgeEntry {
   lifecycleHistory?: Array<{ from: string; to: string; at: number; by?: string }>;
   autoApprovable?: boolean;
   language: string;
+  /** Bootstrap / rescan dimension id, e.g. architecture. */
+  dimensionId?: string;
   category: string;
   kind: KnowledgeKind;
   knowledgeType: string;

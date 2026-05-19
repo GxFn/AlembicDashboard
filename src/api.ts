@@ -554,6 +554,58 @@ function toRecipe(r: RawKnowledgeRecord): Recipe {
   };
 }
 
+const CANDIDATE_DIMENSION_ALIASES: Record<string, string> = {
+  architecture: 'architecture',
+  'architecture & design': 'architecture',
+  'architecture patterns': 'architecture',
+};
+
+const CANDIDATE_DIMENSION_KEYS = new Set([
+  'architecture',
+  'coding-standards',
+  'design-patterns',
+  'error-resilience',
+  'concurrency-async',
+  'data-event-flow',
+  'networking-api',
+  'ui-interaction',
+  'testing-quality',
+  'security-auth',
+  'performance-optimization',
+  'observability-logging',
+  'agent-guidelines',
+  'swift-objc-idiom',
+  'ts-js-module',
+  'python-structure',
+  'jvm-annotation',
+  'go-module',
+  'rust-ownership',
+  'csharp-dotnet',
+  'react-patterns',
+  'vue-patterns',
+  'spring-patterns',
+  'swiftui-patterns',
+  'django-fastapi',
+  'bootstrap',
+]);
+
+function normalizeCandidateDimensionKey(raw?: string | null): string {
+  if (!raw) return '';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  const dimensionKey = CANDIDATE_DIMENSION_ALIASES[lower] || lower;
+  return CANDIDATE_DIMENSION_KEYS.has(dimensionKey) ? dimensionKey : '';
+}
+
+function candidateGroupKey(entry: KnowledgeEntry): string {
+  const dimensionKey =
+    normalizeCandidateDimensionKey(entry.dimensionId) ||
+    normalizeCandidateDimensionKey(entry.topicHint) ||
+    normalizeCandidateDimensionKey(entry.category);
+  return dimensionKey || entry.category || entry.language || '_pending';
+}
+
 // ═══════════════════════════════════════════════════════
 //  Frontmatter Parser (client-side)
 // ═══════════════════════════════════════════════════════
@@ -1043,7 +1095,7 @@ export const api = {
     const rawEntries = allEntries.filter((e) => CANDIDATE_STATES.has(e.lifecycle));
     const candidates: ProjectData['candidates'] = {};
     for (const entry of rawEntries) {
-      const target = entry.category || entry.language || '_pending';
+      const target = candidateGroupKey(entry);
       if (!candidates[target]) {
         candidates[target] = { targetName: target, scanTime: entry.createdAt, items: [] };
       }

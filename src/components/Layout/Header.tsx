@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Cpu, ChevronDown, ChevronRight, MessageSquare, Settings, Search, Zap, Radio, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server } from 'lucide-react';
+import { Plus, Cpu, ChevronDown, ChevronRight, MessageSquare, Settings, Search, Zap, Radio, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server, FolderGit2, ExternalLink, RefreshCw, Power, RotateCw, CheckCircle2, AlertTriangle, CircleOff, Loader2 } from 'lucide-react';
 import api from '../../api';
 import { getSocket } from '../../lib/socket';
 import { useGlobalChat } from '../Shared/GlobalChatDrawer';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
-import type { RuntimeBoundary } from '../../types';
+import { notify } from '../../utils/notification';
+import { getErrorMessage } from '../../utils/error';
+import type { DashboardProjectActionResult, DashboardProjectRuntimeScopeSummary, DashboardProjectsSnapshot, RuntimeBoundary } from '../../types';
 import { Button } from '../ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/Tooltip';
 import {
@@ -75,6 +77,84 @@ function availabilityLabelKey(value: boolean | null | undefined): string {
   return 'header.runtimeUnknown';
 }
 
+function projectStatusLabelKey(status: string): string {
+  switch (status) {
+    case 'ready':
+      return 'header.projectStatusReady';
+    case 'stopped':
+      return 'header.projectStatusStopped';
+    case 'starting':
+      return 'header.projectStatusStarting';
+    case 'stale':
+      return 'header.projectStatusStale';
+    case 'failed':
+      return 'header.projectStatusFailed';
+    case 'missing':
+      return 'header.projectStatusMissing';
+    case 'unavailable':
+      return 'header.projectStatusUnavailable';
+    default:
+      return 'header.projectStatusUnknown';
+  }
+}
+
+function projectStatusTone(project: DashboardProjectRuntimeScopeSummary): string {
+  if (project.flags.missing || project.status === 'missing') {
+    return 'bg-red-500/10 text-red-600 border-red-300/40';
+  }
+  if (project.flags.unavailable || project.status === 'unavailable' || project.status === 'failed') {
+    return 'bg-amber-500/10 text-amber-600 border-amber-300/40';
+  }
+  if (project.status === 'ready') {
+    return 'bg-emerald-500/10 text-emerald-600 border-emerald-300/40';
+  }
+  return 'bg-[var(--bg-subtle)] text-[var(--fg-subtle)] border-[var(--border-default)]';
+}
+
+function ProjectStatusIcon({ project }: { project: DashboardProjectRuntimeScopeSummary }) {
+  if (project.flags.missing || project.status === 'missing') {
+    return <AlertTriangle size={12} />;
+  }
+  if (project.flags.unavailable || project.status === 'unavailable' || project.status === 'failed') {
+    return <CircleOff size={12} />;
+  }
+  if (project.status === 'ready') {
+    return <CheckCircle2 size={12} />;
+  }
+  return <Power size={12} />;
+}
+
+function projectActionKey(
+  action: DashboardProjectActionResult['action'],
+  project: DashboardProjectRuntimeScopeSummary,
+): string {
+  return `${action}:${project.projectId || project.cacheKey || project.projectRoot}`;
+}
+
+function projectActionLabelKey(action: DashboardProjectActionResult['action']): string {
+  switch (action) {
+    case 'open-dashboard':
+      return 'header.projectActionOpen';
+    case 'switch':
+      return 'header.projectActionSwitch';
+    case 'stop':
+      return 'header.projectActionStop';
+    default:
+      return 'header.projectAction';
+  }
+}
+
+function isDifferentOrigin(url: string | null | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+  try {
+    return new URL(url, window.location.href).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 interface AiProvider {
   id: string;
   label: string;
@@ -113,6 +193,14 @@ interface HeaderProps {
   projectName?: string;
   /** 后端运行路线与能力摘要（只展示，不决定策略） */
   runtimeBoundary?: RuntimeBoundary;
+  /** Alembic-owned multi-project runtime control snapshot */
+  projectsSnapshot?: DashboardProjectsSnapshot | null;
+  projectsLoading?: boolean;
+  onRefreshProjects?: () => Promise<void> | void;
+  onProjectActionCompleted?: (
+    result: DashboardProjectActionResult,
+    action: DashboardProjectActionResult['action'],
+  ) => Promise<void> | void;
   /** 候选总数（用于面包屑插值） */
   candidateCount?: number;
   /** Signal Monitor 开关 */
@@ -128,6 +216,10 @@ const Header: React.FC<HeaderProps> = ({
   onOpenCommandPalette,
   projectName,
   runtimeBoundary,
+  projectsSnapshot,
+  projectsLoading = false,
+  onRefreshProjects,
+  onProjectActionCompleted,
   candidateCount = 0,
   showSignalMonitor = false,
   onToggleSignalMonitor,
@@ -136,6 +228,73 @@ const Header: React.FC<HeaderProps> = ({
   const { t } = useI18n();
   const [aiProviders, setAiProviders] = useState<AiProvider[]>([]);
   const [aiSwitching, setAiSwitching] = useState(false);
+  const [projectActionPending, setProjectActionPending] = useState<string | null>(null);
+
+  const projects = projectsSnapshot?.projects ?? [];
+  const selectedProject = projectsSnapshot?.selectedProject ?? null;
+  const activeRuntimeProject = projectsSnapshot?.activeRuntimeProject ?? null;
+  const displayProject = selectedProject ?? activeRuntimeProject;
+  const projectSwitcherLabel = displayProject?.displayName || projectName || 'Alembic';
+
+  const handleProjectAction = async (
+    project: DashboardProjectRuntimeScopeSummary,
+    action: 'open-dashboard' | 'switch' | 'stop',
+  ) => {
+    if (!project.projectId) {
+      notify(t('header.projectActionMissingId'), {
+        title: t('header.projectActionFailed'),
+        type: 'error',
+      });
+      return;
+    }
+
+    const pendingKey = projectActionKey(action, project);
+    setProjectActionPending(pendingKey);
+    try {
+      const result = action === 'open-dashboard'
+        ? await api.openProjectDashboard(project.projectId)
+        : action === 'switch'
+          ? await api.switchProject(project.projectId)
+          : await api.stopProject(project.projectId);
+
+      if (!result.ok) {
+        throw new Error(result.error || t('header.projectActionFailed'));
+      }
+
+      notify(t('header.projectActionSuccess', { action: t(projectActionLabelKey(action)) }), {
+        title: project.displayName,
+      });
+
+      const dashboardUrl = result.handoff?.dashboardUrl;
+      if ((action === 'open-dashboard' || action === 'switch') && dashboardUrl && isDifferentOrigin(dashboardUrl)) {
+        window.location.assign(dashboardUrl);
+        return;
+      }
+
+      await onProjectActionCompleted?.(result, action);
+    } catch (err: unknown) {
+      notify(getErrorMessage(err, t('header.projectActionFailed')), {
+        title: t('header.projectActionFailed'),
+        type: 'error',
+      });
+    } finally {
+      setProjectActionPending(null);
+    }
+  };
+
+  const handleRefreshProjects = async () => {
+    setProjectActionPending('refresh');
+    try {
+      await onRefreshProjects?.();
+    } catch (err: unknown) {
+      notify(getErrorMessage(err, t('header.projectsLoadFailed')), {
+        title: t('header.projectsLoadFailed'),
+        type: 'error',
+      });
+    } finally {
+      setProjectActionPending(null);
+    }
+  };
 
   /* ── 测试模式标识（全局持久展示） ── */
   const [testMode, setTestMode] = useState<{
@@ -252,7 +411,161 @@ const Header: React.FC<HeaderProps> = ({
       >
         {/* ── 左侧：面包屑 + 测试模式标识 ── */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm text-[var(--fg-subtle)] font-medium truncate max-w-[160px]" title={projectName || 'Alembic'}>{projectName || 'Alembic'}</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 min-w-0 max-w-[220px] px-2 text-[var(--fg-subtle)] hover:text-[var(--fg-default)]"
+              >
+                {projectsLoading ? <Loader2 size={14} className="animate-spin shrink-0" /> : <FolderGit2 size={14} className="shrink-0" />}
+                <span className="truncate" title={projectSwitcherLabel}>{projectSwitcherLabel}</span>
+                <ChevronDown size={12} className="shrink-0 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[440px] max-w-[calc(100vw-2rem)]">
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                <DropdownMenuLabel className="px-0 py-0">{t('header.projectsControl')}</DropdownMenuLabel>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('header.projectsRefresh')}
+                      loading={projectActionPending === 'refresh'}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleRefreshProjects();
+                      }}
+                    >
+                      <RefreshCw size={13} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('header.projectsRefresh')}</TooltipContent>
+                </Tooltip>
+              </div>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1 text-xs text-[var(--fg-subtle)] space-y-1">
+                <p>{t('header.projectsSelected')}: {selectedProject?.displayName || t('header.projectsNone')}</p>
+                <p>{t('header.projectsActive')}: {activeRuntimeProject?.displayName || t('header.projectsNone')}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <div className="max-h-[420px] overflow-y-auto py-1">
+                {projects.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-[var(--fg-subtle)]">
+                    {projectsLoading ? t('header.projectsLoading') : t('header.projectsUnavailable')}
+                  </div>
+                ) : (
+                  projects.map((project) => {
+                    const canAddress = Boolean(project.projectId);
+                    const cannotUse = project.flags.missing || !project.projectExists;
+                    const openPending = projectActionPending === projectActionKey('open-dashboard', project);
+                    const switchPending = projectActionPending === projectActionKey('switch', project);
+                    const stopPending = projectActionPending === projectActionKey('stop', project);
+                    return (
+                      <div
+                        key={project.cacheKey || project.projectRoot}
+                        className="mx-1 my-1 rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-surface)] px-2 py-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className={cn(
+                                'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium shrink-0',
+                                projectStatusTone(project),
+                              )}>
+                                <ProjectStatusIcon project={project} />
+                                {t(projectStatusLabelKey(project.status))}
+                              </span>
+                              {project.flags.selected && (
+                                <span className="rounded-full bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--fg-subtle)]">
+                                  {t('header.projectsSelectedBadge')}
+                                </span>
+                              )}
+                              {project.flags.activeRuntime && (
+                                <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-600">
+                                  {t('header.projectsActiveBadge')}
+                                </span>
+                              )}
+                              <span className="truncate text-sm font-medium text-[var(--fg-default)]">
+                                {project.displayName}
+                              </span>
+                            </div>
+                            <p className="mt-1 truncate text-xs text-[var(--fg-subtle)]" title={project.projectRoot}>
+                              {project.projectRoot}
+                            </p>
+                            <p className="mt-0.5 text-xs text-[var(--fg-muted)]">
+                              {project.ghost ? t('header.projectsGhost') : t('header.projectsStandard')}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={t('header.projectActionOpen')}
+                                  loading={openPending}
+                                  disabled={!canAddress || cannotUse}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    handleProjectAction(project, 'open-dashboard');
+                                  }}
+                                >
+                                  <ExternalLink size={13} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t('header.projectActionOpen')}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={t('header.projectActionSwitch')}
+                                  loading={switchPending}
+                                  disabled={!canAddress || cannotUse || project.flags.activeRuntime}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    handleProjectAction(project, 'switch');
+                                  }}
+                                >
+                                  <RotateCw size={13} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t('header.projectActionSwitch')}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={t('header.projectActionStop')}
+                                  loading={stopPending}
+                                  disabled={!canAddress || (!project.flags.activeRuntime && project.daemon.ready !== true)}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    handleProjectAction(project, 'stop');
+                                  }}
+                                >
+                                  <Power size={13} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t('header.projectActionStop')}</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {tabLabel && (
             <>
               <ChevronRight size={14} className="text-[var(--fg-subtle)]/50 shrink-0" />

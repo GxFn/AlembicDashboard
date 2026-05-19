@@ -179,6 +179,105 @@ export interface RuntimeBoundary {
   hostAgentRoute?: RuntimeHostAgentRoute;
 }
 
+// Source of truth: Alembic HTTP projects API backed by @alembic/core daemon project runtime contracts.
+// Dashboard keeps DTOs here as transport/view types only; orchestration remains owned by Alembic.
+export type DashboardProjectConnectionState =
+  | 'ready'
+  | 'stopped'
+  | 'starting'
+  | 'stale'
+  | 'failed'
+  | 'missing'
+  | 'unavailable'
+  | 'unknown'
+  | (string & {});
+
+export type DashboardProjectDaemonStatus =
+  | 'ready'
+  | 'starting'
+  | 'stopped'
+  | 'stale'
+  | 'failed'
+  | 'not-checked'
+  | 'unknown'
+  | (string & {});
+
+export interface DashboardProjectRuntimeControlState {
+  activeProjectId: string | null;
+  activeProjectRoot: string | null;
+  schemaVersion: number | null;
+  selectedAt: string | null;
+  selectedProjectId: string | null;
+  selectedProjectRoot: string | null;
+  updatedAt: string | null;
+}
+
+export interface DashboardProjectRuntimeDaemonSummary {
+  dashboardUrl: string | null;
+  message: string | null;
+  pid: number | null;
+  pidAlive: boolean | null;
+  ready: boolean | null;
+  status: DashboardProjectDaemonStatus;
+  url: string | null;
+}
+
+export interface DashboardProjectRuntimeFlags {
+  activeRuntime: boolean;
+  missing: boolean;
+  selected: boolean;
+  stale: boolean;
+  unavailable: boolean;
+}
+
+export interface DashboardProjectRuntimeScopeSummary {
+  cacheKey: string;
+  dashboardUrl: string | null;
+  dataRoot: string;
+  dataRootSource: RuntimeDataRootSource;
+  daemon: DashboardProjectRuntimeDaemonSummary;
+  displayName: string;
+  flags: DashboardProjectRuntimeFlags;
+  ghost: boolean;
+  mode: RuntimeWorkspaceMode;
+  projectExists: boolean;
+  projectId: string | null;
+  projectRealpath: string;
+  projectRoot: string;
+  registered: boolean;
+  runtimeDir: string;
+  status: DashboardProjectConnectionState;
+  workspaceExists: boolean;
+}
+
+export interface DashboardProjectsSnapshot {
+  activeRuntimeProject: DashboardProjectRuntimeScopeSummary | null;
+  generatedAt: string | null;
+  projects: DashboardProjectRuntimeScopeSummary[];
+  selectedProject: DashboardProjectRuntimeScopeSummary | null;
+  state: DashboardProjectRuntimeControlState;
+}
+
+export interface DashboardProjectRuntimeHandoff {
+  apiBaseUrl: string | null;
+  dashboardUrl: string | null;
+  projectId: string | null;
+  projectRoot: string;
+  status: DashboardProjectConnectionState;
+}
+
+export interface DashboardProjectActionResult {
+  action: 'start' | 'stop' | 'open-dashboard' | 'switch' | (string & {});
+  error: string | null;
+  deferredStopProject: DashboardProjectRuntimeScopeSummary | null;
+  handoff: DashboardProjectRuntimeHandoff | null;
+  ok: boolean;
+  previousActiveProject: DashboardProjectRuntimeScopeSummary | null;
+  snapshot: DashboardProjectsSnapshot;
+  stoppedProject: DashboardProjectRuntimeScopeSummary | null;
+  targetProject: DashboardProjectRuntimeScopeSummary | null;
+}
+
 export interface ProjectData {
   rootSpec: {
   recipes?: {

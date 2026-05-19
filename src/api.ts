@@ -24,6 +24,14 @@ import type {
   KnowledgeLifecycle,
   KnowledgeKind,
   ProposalRecord,
+  DashboardProjectActionResult,
+  DashboardProjectConnectionState,
+  DashboardProjectRuntimeControlState,
+  DashboardProjectRuntimeDaemonSummary,
+  DashboardProjectRuntimeFlags,
+  DashboardProjectRuntimeHandoff,
+  DashboardProjectRuntimeScopeSummary,
+  DashboardProjectsSnapshot,
   RuntimeBoundary,
   WarningRecord,
 } from './types';
@@ -116,6 +124,157 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
     typeof entry[1] === 'string'
   );
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function firstNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function booleanOrFalse(value: unknown): boolean {
+  return value === true;
+}
+
+function recordArray(value: unknown): UnknownRecord[] {
+  return Array.isArray(value) ? value.map(asRuntimeRecord).filter((item): item is UnknownRecord => item !== null) : [];
+}
+
+function fallbackDisplayName(projectRoot: string): string {
+  const parts = projectRoot.split('/').filter(Boolean);
+  return parts[parts.length - 1] || projectRoot || 'Alembic';
+}
+
+function normalizeProjectRuntimeControlState(value: unknown): DashboardProjectRuntimeControlState {
+  const record = asRuntimeRecord(value) ?? {};
+  return {
+    activeProjectId: firstString(record.activeProjectId),
+    activeProjectRoot: firstString(record.activeProjectRoot),
+    schemaVersion: firstNumber(record.schemaVersion),
+    selectedAt: firstString(record.selectedAt),
+    selectedProjectId: firstString(record.selectedProjectId),
+    selectedProjectRoot: firstString(record.selectedProjectRoot),
+    updatedAt: firstString(record.updatedAt),
+  };
+}
+
+function normalizeProjectRuntimeDaemon(value: unknown): DashboardProjectRuntimeDaemonSummary {
+  const record = asRuntimeRecord(value) ?? {};
+  return {
+    dashboardUrl: firstString(record.dashboardUrl),
+    message: firstString(record.message),
+    pid: firstNumber(record.pid),
+    pidAlive: booleanOrNull(record.pidAlive),
+    ready: booleanOrNull(record.ready),
+    status: firstString(record.status) ?? 'unknown',
+    url: firstString(record.url),
+  };
+}
+
+function normalizeProjectRuntimeFlags(value: unknown): DashboardProjectRuntimeFlags {
+  const record = asRuntimeRecord(value) ?? {};
+  return {
+    activeRuntime: booleanOrFalse(record.activeRuntime),
+    missing: booleanOrFalse(record.missing),
+    selected: booleanOrFalse(record.selected),
+    stale: booleanOrFalse(record.stale),
+    unavailable: booleanOrFalse(record.unavailable),
+  };
+}
+
+function normalizeProjectRuntimeScope(value: unknown): DashboardProjectRuntimeScopeSummary | null {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const daemon = normalizeProjectRuntimeDaemon(record.daemon);
+  const projectRoot = firstString(record.projectRoot) ?? '';
+  const ghost = booleanOrFalse(record.ghost);
+  return {
+    cacheKey: firstString(record.cacheKey, record.projectId, projectRoot) ?? '',
+    dashboardUrl: firstString(record.dashboardUrl, daemon.dashboardUrl),
+    dataRoot: firstString(record.dataRoot, projectRoot) ?? '',
+    dataRootSource: firstString(record.dataRootSource, ghost ? 'ghost-registry' : null) ?? 'unknown',
+    daemon,
+    displayName: firstString(record.displayName) ?? fallbackDisplayName(projectRoot),
+    flags: normalizeProjectRuntimeFlags(record.flags),
+    ghost,
+    mode: firstString(record.mode, ghost ? 'ghost' : null) ?? 'unknown',
+    projectExists: booleanOrFalse(record.projectExists),
+    projectId: firstString(record.projectId),
+    projectRealpath: firstString(record.projectRealpath, projectRoot) ?? '',
+    projectRoot,
+    registered: booleanOrFalse(record.registered),
+    runtimeDir: firstString(record.runtimeDir) ?? '',
+    status: firstString(record.status) ?? 'unknown',
+    workspaceExists: booleanOrFalse(record.workspaceExists),
+  };
+}
+
+function normalizeNullableProjectRuntimeScope(value: unknown): DashboardProjectRuntimeScopeSummary | null {
+  return value === null || value === undefined ? null : normalizeProjectRuntimeScope(value);
+}
+
+function normalizeProjectsSnapshot(value: unknown): DashboardProjectsSnapshot {
+  const record = asRuntimeRecord(value) ?? {};
+  return {
+    activeRuntimeProject: normalizeNullableProjectRuntimeScope(record.activeRuntimeProject),
+    generatedAt: firstString(record.generatedAt),
+    projects: recordArray(record.projects)
+      .map(normalizeProjectRuntimeScope)
+      .filter((project): project is DashboardProjectRuntimeScopeSummary => project !== null),
+    selectedProject: normalizeNullableProjectRuntimeScope(record.selectedProject),
+    state: normalizeProjectRuntimeControlState(record.state),
+  };
+}
+
+function normalizeProjectHandoff(value: unknown): DashboardProjectRuntimeHandoff | null {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return null;
+  }
+  return {
+    apiBaseUrl: firstString(record.apiBaseUrl),
+    dashboardUrl: firstString(record.dashboardUrl),
+    projectId: firstString(record.projectId),
+    projectRoot: firstString(record.projectRoot) ?? '',
+    status: firstString(record.status) ?? 'unknown',
+  };
+}
+
+function normalizeProjectActionResult(value: unknown, fallbackAction: DashboardProjectActionResult['action']): DashboardProjectActionResult {
+  const record = asRuntimeRecord(value) ?? {};
+  return {
+    action: firstString(record.action) ?? fallbackAction,
+    error: firstString(record.error),
+    deferredStopProject: normalizeNullableProjectRuntimeScope(record.deferredStopProject),
+    handoff: normalizeProjectHandoff(record.handoff),
+    ok: booleanOrFalse(record.ok),
+    previousActiveProject: normalizeNullableProjectRuntimeScope(record.previousActiveProject),
+    snapshot: normalizeProjectsSnapshot(record.snapshot),
+    stoppedProject: normalizeNullableProjectRuntimeScope(record.stoppedProject),
+    targetProject: normalizeNullableProjectRuntimeScope(record.targetProject),
+  };
+}
+
+async function postProjectAction(
+  projectId: string,
+  action: 'open-dashboard' | 'switch' | 'stop',
+): Promise<DashboardProjectActionResult> {
+  const res = await http.post(
+    `/projects/${encodeURIComponent(projectId)}/${action}`,
+    { waitUntilReadyMs: 10000 },
+    { validateStatus: (status) => status < 500 },
+  );
+  const result = normalizeProjectActionResult(res.data?.data, action);
+  if (res.data?.success === false && !result.error) {
+    return { ...result, ok: false, error: firstString(res.data?.error) ?? 'Project action failed' };
+  }
+  return result;
 }
 
 function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: unknown): RuntimeBoundary {
@@ -917,6 +1076,35 @@ export const api = {
       aiConfig: { provider: aiConfig.provider || '', model: aiConfig.model || '' },
       idTitleMap,
     };
+  },
+
+  // ── Projects runtime control (Alembic-owned HTTP contract) ──────
+
+  async getProjectsSnapshot(): Promise<DashboardProjectsSnapshot> {
+    const res = await http.get('/projects');
+    return normalizeProjectsSnapshot(res.data?.data);
+  },
+
+  async getCurrentProjectSnapshot(): Promise<DashboardProjectsSnapshot> {
+    const res = await http.get('/projects/current');
+    const data = res.data?.data ?? {};
+    return normalizeProjectsSnapshot({
+      ...data,
+      projects: [],
+      generatedAt: null,
+    });
+  },
+
+  async openProjectDashboard(projectId: string): Promise<DashboardProjectActionResult> {
+    return postProjectAction(projectId, 'open-dashboard');
+  },
+
+  async switchProject(projectId: string): Promise<DashboardProjectActionResult> {
+    return postProjectAction(projectId, 'switch');
+  },
+
+  async stopProject(projectId: string): Promise<DashboardProjectActionResult> {
+    return postProjectAction(projectId, 'stop');
   },
 
   // ── Modules (多语言统一模块扫描) ───────

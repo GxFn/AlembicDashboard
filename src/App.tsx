@@ -2,7 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { notify } from './utils/notification';
-import { Recipe, ProjectData, SPMTarget, ExtractedRecipe, ScanResultItem, GuardAuditResult, KnowledgeEntry, ScannedFile } from './types';
+import {
+  Recipe,
+  ProjectData,
+  SPMTarget,
+  ExtractedRecipe,
+  ScanResultItem,
+  GuardAuditResult,
+  KnowledgeEntry,
+  ScannedFile,
+  DashboardProjectActionResult,
+  DashboardProjectsSnapshot,
+} from './types';
 import { TabType, validTabs } from './constants';
 import { isShellTarget, isSilentTarget, isPendingTarget, getWritePermissionErrorMsg, getSaveErrorMsg } from './utils';
 import { getErrorMessage, isAbortError, isTimeoutError, isAiError, isAxiosCancel } from './utils/error';
@@ -143,6 +154,8 @@ const App: React.FC = () => {
 
   // State
   const [data, setData] = useState<ProjectData | null>(null);
+  const [projectsSnapshot, setProjectsSnapshot] = useState<DashboardProjectsSnapshot | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>(getTabFromPath());
   const [searchQuery, setSearchQuery] = useState('');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -359,6 +372,7 @@ const App: React.FC = () => {
   useEffect(() => {
   fetchData();
   fetchTargets();
+  fetchProjectsSnapshot();
   fetchLlmStatus();
 
   const handlePopState = () => {
@@ -413,6 +427,49 @@ const App: React.FC = () => {
     setTargets(result);
   } catch (err: unknown) {
     console.warn('删除候选残留失败:', getErrorMessage(err));
+  }
+  };
+
+  const fetchProjectsSnapshot = async () => {
+  setProjectsLoading(true);
+  try {
+    const snapshot = await api.getProjectsSnapshot();
+    setProjectsSnapshot(snapshot);
+  } catch (err: unknown) {
+    setProjectsSnapshot(null);
+    console.warn('项目控制状态加载失败:', getErrorMessage(err));
+  } finally {
+    setProjectsLoading(false);
+  }
+  };
+
+  const resetProjectScopedUi = () => {
+  setSelectedTargetName(null);
+  setCustomFolderTargets([]);
+  setTargets([]);
+  setScanFileList([]);
+  setScanResults_raw([]);
+  setGuardAudit(null);
+  setSearchQuery('');
+  };
+
+  const handleProjectActionCompleted = async (
+  result: DashboardProjectActionResult,
+  action: DashboardProjectActionResult['action'],
+  ) => {
+  setProjectsSnapshot(result.snapshot);
+  resetProjectScopedUi();
+  if (action === 'stop' && result.deferredStopProject) {
+    return;
+  }
+  const settled = await Promise.allSettled([
+    fetchData(),
+    fetchTargets(),
+    fetchProjectsSnapshot(),
+  ]);
+  const failed = settled.find((item) => item.status === 'rejected');
+  if (failed) {
+    console.warn('项目切换后刷新失败:', failed.reason);
   }
   };
 
@@ -1099,6 +1156,10 @@ const App: React.FC = () => {
       onOpenCommandPalette={() => setCommandPaletteOpen(true)}
       projectName={data?.projectName}
       runtimeBoundary={data?.runtimeBoundary}
+      projectsSnapshot={projectsSnapshot}
+      projectsLoading={projectsLoading}
+      onRefreshProjects={fetchProjectsSnapshot}
+      onProjectActionCompleted={handleProjectActionCompleted}
       candidateCount={candidateCount}
       showSignalMonitor={showSignalMonitor}
       onToggleSignalMonitor={() => setShowSignalMonitor(v => !v)}

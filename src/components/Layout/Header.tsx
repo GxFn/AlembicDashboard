@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Cpu, ChevronDown, ChevronRight, Settings, Search, Zap, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server, FolderGit2, ExternalLink, RefreshCw, Power, RotateCw, CheckCircle2, AlertTriangle, CircleOff, Loader2 } from 'lucide-react';
+import { ArrowRightLeft, Cpu, ChevronDown, ChevronRight, Settings, Search, Zap, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server, FolderGit2, ExternalLink, RefreshCw, Power, CheckCircle2, AlertTriangle, CircleOff, Loader2 } from 'lucide-react';
 import api from '../../api';
 import { getSocket } from '../../lib/socket';
 import { useI18n } from '../../i18n';
@@ -143,6 +143,28 @@ function projectActionLabelKey(action: DashboardProjectActionResult['action']): 
   }
 }
 
+function compactProjectRoot(projectRoot: string): string {
+  const normalized = projectRoot.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length <= 3) {
+    return projectRoot || '—';
+  }
+  return `…/${parts.slice(-3).join('/')}`;
+}
+
+function isSameProject(
+  left: DashboardProjectRuntimeScopeSummary | null | undefined,
+  right: DashboardProjectRuntimeScopeSummary | null | undefined,
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+  if (left.projectId && right.projectId) {
+    return left.projectId === right.projectId;
+  }
+  return left.cacheKey === right.cacheKey || left.projectRoot === right.projectRoot;
+}
+
 function isDifferentOrigin(url: string | null | undefined): boolean {
   if (!url) {
     return false;
@@ -224,6 +246,7 @@ const Header: React.FC<HeaderProps> = ({
   const projects = projectsSnapshot?.projects ?? [];
   const selectedProject = projectsSnapshot?.selectedProject ?? null;
   const activeRuntimeProject = projectsSnapshot?.activeRuntimeProject ?? null;
+  const selectedAndActiveSame = isSameProject(selectedProject, activeRuntimeProject);
   const displayProject = selectedProject ?? activeRuntimeProject;
   const projectSwitcherLabel = displayProject?.displayName || projectName || 'Alembic';
 
@@ -438,8 +461,14 @@ const Header: React.FC<HeaderProps> = ({
               </div>
               <DropdownMenuSeparator />
               <div className="px-2 py-1 text-xs text-[var(--fg-subtle)] space-y-1">
-                <p>{t('header.projectsSelected')}: {selectedProject?.displayName || t('header.projectsNone')}</p>
-                <p>{t('header.projectsActive')}: {activeRuntimeProject?.displayName || t('header.projectsNone')}</p>
+                {selectedAndActiveSame ? (
+                  <p>{t('header.projectsCurrent')}: {selectedProject?.displayName || t('header.projectsNone')}</p>
+                ) : (
+                  <>
+                    <p>{t('header.projectsSelected')}: {selectedProject?.displayName || t('header.projectsNone')}</p>
+                    <p>{t('header.projectsActive')}: {activeRuntimeProject?.displayName || t('header.projectsNone')}</p>
+                  </>
+                )}
               </div>
               <DropdownMenuSeparator />
               <div className="max-h-[420px] overflow-y-auto py-1">
@@ -459,7 +488,7 @@ const Header: React.FC<HeaderProps> = ({
                         key={project.cacheKey || project.projectRoot}
                         className="mx-1 my-1 rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-surface)] px-2 py-2"
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className={cn(
@@ -469,22 +498,25 @@ const Header: React.FC<HeaderProps> = ({
                                 <ProjectStatusIcon project={project} />
                                 {t(projectStatusLabelKey(project.status))}
                               </span>
-                              {project.flags.selected && (
+                              {project.flags.selected && project.flags.activeRuntime ? (
+                                <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-600">
+                                  {t('header.projectsCurrentBadge')}
+                                </span>
+                              ) : project.flags.selected ? (
                                 <span className="rounded-full bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--fg-subtle)]">
                                   {t('header.projectsSelectedBadge')}
                                 </span>
-                              )}
-                              {project.flags.activeRuntime && (
+                              ) : project.flags.activeRuntime ? (
                                 <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-600">
                                   {t('header.projectsActiveBadge')}
                                 </span>
-                              )}
+                              ) : null}
                               <span className="truncate text-sm font-medium text-[var(--fg-default)]">
                                 {project.displayName}
                               </span>
                             </div>
                             <p className="mt-1 truncate text-xs text-[var(--fg-subtle)]" title={project.projectRoot}>
-                              {project.projectRoot}
+                              {compactProjectRoot(project.projectRoot)}
                             </p>
                             <p className="mt-0.5 text-xs text-[var(--fg-muted)]">
                               {project.ghost ? t('header.projectsGhost') : t('header.projectsStandard')}
@@ -524,7 +556,7 @@ const Header: React.FC<HeaderProps> = ({
                                     handleProjectAction(project, 'switch');
                                   }}
                                 >
-                                  <RotateCw size={13} />
+                                  <ArrowRightLeft size={13} />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>{t('header.projectActionSwitch')}</TooltipContent>

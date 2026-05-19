@@ -36,7 +36,6 @@ import CandidatesView from './components/Views/CandidatesView';
 import ModuleExplorerView from './components/Views/ModuleExplorerView';
 import GuardView from './components/Views/GuardView';
 import PanoramaView from './components/Views/PanoramaView';
-import { GlobalChatProvider, GlobalChatPanel, useGlobalChat } from './components/Shared/GlobalChatDrawer';
 import AiChatView from './components/Views/AiChatView';
 import KnowledgeView from './components/Views/KnowledgeView';
 import SkillsView from './components/Views/SkillsView';
@@ -48,7 +47,6 @@ import RecipeEditor from './components/Modals/RecipeEditor';
 import CreateModal from './components/Modals/CreateModal';
 import SearchModal from './components/Modals/SearchModal';
 import LlmConfigModal from './components/Modals/LlmConfigModal';
-import SignalMonitor from './components/Panels/SignalMonitor';
 
 /* ── ErrorBoundary — 防止白屏 ────────────── */
 class ErrorBoundary extends React.Component<
@@ -221,9 +219,6 @@ const App: React.FC = () => {
   // LLM 配置状态
   const [llmReady, setLlmReady] = useState(true); // 默认 true，加载后更新
   const [showLlmConfig, setShowLlmConfig] = useState(false);
-
-  // SignalMonitor side panel
-  const [showSignalMonitor, setShowSignalMonitor] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const trickleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1130,7 +1125,6 @@ const App: React.FC = () => {
 
   return (
   <ErrorBoundary>
-  <GlobalChatProvider>
   <div className="flex h-screen bg-[var(--bg-root)] text-[var(--fg-primary)] overflow-hidden font-sans ambient-bg">
     <Toaster position="top-center" toastOptions={{ duration: 5000, style: { background: 'none', padding: 0, boxShadow: 'none', border: 'none' } }} containerStyle={{ top: 24 }} />
     <Sidebar 
@@ -1146,7 +1140,6 @@ const App: React.FC = () => {
 
     <main className="flex-1 flex flex-col overflow-hidden relative">
     <Header 
-      setShowCreateModal={setShowCreateModal} 
       aiConfig={data?.aiConfig}
       llmReady={llmReady}
       onOpenLlmConfig={() => setShowLlmConfig(true)}
@@ -1161,8 +1154,6 @@ const App: React.FC = () => {
       onRefreshProjects={fetchProjectsSnapshot}
       onProjectActionCompleted={handleProjectActionCompleted}
       candidateCount={candidateCount}
-      showSignalMonitor={showSignalMonitor}
-      onToggleSignalMonitor={() => setShowSignalMonitor(v => !v)}
     />
 
     <div className={`flex-1 ${activeTab === 'wiki' ? 'overflow-hidden' : 'overflow-y-auto p-4 xl:p-6 2xl:p-8'}`}>
@@ -1349,12 +1340,7 @@ const App: React.FC = () => {
       />
     )}
 
-    <SignalMonitor open={showSignalMonitor} onClose={() => setShowSignalMonitor(false)} />
-
   </main>
-
-  {/* AI Chat 内联面板 — flex 同层，挤压 main 空间 */}
-  <ChatPanelSlot />
 
   {/* ⌘K Command Palette */}
   <CommandPalette
@@ -1368,16 +1354,8 @@ const App: React.FC = () => {
     candidateCount={candidateCount}
   />
   </div>
-  </GlobalChatProvider>
   </ErrorBoundary>
   );
-};
-
-/** Chat 面板插槽 — 按 isOpen 渲染 */
-const ChatPanelSlot: React.FC = () => {
-  const { isOpen } = useGlobalChat();
-  if (!isOpen) return null;
-  return <GlobalChatPanel />;
 };
 
 export default App;

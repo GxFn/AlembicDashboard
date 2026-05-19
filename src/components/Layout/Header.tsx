@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Cpu, ChevronDown, ChevronRight, MessageSquare, Settings, Search, Zap, Radio, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server, FolderGit2, ExternalLink, RefreshCw, Power, RotateCw, CheckCircle2, AlertTriangle, CircleOff, Loader2 } from 'lucide-react';
+import { Cpu, ChevronDown, ChevronRight, Settings, Search, Zap, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server, FolderGit2, ExternalLink, RefreshCw, Power, RotateCw, CheckCircle2, AlertTriangle, CircleOff, Loader2 } from 'lucide-react';
 import api from '../../api';
 import { getSocket } from '../../lib/socket';
-import { useGlobalChat } from '../Shared/GlobalChatDrawer';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
@@ -179,7 +178,6 @@ const TAB_LABELS: Record<TabType, string> = {
 };
 
 interface HeaderProps {
-  setShowCreateModal: (show: boolean) => void;
   aiConfig?: { provider: string; model: string };
   llmReady?: boolean;
   onOpenLlmConfig?: () => void;
@@ -203,13 +201,9 @@ interface HeaderProps {
   ) => Promise<void> | void;
   /** 候选总数（用于面包屑插值） */
   candidateCount?: number;
-  /** Signal Monitor 开关 */
-  showSignalMonitor?: boolean;
-  onToggleSignalMonitor?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
-  setShowCreateModal,
   aiConfig, llmReady = true, onOpenLlmConfig,
   onBeforeAiSwitch, onAiConfigChange,
   activeTab,
@@ -221,10 +215,7 @@ const Header: React.FC<HeaderProps> = ({
   onRefreshProjects,
   onProjectActionCompleted,
   candidateCount = 0,
-  showSignalMonitor = false,
-  onToggleSignalMonitor,
 }) => {
-  const { toggle: toggleChat, isOpen: chatOpen } = useGlobalChat();
   const { t } = useI18n();
   const [aiProviders, setAiProviders] = useState<AiProvider[]>([]);
   const [aiSwitching, setAiSwitching] = useState(false);
@@ -694,16 +685,14 @@ const Header: React.FC<HeaderProps> = ({
         {/* ── 中间：⌘K 搜索触发 ── */}
         <button
           onClick={onOpenCommandPalette}
+          aria-label={t('header.searchPlaceholder')}
           className={cn(
-            "flex items-center gap-2 h-8 px-3 rounded-[var(--radius-full)] border border-[var(--border-default)] bg-[var(--bg-subtle)]/60",
+            "flex items-center gap-2 h-8 px-2.5 sm:px-3 rounded-[var(--radius-full)] border border-[var(--border-default)] bg-[var(--bg-subtle)]/60",
             "text-sm text-[var(--fg-subtle)] hover:border-[var(--accent)]/40 hover:text-[var(--fg-muted)] hover:shadow-[0_0_12px_var(--accent-glow)] transition-all",
-            "w-64 justify-between backdrop-blur-sm"
+            "shrink-0 justify-center backdrop-blur-sm"
           )}
         >
-          <div className="flex items-center gap-2">
-            <Search size={14} />
-            <span>{t('header.searchPlaceholder')}</span>
-          </div>
+          <Search size={14} />
           <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-root)]/60 px-1.5 py-0.5 text-[10px] font-mono text-[var(--fg-subtle)]">
             ⌘K
           </kbd>
@@ -806,49 +795,7 @@ const Header: React.FC<HeaderProps> = ({
             </DropdownMenu>
           )}
 
-          {/* 新建 */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowCreateModal(true)}
-              >
-                <Plus size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('header.newRecipe')}</TooltipContent>
-          </Tooltip>
-
-          {/* Signal Monitor Toggle */}
-          {onToggleSignalMonitor && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={showSignalMonitor ? "accent" : "ghost"}
-                  size="icon-sm"
-                  onClick={onToggleSignalMonitor}
-                >
-                  <Radio size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{showSignalMonitor ? t('signals.closeMonitor') : t('signals.openMonitor')}</TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* AI Chat Toggle（贴最右） */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={chatOpen ? "accent" : "ghost"}
-                size="icon-sm"
-                onClick={toggleChat}
-              >
-                <MessageSquare size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{chatOpen ? t('header.closeAiChat') : t('header.openAiChat')}</TooltipContent>
-          </Tooltip>        </div>
+        </div>
       </header>
     </TooltipProvider>
   );

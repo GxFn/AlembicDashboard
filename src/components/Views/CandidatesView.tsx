@@ -693,8 +693,8 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
             return (
               <div key={targetName} className="space-y-3">
                 {/* ── 工具栏 ── */}
-                <div className="flex flex-col gap-3 px-4 py-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-sm lg:flex-row lg:items-center lg:gap-3 lg:py-2.5">
-                  <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2 lg:flex-1">
+                <div className="grid grid-cols-1 gap-2 px-4 py-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-sm lg:flex lg:items-center lg:gap-3 lg:py-2.5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 lg:flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                       {(() => {
                         const Icon = catCfg?.icon || Box;
@@ -710,54 +710,56 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                     </span>
                   </div>
 
-                  {/* 筛选控件 */}
-                  <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
-                    <div className="flex shrink-0 items-center gap-1 px-2 py-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-default)]">
-                      <ArrowUpDown size={12} className="text-[var(--fg-muted)]" />
-                      <Select
-                        value={filters.sort}
-                        onChange={v => setFilters(prev => ({ ...prev, sort: v as typeof prev.sort }))}
-                        options={[
-                          { value: 'score-desc', label: `${t('candidates.sortScore')} ↓` },
-                          { value: 'score-asc', label: `${t('candidates.sortScore')} ↑` },
-                          { value: 'confidence-desc', label: `${t('candidates.sortConfidence')} ↓` },
-                          { value: 'default', label: t('candidates.sortDefault') },
-                        ]}
-                        size="xs"
-                        className="border-none bg-transparent"
-                      />
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:flex-nowrap">
+                    {/* 筛选控件 */}
+                    <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+                      <div className="flex shrink-0 items-center gap-1 px-2 py-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-default)]">
+                        <ArrowUpDown size={12} className="text-[var(--fg-muted)]" />
+                        <Select
+                          value={filters.sort}
+                          onChange={v => setFilters(prev => ({ ...prev, sort: v as typeof prev.sort }))}
+                          options={[
+                            { value: 'score-desc', label: `${t('candidates.sortScore')} ↓` },
+                            { value: 'score-asc', label: `${t('candidates.sortScore')} ↑` },
+                            { value: 'confidence-desc', label: `${t('candidates.sortConfidence')} ↓` },
+                            { value: 'default', label: t('candidates.sortDefault') },
+                          ]}
+                          size="xs"
+                          className="border-none bg-transparent"
+                        />
+                      </div>
+                      <div className="hidden h-4 w-px bg-[var(--border-default)] sm:block" />
+                      <button
+                        onClick={() => onAuditAllInTarget(paginatedItems, targetName)}
+                        className="whitespace-nowrap text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors"
+                      >
+                        {t('candidates.approveCurrentPage')}
+                      </button>
                     </div>
-                    <div className="hidden h-4 w-px bg-[var(--border-default)] sm:block" />
-                    <button
-                      onClick={() => onAuditAllInTarget(paginatedItems, targetName)}
-                      className="whitespace-nowrap text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors"
-                    >
-                      {t('candidates.approveCurrentPage')}
-                    </button>
-                  </div>
 
-                  <div className="hidden h-5 w-px bg-[var(--border-default)] lg:block" />
+                    <div className="hidden h-5 w-px bg-[var(--border-default)] lg:block" />
 
-                  {/* 统计 */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="whitespace-nowrap text-[11px] text-[var(--fg-muted)] font-medium">{t('candidates.totalCount', { count: totalItems })}</span>
-                    {totalItems > 0 && (
-                      <span className="whitespace-nowrap text-[11px] text-emerald-600 font-medium sm:ml-1.5 sm:pl-2 sm:border-l sm:border-[var(--border-default)]">
-                        {t('candidates.confidence')} {Math.round((group.items.reduce((s, c) => s + (c.reasoning?.confidence ?? 0), 0) / totalItems) * 100)}%
-                      </span>
-                    )}
-                  </div>
+                    {/* 统计 */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="whitespace-nowrap text-[11px] text-[var(--fg-muted)] font-medium">{t('candidates.totalCount', { count: totalItems })}</span>
+                      {totalItems > 0 && (
+                        <span className="whitespace-nowrap text-[11px] text-emerald-600 font-medium sm:ml-1.5 sm:pl-2 sm:border-l sm:border-[var(--border-default)]">
+                          {t('candidates.confidence')} {Math.round((group.items.reduce((s, c) => s + (c.reasoning?.confidence ?? 0), 0) / totalItems) * 100)}%
+                        </span>
+                      )}
+                    </div>
 
-                  {/* 全部删除（与清理重建同风格） */}
-                  <div className="ml-auto lg:ml-0">
-                    <button
-                      onClick={() => handleDeleteAllInTarget(targetName)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] transition-all text-[var(--fg-muted)] hover:text-red-600 hover:bg-red-50 whitespace-nowrap"
-                      title={t('candidates.deleteAll')}
-                    >
-                      <Trash2 size={12} />
-                      {t('candidates.deleteAll')}
-                    </button>
+                    {/* 全部删除（与清理重建同风格） */}
+                    <div className="ml-auto">
+                      <button
+                        onClick={() => handleDeleteAllInTarget(targetName)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] transition-all text-[var(--fg-muted)] hover:text-red-600 hover:bg-red-50 whitespace-nowrap"
+                        title={t('candidates.deleteAll')}
+                      >
+                        <Trash2 size={12} />
+                        {t('candidates.deleteAll')}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

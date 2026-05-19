@@ -689,10 +689,13 @@ const Header: React.FC<HeaderProps> = ({
           className={cn(
             "flex items-center gap-2 h-8 px-2.5 sm:px-3 rounded-[var(--radius-full)] border border-[var(--border-default)] bg-[var(--bg-subtle)]/60",
             "text-sm text-[var(--fg-subtle)] hover:border-[var(--accent)]/40 hover:text-[var(--fg-muted)] hover:shadow-[0_0_12px_var(--accent-glow)] transition-all",
-            "shrink-0 justify-center backdrop-blur-sm"
+            "shrink-0 justify-center lg:w-56 lg:justify-between xl:w-64 backdrop-blur-sm"
           )}
         >
-          <Search size={14} />
+          <div className="flex min-w-0 items-center gap-2">
+            <Search size={14} className="shrink-0" />
+            <span className="hidden truncate lg:block">{t('header.searchPlaceholder')}</span>
+          </div>
           <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-root)]/60 px-1.5 py-0.5 text-[10px] font-mono text-[var(--fg-subtle)]">
             ⌘K
           </kbd>

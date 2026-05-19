@@ -58,6 +58,7 @@ function labels(lang: string) {
     refresh: zh ? '刷新' : 'Refresh',
     startBootstrap: zh ? '启动 Bootstrap' : 'Start Bootstrap',
     startRescan: zh ? '启动 Rescan' : 'Start Rescan',
+    subtitle: zh ? '查看 Bootstrap / Rescan 后台任务、进度和候选入口' : 'Track Bootstrap and Rescan background jobs, progress, and candidate handoff.',
     allKinds: zh ? '全部类型' : 'All kinds',
     allStatuses: zh ? '全部状态' : 'All statuses',
     active: zh ? '活动中' : 'Active',
@@ -180,19 +181,24 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
   };
 
   return (
-    <div className="space-y-4 pb-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--accent-emphasis)]">
-            <Activity size={19} />
+    <div className="h-full flex flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+            <Activity size={20} className="text-violet-600 dark:text-violet-400" />
           </div>
-          <h1 className="text-lg font-bold text-[var(--fg-primary)]">{text.title}</h1>
+          <div className="min-w-0">
+            <h2 className="text-lg xl:text-xl font-bold text-[var(--fg-primary)]">{text.title}</h2>
+            <p className="text-xs text-[var(--fg-muted)] mt-0.5 truncate">
+              {text.subtitle}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => loadJobs(true)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+            className="p-2 rounded-lg text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] hover:bg-[var(--bg-subtle)] transition-colors"
             title={text.refresh}
             aria-label={text.refresh}
           >
@@ -202,7 +208,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
             type="button"
             onClick={() => startJob('bootstrap')}
             disabled={Boolean(startingKind)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 text-xs font-bold text-violet-600 transition-colors hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:text-violet-400"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-60"
           >
             {startingKind === 'bootstrap' ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
             {text.startBootstrap}
@@ -211,7 +217,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
             type="button"
             onClick={() => startJob('rescan')}
             disabled={Boolean(startingKind)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:text-blue-400"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-60"
           >
             {startingKind === 'rescan' ? <Loader2 size={15} className="animate-spin" /> : <RotateCw size={15} />}
             {text.startRescan}
@@ -219,14 +225,14 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
         <StatTile label={text.active} value={counts.active} tone="blue" />
         <StatTile label={text.completed} value={counts.completed} tone="emerald" />
         <StatTile label={text.failed} value={counts.failed} tone="red" />
         <StatTile label={text.cancelled} value={counts.cancelled} tone="slate" />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 mb-4">
         <Select
           value={kindFilter}
           onChange={(value) => setKindFilter(value as JobKindFilter)}
@@ -236,8 +242,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
             { value: 'rescan', label: text.rescan },
           ]}
           size="sm"
-          minWidth={120}
-          className="text-xs"
+          className="min-w-[132px] text-xs"
         />
         <Select
           value={statusFilter}
@@ -247,8 +252,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
             ...STATUS_ORDER.map((status) => ({ value: status, label: statusLabel(status, text) })),
           ]}
           size="sm"
-          minWidth={120}
-          className="text-xs"
+          className="min-w-[132px] text-xs"
         />
       </div>
 

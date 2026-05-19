@@ -18,6 +18,7 @@ import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
+import Select from '../ui/Select';
 
 type JobKindFilter = 'all' | DaemonJobRecord['kind'];
 type JobStatusFilter = 'all' | DaemonJobRecord['status'];
@@ -35,11 +36,11 @@ const STATUS_ORDER: DaemonJobRecord['status'][] = [
 ];
 
 const STATUS_STYLES: Record<DaemonJobRecord['status'], string> = {
-  queued: 'text-amber-700 bg-amber-50 border-amber-200',
-  running: 'text-blue-700 bg-blue-50 border-blue-200',
-  completed: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-  failed: 'text-red-700 bg-red-50 border-red-200',
-  cancelled: 'text-slate-600 bg-slate-50 border-slate-200',
+  queued: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
+  running: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20',
+  completed: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  failed: 'text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20',
+  cancelled: 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] border-[var(--border-default)]',
 };
 
 const STATUS_ICONS: Record<DaemonJobRecord['status'], React.ReactNode> = {
@@ -179,28 +180,29 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="space-y-4 pb-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-emphasis)]">
-            <Activity size={20} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--accent-emphasis)]">
+            <Activity size={19} />
           </div>
-          <h1 className="text-xl font-semibold text-[var(--fg-primary)]">{text.title}</h1>
+          <h1 className="text-lg font-bold text-[var(--fg-primary)]">{text.title}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => loadJobs(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-muted)]"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+            title={text.refresh}
+            aria-label={text.refresh}
           >
             <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
-            {text.refresh}
           </button>
           <button
             type="button"
             onClick={() => startJob('bootstrap')}
             disabled={Boolean(startingKind)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 text-sm font-medium text-white disabled:opacity-60"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 text-xs font-bold text-violet-600 transition-colors hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:text-violet-400"
           >
             {startingKind === 'bootstrap' ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
             {text.startBootstrap}
@@ -209,7 +211,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
             type="button"
             onClick={() => startJob('rescan')}
             disabled={Boolean(startingKind)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm font-medium text-[var(--fg-primary)] disabled:opacity-60"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 text-xs font-bold text-blue-600 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:text-blue-400"
           >
             {startingKind === 'rescan' ? <Loader2 size={15} className="animate-spin" /> : <RotateCw size={15} />}
             {text.startRescan}
@@ -225,30 +227,32 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select
+        <Select
           value={kindFilter}
-          onChange={(event) => setKindFilter(event.target.value as JobKindFilter)}
-          className="h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm text-[var(--fg-primary)]"
-        >
-          <option value="all">{text.allKinds}</option>
-          <option value="bootstrap">{text.bootstrap}</option>
-          <option value="rescan">{text.rescan}</option>
-        </select>
-        <select
+          onChange={(value) => setKindFilter(value as JobKindFilter)}
+          options={[
+            { value: 'all', label: text.allKinds },
+            { value: 'bootstrap', label: text.bootstrap },
+            { value: 'rescan', label: text.rescan },
+          ]}
+          size="sm"
+          minWidth={120}
+          className="text-xs"
+        />
+        <Select
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as JobStatusFilter)}
-          className="h-9 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 text-sm text-[var(--fg-primary)]"
-        >
-          <option value="all">{text.allStatuses}</option>
-          {STATUS_ORDER.map((status) => (
-            <option key={status} value={status}>
-              {statusLabel(status, text)}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => setStatusFilter(value as JobStatusFilter)}
+          options={[
+            { value: 'all', label: text.allStatuses },
+            ...STATUS_ORDER.map((status) => ({ value: status, label: statusLabel(status, text) })),
+          ]}
+          size="sm"
+          minWidth={120}
+          className="text-xs"
+        />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)]">
+      <div className="overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-sm">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-[var(--fg-muted)]">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -289,13 +293,13 @@ function StatTile({
   tone: 'blue' | 'emerald' | 'red' | 'slate';
 }) {
   const toneClass = {
-    blue: 'text-blue-700 bg-blue-50 border-blue-200',
-    emerald: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-    red: 'text-red-700 bg-red-50 border-red-200',
-    slate: 'text-slate-700 bg-slate-50 border-slate-200',
+    blue: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20',
+    emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    red: 'text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20',
+    slate: 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] border-[var(--border-default)]',
   }[tone];
   return (
-    <div className={cn('rounded-lg border p-3', toneClass)}>
+    <div className={cn('rounded-xl border px-4 py-3', toneClass)}>
       <p className="text-xs font-medium opacity-80">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
@@ -320,18 +324,18 @@ function JobRow({
   const canCancel = job.status === 'queued' || job.status === 'running';
   const summaryChips = buildSummaryChips(job.summary);
   return (
-    <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+    <div className="grid gap-4 p-4 transition-colors hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={job.status} text={text} />
-          <span className="rounded-md border border-[var(--border-default)] bg-[var(--bg-muted)] px-2 py-0.5 text-xs font-medium text-[var(--fg-secondary)]">
+          <span className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--fg-secondary)]">
             {job.kind}
           </span>
           <span className="truncate font-mono text-xs text-[var(--fg-muted)]">{job.id}</span>
           <button
             type="button"
             onClick={onCopy}
-            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg-muted)] hover:text-[var(--fg-primary)]"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
             aria-label="Copy job id"
           >
             <Copy size={13} />
@@ -349,12 +353,12 @@ function JobRow({
 
         <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
           {Object.entries(job.request || {}).slice(0, 4).map(([key, value]) => (
-            <span key={key} className="rounded-md bg-[var(--bg-muted)] px-2 py-1">
+            <span key={key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
               {key}: {String(value)}
             </span>
           ))}
           {job.bootstrapSessionId && (
-            <span className="rounded-md bg-[var(--bg-muted)] px-2 py-1">
+            <span className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
               session: {job.bootstrapSessionId}
             </span>
           )}
@@ -364,7 +368,7 @@ function JobRow({
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--fg-muted)]">
             <span className="text-[var(--fg-secondary)]">{text.summary}</span>
             {summaryChips.map((chip) => (
-              <span key={chip.key} className="rounded-md bg-[var(--bg-muted)] px-2 py-1">
+              <span key={chip.key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
                 {chip.label}: {chip.value}
               </span>
             ))}
@@ -383,7 +387,7 @@ function JobRow({
           <button
             type="button"
             onClick={onOpenCandidates}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border-default)] px-2.5 text-xs font-medium text-[var(--fg-secondary)] hover:bg-[var(--bg-muted)]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
           >
             <ExternalLink size={14} />
             {text.candidates}
@@ -394,7 +398,7 @@ function JobRow({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-red-500/20 bg-red-500/10 px-2.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/20 disabled:opacity-60 dark:text-red-400"
           >
             {busy ? <Loader2 size={14} className="animate-spin" /> : <StopCircle size={14} />}
             {text.cancel}
@@ -414,12 +418,12 @@ function ProgressBlock({
 }) {
   const percent = typeof progress.percent === 'number' ? progress.percent : 0;
   return (
-    <div className="max-w-3xl space-y-1">
+    <div className="space-y-1">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--fg-secondary)]">
         <span>{text.progress}</span>
         <span>{formatProgress(progress, text)}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-muted)]">
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-subtle)]">
         <div
           className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
           style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
@@ -436,7 +440,7 @@ function ProgressBlock({
 
 function StatusBadge({ status, text }: { status: DaemonJobRecord['status']; text: ReturnType<typeof labels> }) {
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium', STATUS_STYLES[status])}>
+    <span className={cn('inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium', STATUS_STYLES[status])}>
       {STATUS_ICONS[status]}
       {statusLabel(status, text)}
     </span>

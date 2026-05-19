@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import api, {
+  type AgentEfficiencySummary,
   type BootstrapReport,
   type BootstrapReportSummary,
   type ReportEntry,
@@ -20,7 +21,13 @@ import api, {
 } from '../../api';
 import { useI18n } from '../../i18n';
 import { getErrorMessage } from '../../utils/error';
+import {
+  getReportDimensionEfficiencies,
+  getReportEfficiency,
+  normalizeEfficiencySummary,
+} from '../../utils/efficiency';
 import { formatSourceLabel } from '../../utils/sourceLabels';
+import Select from '../ui/Select';
 
 /* ═══ Constants ═══ */
 
@@ -62,6 +69,20 @@ function formatTime(ts: number): string {
 
 function getBadgeClass(key: string, map: Record<string, string>): string {
   return map[key] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
+}
+
+function getInitialViewMode(): ViewMode {
+  const value = new URLSearchParams(window.location.search).get('view');
+  return value === 'reports' || value === 'logs' || value === 'signals' ? value : 'signals';
+}
+
+function getInitialReportTypeFilter(): ReportTypeFilter {
+  const value = new URLSearchParams(window.location.search).get('reportType');
+  return value === 'bootstrap' || value === 'pipeline' || value === 'all' ? value : 'all';
+}
+
+function getInitialSessionId(): string {
+  return new URLSearchParams(window.location.search).get('session') || '';
 }
 
 /* ═══ Sub-components ═══ */
@@ -154,18 +175,31 @@ function BootstrapReportCard({
   summary,
   detail,
   onLoadDetail,
+  defaultExpanded = false,
 }: {
   summary: BootstrapReportSummary;
   detail?: BootstrapReport | null;
   onLoadDetail(sessionId: string): void;
+  defaultExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const timestamp = summary.timestamp ? new Date(summary.timestamp).getTime() : Date.now();
   const successRate = ((summary.terminalSuccessRate || 0) * 100).toFixed(0);
+  const summaryEfficiency = normalizeEfficiencySummary(summary.efficiency);
+  const detailEfficiency = getReportEfficiency(detail);
+  const dimensionEfficiencies = getReportDimensionEfficiencies(detail).slice(0, 4);
+
+  useEffect(() => {
+    if (defaultExpanded && summary.sessionId && detail === undefined) {
+      onLoadDetail(summary.sessionId);
+    }
+  }, [defaultExpanded, detail, onLoadDetail, summary.sessionId]);
 
   return (
     <div
-      className="border border-[var(--border-default)] rounded-lg p-3 hover:bg-[var(--bg-muted)]/40 transition-colors cursor-pointer"
+      className={`border border-[var(--border-default)] rounded-lg p-3 hover:bg-[var(--bg-muted)]/40 transition-colors cursor-pointer ${
+        defaultExpanded ? 'ring-1 ring-[var(--accent-emphasis)]' : ''
+      }`}
       onClick={() => {
         const next = !expanded;
         setExpanded(next);
@@ -190,6 +224,11 @@ function BootstrapReportCard({
         <span className="text-[var(--fg-subtle)] text-xs truncate">
           terminal={summary.terminalEnabled ? `${successRate}%` : 'off'}
         </span>
+        {summaryEfficiency && (
+          <span className="text-[var(--fg-subtle)] text-xs truncate">
+            dup={summaryEfficiency.duplicateToolCalls ?? 0} cache={summaryEfficiency.cacheHits ?? 0}/{summaryEfficiency.cacheMisses ?? 0}
+          </span>
+        )}
         <span className="ml-auto shrink-0 text-xs text-[var(--fg-subtle)] tabular-nums">
           {formatTime(timestamp)}
         </span>
@@ -209,6 +248,22 @@ function BootstrapReportCard({
                 <Metric label="blocked" value={String(detail.toolUsage?.blocked || 0)} />
                 <Metric label="timeouts" value={String(detail.toolUsage?.timeouts || 0)} />
               </div>
+              {detailEfficiency && <ReportEfficiencyMetrics efficiency={detailEfficiency} />}
+              {dimensionEfficiencies.length > 0 && (
+                <div className="rounded bg-[var(--bg-muted)] p-2">
+                  <div className="mb-1 text-[var(--fg-subtle)]">dimension efficiency</div>
+                  <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
+                    {dimensionEfficiencies.map(({ dimensionId, efficiency }) => (
+                      <div key={dimensionId} className="rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
+                        <span className="font-medium text-[var(--fg-default)]">{dimensionId}</span>
+                        <span className="ml-2 text-[var(--fg-subtle)]">
+                          tools={efficiency.toolCalls ?? 0} dup={efficiency.duplicateToolCalls ?? 0} cache={efficiency.cacheHits ?? 0}/{efficiency.cacheMisses ?? 0}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <pre className="text-xs text-[var(--fg-secondary)] bg-[var(--bg-muted)] rounded p-2.5 overflow-x-auto whitespace-pre-wrap max-h-80">
                 {JSON.stringify(detail, null, 2)}
               </pre>
@@ -222,6 +277,40 @@ function BootstrapReportCard({
   );
 }
 
+function ReportEfficiencyMetrics({ efficiency }: { efficiency: AgentEfficiencySummary }) {
+  const tokenUsage = efficiency.tokenUsage || {};
+  const metrics = [
+    ['tool calls', efficiency.toolCalls],
+    ['duplicate', efficiency.duplicateToolCalls],
+    ['cache hits', efficiency.cacheHits],
+    ['cache misses', efficiency.cacheMisses],
+    ['input tokens', tokenUsage.input],
+    ['output tokens', tokenUsage.output],
+    ['reasoning tokens', tokenUsage.reasoning],
+    ['cache-hit tokens', tokenUsage.cacheHit],
+    ['max compaction', efficiency.maxCompactionLevel],
+    ['compacted items', efficiency.totalCompactedItems],
+    ['nudges', efficiency.nudgeCount],
+    ['replans', efficiency.replanCount],
+    ['empty retries', efficiency.emptyRetries],
+  ].filter((entry): entry is [string, number] => typeof entry[1] === 'number');
+
+  return (
+    <div className="rounded bg-emerald-500/5 border border-emerald-500/20 p-2">
+      <div className="mb-1 text-[var(--fg-subtle)]">efficiency</div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        {metrics.map(([label, value]) => (
+          <Metric key={label} label={label} value={formatMetricNumber(value)} />
+        ))}
+        {typeof efficiency.forcedSummary === 'boolean' && (
+          <Metric label="forced summary" value={efficiency.forcedSummary ? 'true' : 'false'} />
+        )}
+        {efficiency.cancelReason && <Metric label="cancel reason" value={efficiency.cancelReason} />}
+      </div>
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded bg-[var(--bg-muted)] p-2">
@@ -229,6 +318,16 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div className="font-medium text-[var(--fg-default)] truncate">{value}</div>
     </div>
   );
+}
+
+function formatMetricNumber(value: number): string {
+  if (Math.abs(value) >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}m`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}k`;
+  }
+  return String(value);
 }
 
 /* ═══ Log Entry Types ═══ */
@@ -288,7 +387,7 @@ function LogEntryRow({ entry }: { entry: LogEntry }) {
 const SignalReportView: React.FC = () => {
   const { t } = useI18n();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('signals');
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
   const [timeRange, setTimeRange] = useState(2); // index into TIME_RANGES => 24h
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -299,7 +398,8 @@ const SignalReportView: React.FC = () => {
   const [signalTotal, setSignalTotal] = useState(0);
   const [reports, setReports] = useState<ReportEntry[]>([]);
   const [reportTotal, setReportTotal] = useState(0);
-  const [reportTypeFilter, setReportTypeFilter] = useState<ReportTypeFilter>('all');
+  const [reportTypeFilter, setReportTypeFilter] = useState<ReportTypeFilter>(getInitialReportTypeFilter);
+  const [focusedReportSessionId] = useState(getInitialSessionId);
   const [bootstrapReports, setBootstrapReports] = useState<BootstrapReportSummary[]>([]);
   const [bootstrapDetails, setBootstrapDetails] = useState<Record<string, BootstrapReport | null>>({});
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
@@ -395,31 +495,35 @@ const SignalReportView: React.FC = () => {
           )}
 
           {viewMode === 'reports' && (
-            <select
+            <Select
               value={reportTypeFilter}
-              onChange={(e) => { setReportTypeFilter(e.target.value as ReportTypeFilter); }}
-              className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--fg-default)] pr-7"
-            >
-              <option value="all">all reports</option>
-              <option value="bootstrap">bootstrap</option>
-              <option value="pipeline">pipeline</option>
-            </select>
+              onChange={(value) => { setReportTypeFilter(value as ReportTypeFilter); }}
+              options={[
+                { value: 'all', label: 'all reports' },
+                { value: 'bootstrap', label: 'bootstrap' },
+                { value: 'pipeline', label: 'pipeline' },
+              ]}
+              size="sm"
+              className="min-w-[132px] text-xs"
+            />
           )}
 
           {/* Logs filters */}
           {viewMode === 'logs' && (
             <>
-              <select
+              <Select
                 value={logLevel}
-                onChange={(e) => { setLogLevel(e.target.value); }}
-                className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--fg-default)] pr-7 appearance-none bg-[length:16px] bg-[right_0.4rem_center] bg-no-repeat bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23888%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]"
-              >
-                <option value="">{t('signals.logAllLevels')}</option>
-                <option value="error">error</option>
-                <option value="warn">warn</option>
-                <option value="info">info</option>
-                <option value="debug">debug</option>
-              </select>
+                onChange={setLogLevel}
+                options={[
+                  { value: '', label: t('signals.logAllLevels') },
+                  { value: 'error', label: 'error' },
+                  { value: 'warn', label: 'warn' },
+                  { value: 'info', label: 'info' },
+                  { value: 'debug', label: 'debug' },
+                ]}
+                size="sm"
+                className="min-w-[132px] text-xs"
+              />
               <div className="relative">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
                 <input
@@ -540,6 +644,7 @@ const SignalReportView: React.FC = () => {
                   summary={summary}
                   detail={bootstrapDetails[summary.sessionId]}
                   onLoadDetail={loadBootstrapDetail}
+                  defaultExpanded={summary.sessionId === focusedReportSessionId}
                 />
               ))}
               {reports.map((r) => (

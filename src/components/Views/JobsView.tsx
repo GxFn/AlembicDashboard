@@ -6,6 +6,7 @@ import {
   Clock3,
   Copy,
   ExternalLink,
+  FileText,
   Loader2,
   Play,
   RefreshCw,
@@ -18,6 +19,7 @@ import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
+import { getJobEfficiency } from '../../utils/efficiency';
 import Select from '../ui/Select';
 
 type JobKindFilter = 'all' | DaemonJobRecord['kind'];
@@ -25,6 +27,7 @@ type JobStatusFilter = 'all' | DaemonJobRecord['status'];
 
 interface JobsViewProps {
   onOpenCandidates?: () => void;
+  onOpenReports?: (sessionId?: string) => void;
 }
 
 const STATUS_ORDER: DaemonJobRecord['status'][] = [
@@ -69,6 +72,7 @@ function labels(lang: string) {
     noFilteredJobs: zh ? '没有匹配的任务' : 'No matching jobs',
     cancel: zh ? '取消' : 'Cancel',
     candidates: zh ? '候选' : 'Candidates',
+    reports: zh ? '报告' : 'Reports',
     copied: zh ? 'Job ID 已复制' : 'Job ID copied',
     loadFailed: zh ? '任务列表加载失败' : 'Failed to load jobs',
     enqueueFailed: zh ? '任务启动失败' : 'Failed to start job',
@@ -81,6 +85,29 @@ function labels(lang: string) {
     error: zh ? '错误' : 'Error',
     progress: zh ? '进度' : 'Progress',
     activeTask: zh ? '当前任务' : 'Active task',
+    currentDimension: zh ? '当前维度' : 'Current dimension',
+    lastEvent: zh ? '最后事件' : 'Last event',
+    processingState: zh ? '处理状态' : 'Processing state',
+    queuedWait: zh ? '排队等待' : 'Queued',
+    processing: zh ? '任务处理中' : 'Task processing',
+    providerWait: zh ? '等待 AI / 任务事件' : 'Waiting for AI / task event',
+    efficiency: zh ? '效率' : 'Efficiency',
+    tokens: zh ? 'Token' : 'Tokens',
+    inputTokens: zh ? '输入 Token' : 'Input tokens',
+    outputTokens: zh ? '输出 Token' : 'Output tokens',
+    reasoningTokens: zh ? '推理 Token' : 'Reasoning tokens',
+    cacheHitTokens: zh ? '缓存命中 Token' : 'Cache-hit tokens',
+    cache: zh ? '缓存' : 'Cache',
+    duplicate: zh ? '重复' : 'Duplicate',
+    compacted: zh ? '压缩' : 'Compaction',
+    compactionLevel: zh ? '压缩层级' : 'Compaction level',
+    compactedItems: zh ? '压缩条目' : 'Compacted items',
+    control: zh ? '控制' : 'Control',
+    nudge: zh ? '提示' : 'nudge',
+    replan: zh ? '重规划' : 'replan',
+    emptyRetry: zh ? '空结果重试' : 'empty',
+    forcedSummary: zh ? '强制摘要' : 'Forced summary',
+    cancelReason: zh ? '取消原因' : 'Cancel reason',
     toolCalls: zh ? '工具调用' : 'Tool calls',
     summary: zh ? '摘要' : 'Summary',
     bootstrap: 'bootstrap',
@@ -93,7 +120,7 @@ function labels(lang: string) {
   };
 }
 
-const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
+const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) => {
   const { lang } = useI18n();
   const text = labels(lang);
   const [jobs, setJobs] = useState<DaemonJobRecord[]>([]);
@@ -111,7 +138,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
       setLoading(true);
     }
     try {
-      const next = await api.listJobs({ limit: 100 });
+      const next = await api.listJobs({ limit: 100, compact: true });
       setJobs(next);
     } catch (error) {
       notify(getErrorMessage(error, text.loadFailed), { type: 'error' });
@@ -278,6 +305,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
                 onCancel={() => cancelJob(job)}
                 onCopy={() => copyJobId(job.id)}
                 onOpenCandidates={onOpenCandidates}
+                onOpenReports={onOpenReports}
               />
             ))}
           </div>
@@ -317,6 +345,7 @@ function JobRow({
   onCancel,
   onCopy,
   onOpenCandidates,
+  onOpenReports,
 }: {
   job: DaemonJobRecord;
   text: ReturnType<typeof labels>;
@@ -324,9 +353,12 @@ function JobRow({
   onCancel: () => void;
   onCopy: () => void;
   onOpenCandidates?: () => void;
+  onOpenReports?: (sessionId?: string) => void;
 }) {
   const canCancel = job.status === 'queued' || job.status === 'running';
   const summaryChips = buildSummaryChips(job.summary);
+  const efficiency = getJobEfficiency(job.summary);
+  const evidenceSessionId = job.progress?.sessionId || job.bootstrapSessionId;
   return (
     <div className="grid gap-4 p-4 transition-colors hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0 space-y-2">
@@ -353,7 +385,11 @@ function JobRow({
           <Meta label={text.duration} value={formatJobDuration(job)} />
         </div>
 
+        <RuntimeStateBlock job={job} text={text} />
+
         {job.progress && <ProgressBlock progress={job.progress} text={text} />}
+
+        {efficiency && <EfficiencyBlock efficiency={efficiency} text={text} />}
 
         <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
           {Object.entries(job.request || {}).slice(0, 4).map(([key, value]) => (
@@ -386,7 +422,7 @@ function JobRow({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2 lg:self-start">
         {onOpenCandidates && (job.status === 'completed' || job.status === 'running') && (
           <button
             type="button"
@@ -395,6 +431,16 @@ function JobRow({
           >
             <ExternalLink size={14} />
             {text.candidates}
+          </button>
+        )}
+        {onOpenReports && evidenceSessionId && (
+          <button
+            type="button"
+            onClick={() => onOpenReports(evidenceSessionId)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+          >
+            <FileText size={14} />
+            {text.reports}
           </button>
         )}
         {canCancel && (
@@ -409,6 +455,29 @@ function JobRow({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function RuntimeStateBlock({
+  job,
+  text,
+}: {
+  job: DaemonJobRecord;
+  text: ReturnType<typeof labels>;
+}) {
+  const activeTask = job.progress?.activeTaskLabel || job.progress?.activeTaskId || '--';
+  const items = [
+    { label: text.lastEvent, value: formatRelativeTime(job.updatedAt, text) },
+    { label: text.processingState, value: describeProcessingState(job, text) },
+    { label: text.currentDimension, value: activeTask },
+  ];
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)]/50 p-2 text-xs text-[var(--fg-secondary)] md:grid-cols-3">
+      {items.map((item) => (
+        <Meta key={item.label} label={item.label} value={item.value} />
+      ))}
     </div>
   );
 }
@@ -438,6 +507,36 @@ function ProgressBlock({
           {text.activeTask}: {progress.activeTaskLabel}
         </p>
       )}
+    </div>
+  );
+}
+
+function EfficiencyBlock({
+  efficiency,
+  text,
+}: {
+  efficiency: NonNullable<ReturnType<typeof getJobEfficiency>>;
+  text: ReturnType<typeof labels>;
+}) {
+  const groups = buildEfficiencyGroups(efficiency, text);
+  if (groups.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+        <Activity size={13} />
+        {text.efficiency}
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
+        {groups.map((chip) => (
+          <span key={chip.key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
+            <span className="text-[var(--fg-secondary)]">{chip.label}</span>
+            <span className="ml-1 text-[var(--fg-primary)]">{chip.value}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -478,6 +577,86 @@ function formatProgress(
   return parts.length > 0 ? parts.join(' · ') : progress.status;
 }
 
+function describeProcessingState(job: DaemonJobRecord, text: ReturnType<typeof labels>): string {
+  if (job.status === 'queued') {
+    return text.queuedWait;
+  }
+  if (job.status === 'running') {
+    if (job.progress?.activeTaskLabel || job.progress?.activeTaskId) {
+      return text.processing;
+    }
+    return job.progress?.status ? `${text.providerWait} · ${job.progress.status}` : text.providerWait;
+  }
+  return statusLabel(job.status, text);
+}
+
+function buildEfficiencyGroups(
+  efficiency: NonNullable<ReturnType<typeof getJobEfficiency>>,
+  text: ReturnType<typeof labels>
+): Array<{ key: string; label: string; value: string }> {
+  const tokenUsage = efficiency.tokenUsage || {};
+  const chips = [
+    metricChip('toolCalls', text.toolCalls, efficiency.toolCalls),
+    metricChip('duplicateToolCalls', text.duplicate, efficiency.duplicateToolCalls),
+    cacheChip(efficiency.cacheHits, efficiency.cacheMisses, text),
+    tokenChip('inputTokens', text.inputTokens, tokenUsage.input),
+    tokenChip('outputTokens', text.outputTokens, tokenUsage.output),
+    tokenChip('reasoningTokens', text.reasoningTokens, tokenUsage.reasoning),
+    tokenChip('cacheHitTokens', text.cacheHitTokens, tokenUsage.cacheHit),
+    metricChip('maxCompactionLevel', text.compactionLevel, efficiency.maxCompactionLevel),
+    metricChip('totalCompactedItems', text.compactedItems, efficiency.totalCompactedItems),
+    retryChip(efficiency.nudgeCount, efficiency.replanCount, efficiency.emptyRetries, text),
+    typeof efficiency.forcedSummary === 'boolean'
+      ? { key: 'forcedSummary', label: text.forcedSummary, value: efficiency.forcedSummary ? 'true' : 'false' }
+      : null,
+    efficiency.cancelReason
+      ? { key: 'cancelReason', label: text.cancelReason, value: efficiency.cancelReason }
+      : null,
+  ];
+  return chips.filter((chip): chip is { key: string; label: string; value: string } => chip !== null);
+}
+
+function metricChip(key: string, label: string, value: number | undefined) {
+  if (typeof value !== 'number') {
+    return null;
+  }
+  return { key, label, value: formatMetricNumber(value) };
+}
+
+function tokenChip(key: string, label: string, value: number | undefined) {
+  if (typeof value !== 'number') {
+    return null;
+  }
+  return { key, label, value: formatMetricNumber(value) };
+}
+
+function cacheChip(cacheHits: number | undefined, cacheMisses: number | undefined, text: ReturnType<typeof labels>) {
+  if (typeof cacheHits !== 'number' && typeof cacheMisses !== 'number') {
+    return null;
+  }
+  return {
+    key: 'cache',
+    label: text.cache,
+    value: `${formatMetricNumber(cacheHits || 0)} / ${formatMetricNumber(cacheMisses || 0)}`,
+  };
+}
+
+function retryChip(
+  nudgeCount: number | undefined,
+  replanCount: number | undefined,
+  emptyRetries: number | undefined,
+  text: ReturnType<typeof labels>
+) {
+  if (typeof nudgeCount !== 'number' && typeof replanCount !== 'number' && typeof emptyRetries !== 'number') {
+    return null;
+  }
+  return {
+    key: 'control',
+    label: text.control,
+    value: `${text.nudge} ${formatMetricNumber(nudgeCount || 0)} · ${text.replan} ${formatMetricNumber(replanCount || 0)} · ${text.emptyRetry} ${formatMetricNumber(emptyRetries || 0)}`,
+  };
+}
+
 function buildSummaryChips(summary?: Record<string, unknown>): Array<{ key: string; label: string; value: string }> {
   if (!summary) {
     return [];
@@ -500,6 +679,16 @@ function buildSummaryChips(summary?: Record<string, unknown>): Array<{ key: stri
     }
   }
   return entries;
+}
+
+function formatMetricNumber(value: number): string {
+  if (Math.abs(value) >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}m`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}k`;
+  }
+  return String(value);
 }
 
 function formatSummaryValue(key: string, value: unknown): string | null {
@@ -545,6 +734,21 @@ function formatDate(value?: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatRelativeTime(value: string | undefined, text: ReturnType<typeof labels>): string {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  const zh = text.title === '后台任务';
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return zh ? `${seconds} 秒前` : `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return zh ? `${minutes} 分钟前` : `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return zh ? `${hours} 小时前` : `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return zh ? `${days} 天前` : `${days}d ago`;
 }
 
 function formatJobDuration(job: DaemonJobRecord): string {

@@ -475,6 +475,7 @@ export interface DaemonJobRecord {
   result?: unknown;
   error?: { message: string; stack?: string };
   bootstrapSessionId?: string;
+  compact?: boolean;
   progress?: {
     activeTaskId?: string;
     activeTaskLabel?: string;
@@ -488,11 +489,36 @@ export interface DaemonJobRecord {
     total?: number;
     totalToolCalls?: number;
   };
-  summary?: Record<string, unknown>;
+  summary?: DaemonJobSummary;
   createdAt: string;
   updatedAt: string;
   startedAt?: string;
   completedAt?: string;
+}
+
+export interface AgentEfficiencySummary {
+  toolCalls?: number;
+  duplicateToolCalls?: number;
+  cacheHits?: number;
+  cacheMisses?: number;
+  tokenUsage?: {
+    input?: number;
+    output?: number;
+    reasoning?: number;
+    cacheHit?: number;
+  };
+  maxCompactionLevel?: number;
+  totalCompactedItems?: number;
+  nudgeCount?: number;
+  replanCount?: number;
+  emptyRetries?: number;
+  forcedSummary?: boolean;
+  cancelReason?: string;
+}
+
+export interface DaemonJobSummary extends Record<string, unknown> {
+  efficiency?: AgentEfficiencySummary | null;
+  reason?: string;
 }
 
 /** V3 KnowledgeEntry → 前端 Recipe 视图类型 */
@@ -1412,13 +1438,14 @@ export const api = {
     kind?: 'bootstrap' | 'rescan';
     status?: DaemonJobRecord['status'];
     limit?: number;
+    compact?: boolean;
   }): Promise<DaemonJobRecord[]> {
     const res = await http.get('/jobs', { params: opts || {} });
     return res.data?.data?.jobs || [];
   },
 
-  async getJob(jobId: string): Promise<DaemonJobRecord | null> {
-    const res = await http.get(`/jobs/${encodeURIComponent(jobId)}`);
+  async getJob(jobId: string, opts?: { compact?: boolean }): Promise<DaemonJobRecord | null> {
+    const res = await http.get(`/jobs/${encodeURIComponent(jobId)}`, { params: opts || {} });
     return res.data?.data?.job || null;
   },
 
@@ -2845,20 +2872,22 @@ export interface BootstrapReportSummary {
   toolCalls?: number;
   terminalEnabled?: boolean;
   terminalSuccessRate?: number;
+  efficiency?: AgentEfficiencySummary | null;
 }
 
 export interface BootstrapReport {
   version?: string;
   timestamp?: string;
-  session?: Record<string, unknown>;
+  session?: Record<string, unknown> & { efficiency?: AgentEfficiencySummary | null };
   project?: Record<string, unknown>;
   duration?: Record<string, unknown>;
-  totals?: Record<string, unknown>;
+  totals?: Record<string, unknown> & { efficiency?: AgentEfficiencySummary | null };
   stageToolsets?: Array<Record<string, unknown>>;
   toolUsage?: Record<string, unknown>;
   terminal?: Record<string, unknown>;
-  dimensions?: Record<string, Record<string, unknown>>;
+  dimensions?: Record<string, Record<string, unknown> & { efficiency?: AgentEfficiencySummary | null }>;
   comparisonHints?: Record<string, unknown>;
+  efficiency?: AgentEfficiencySummary | null;
   [key: string]: unknown;
 }
 

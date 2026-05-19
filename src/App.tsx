@@ -314,9 +314,12 @@ const App: React.FC = () => {
   }, [bootstrap.candidateCreatedTick]);
 
   // Navigation
-  const navigateToTab = (tab: TabType, options?: { preserveSearch?: boolean }) => {
+  const navigateToTab = (tab: TabType, options?: { preserveSearch?: boolean; search?: string }) => {
   setActiveTab(tab);
-  const search = options?.preserveSearch && window.location.search ? window.location.search : '';
+  const explicitSearch = options?.search
+    ? (options.search.startsWith('?') ? options.search : `?${options.search}`)
+    : '';
+  const search = explicitSearch || (options?.preserveSearch && window.location.search ? window.location.search : '');
   window.history.pushState({}, document.title, `/${tab}${search}`);
   };
 
@@ -1188,7 +1191,16 @@ const App: React.FC = () => {
       ) : activeTab === 'skills' ? (
       <SkillsView onRefresh={fetchData} />
       ) : activeTab === 'jobs' ? (
-      <JobsView onOpenCandidates={() => navigateToTab('candidates')} />
+      <JobsView
+        onOpenCandidates={() => navigateToTab('candidates')}
+        onOpenReports={(sessionId) => {
+          const params = new URLSearchParams({ view: 'reports', reportType: 'bootstrap' });
+          if (sessionId) {
+            params.set('session', sessionId);
+          }
+          navigateToTab('signals', { search: params.toString() });
+        }}
+      />
       ) : activeTab === 'candidates' ? (
       <>
         {/* Bootstrap 异步填充进度面板 */}

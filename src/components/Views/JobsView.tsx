@@ -519,14 +519,20 @@ function RuntimeStateBlock({
 }
 
 function IssueBadge({ issue, text }: { issue: EvidenceIssue; text: ReturnType<typeof labels> }) {
+  const label = formatEvidenceIssueLabel(issue, text.lang);
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium', getEvidenceIssueToneClass(issue))}>
-      {issue.status === 'record_repair' || issue.status === 'quality_gate_record_repair'
-        ? <Loader2 size={14} className="animate-spin" />
-        : issue.tone === 'red'
-          ? <XCircle size={14} />
-          : <StopCircle size={14} />}
-      {formatEvidenceIssueLabel(issue, text.lang)}
+    <span
+      className={cn('inline-flex max-w-full items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium', getEvidenceIssueToneClass(issue))}
+      title={label}
+    >
+      <span className="shrink-0">
+        {issue.status === 'record_repair' || issue.status === 'quality_gate_record_repair'
+          ? <Loader2 size={14} className="animate-spin" />
+          : issue.tone === 'red'
+            ? <XCircle size={14} />
+            : <StopCircle size={14} />}
+      </span>
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 }
@@ -542,12 +548,12 @@ function EvidenceIssueBlock({
     <div className={cn('space-y-1 rounded-lg border p-2 text-xs', getEvidenceIssueToneClass(issue))}>
       <div className="font-semibold">{text.evidenceIssue}: {formatEvidenceIssueLabel(issue, text.lang)}</div>
       {issue.reason && (
-        <div className="text-current/80">
+        <div className="break-words text-current/80">
           {text.reason}: {issue.reason}
         </div>
       )}
       {issue.source && (
-        <div className="text-current/70">
+        <div className="break-words text-current/70">
           {text.evidenceSource}: {issue.source}
         </div>
       )}

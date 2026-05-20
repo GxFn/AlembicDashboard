@@ -68,6 +68,9 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
   const { t, lang } = useI18n();
   const { status, meta } = task;
   const issue = getTaskEvidenceIssue(task);
+  const issueText = issue
+    ? [formatEvidenceIssueLabel(issue, lang), issue.reason].filter(Boolean).join(' · ')
+    : '';
 
   const statusStyles: Record<string, string> = {
     skeleton:  'bg-[var(--bg-subtle)] border-[var(--border-default)]',
@@ -119,8 +122,8 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
         </div>
       )}
 
-      <div className="relative z-10 flex items-start justify-between">
-        <div className="flex items-center gap-3">
+      <div className="relative z-10 flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className={`flex-shrink-0 p-2 rounded-lg ${
             issue ? getTaskIssueIconClass(issue) :
             status === 'completed' ? 'bg-emerald-100 text-emerald-600' :
@@ -130,10 +133,10 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
           }`}>
             {getDimIcon(task.id)}
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className={`font-medium text-sm ${
               status === 'skeleton' ? 'text-[var(--fg-muted)]' : 'text-[var(--fg-primary)]'
-            }`}>
+            } truncate`}>
               {(() => {
                 const key = `bootstrap.pipelineLabels.${meta.dimId}`;
                 const translated = t(key);
@@ -141,13 +144,12 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
               })()}
             </h3>
             {issue && (
-              <p className="text-xs text-current/80 mt-0.5 truncate max-w-[260px]">
-                {formatEvidenceIssueLabel(issue, lang)}
-                {issue.reason ? ` · ${issue.reason}` : ''}
+              <p className={`mt-0.5 min-w-0 truncate text-xs ${getTaskIssueTextClass(issue)}`} title={issueText}>
+                {issueText}
               </p>
             )}
             {status === 'completed' && task.result && !issue && (
-              <p className="text-xs text-emerald-600 mt-0.5">
+              <p className="mt-0.5 truncate text-xs text-emerald-600">
                 {(() => {
                   const r = task.result as Record<string, unknown>;
                   const sourceCount = (r.sourceCount as number) ?? 0;
@@ -164,14 +166,14 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
                 })()}
               </p>
             )}
-            {status === 'failed' && task.error && (
-              <p className="text-xs text-red-500 mt-0.5 truncate max-w-[240px]">
+            {status === 'failed' && task.error && !issue && (
+              <p className="mt-0.5 min-w-0 truncate text-xs text-red-500" title={task.error}>
                 {task.error}
               </p>
             )}
           </div>
         </div>
-        <div className="flex-shrink-0">
+        <div className="max-w-[42%] shrink-0">
           {issue ? <TaskIssueBadge issue={issue} lang={lang} /> : statusBadge[status]}
         </div>
       </div>
@@ -196,10 +198,14 @@ function TaskIssueBadge({ issue, lang }: { issue: EvidenceIssue; lang: string })
     : issue.tone === 'red'
       ? <X className="w-3 h-3" />
       : <AlertTriangle className="w-3 h-3" />;
+  const label = formatEvidenceIssueLabel(issue, lang);
   return (
-    <span className={`flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs ${getEvidenceIssueToneClass(issue)}`}>
-      {icon}
-      {formatEvidenceIssueLabel(issue, lang)}
+    <span
+      className={`flex max-w-full items-center gap-1 rounded-lg border px-2 py-0.5 text-xs ${getEvidenceIssueToneClass(issue)}`}
+      title={label}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 }
@@ -221,6 +227,16 @@ function getTaskIssueIconClass(issue: EvidenceIssue): string {
     red: 'bg-red-500/10 text-red-600 dark:text-red-300',
     slate: 'bg-[var(--bg-subtle)] text-[var(--fg-muted)]',
     violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-300',
+  }[issue.tone];
+}
+
+function getTaskIssueTextClass(issue: EvidenceIssue): string {
+  return {
+    amber: 'text-amber-600 dark:text-amber-300',
+    blue: 'text-blue-600 dark:text-blue-300',
+    red: 'text-red-600 dark:text-red-300',
+    slate: 'text-[var(--fg-muted)]',
+    violet: 'text-violet-600 dark:text-violet-300',
   }[issue.tone];
 }
 

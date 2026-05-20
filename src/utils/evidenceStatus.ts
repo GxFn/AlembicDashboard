@@ -23,6 +23,7 @@ const ISSUE_TONES: Record<string, EvidenceIssueTone> = {
   cancelled: 'slate',
   failed: 'red',
   error: 'red',
+  l4_compaction_failed_budget_exhausted: 'red',
 };
 
 const ISSUE_LABELS: Record<string, { en: string; zh: string }> = {
@@ -37,6 +38,7 @@ const ISSUE_LABELS: Record<string, { en: string; zh: string }> = {
   cancelled: { en: 'Cancelled', zh: '已取消' },
   failed: { en: 'Failed', zh: '失败' },
   error: { en: 'Error', zh: '错误' },
+  l4_compaction_failed_budget_exhausted: { en: 'L4 compaction stopped', zh: 'L4 压缩已止损' },
 };
 
 export function isRecord(value: unknown): value is UnknownRecord {
@@ -126,6 +128,9 @@ function normalizeIssueStatusFromFlags(value: UnknownRecord): string | null {
 }
 
 function normalizeIssueStatusFromDiagnostics(diagnostics: AgentDiagnostics | null, efficiency: UnknownRecord | null): string | null {
+  if (efficiency?.cancelReason === 'l4_compaction_failed_budget_exhausted') {
+    return 'l4_compaction_failed_budget_exhausted';
+  }
   if (!diagnostics) {
     return efficiency?.cancelReason === 'stage_timeout' ? 'timeout' : null;
   }

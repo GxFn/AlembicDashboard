@@ -314,26 +314,32 @@ function ReportIssuePanel({ issues, lang }: { issues: BootstrapReportDimensionIs
         {lang === 'zh' ? '非正常维度状态' : 'Non-normal dimension states'}
       </div>
       <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
-        {issues.slice(0, 8).map(({ dimension, dimensionId, issue }) => (
-          <div key={dimensionId} className="rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-medium text-[var(--fg-default)]">{dimensionId}</span>
-              <span className={`rounded border px-1.5 py-0.5 text-xs font-medium ${getEvidenceIssueToneClass(issue)}`}>
-                {formatEvidenceIssueLabel(issue, lang)}
-              </span>
-            </div>
-            <div className="mt-1 text-[var(--fg-subtle)]">
-              status={issue.status}
-              {typeof dimension.candidatesSubmitted === 'number' ? ` submitted=${dimension.candidatesSubmitted}` : ''}
-              {typeof dimension.candidatesRejected === 'number' ? ` rejected=${dimension.candidatesRejected}` : ''}
-            </div>
-            {issue.reason && (
-              <div className="mt-0.5 truncate text-[var(--fg-secondary)]" title={issue.reason}>
-                {lang === 'zh' ? '原因' : 'reason'}: {issue.reason}
+        {issues.slice(0, 8).map(({ dimension, dimensionId, issue }) => {
+          const issueLabel = formatEvidenceIssueLabel(issue, lang);
+          return (
+            <div key={dimensionId} className="min-w-0 rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="min-w-0 max-w-full truncate font-medium text-[var(--fg-default)]" title={dimensionId}>{dimensionId}</span>
+                <span
+                  className={`inline-flex max-w-full items-center rounded border px-1.5 py-0.5 text-xs font-medium ${getEvidenceIssueToneClass(issue)}`}
+                  title={issueLabel}
+                >
+                  <span className="min-w-0 truncate">{issueLabel}</span>
+                </span>
               </div>
-            )}
-          </div>
-        ))}
+              <div className="mt-1 truncate text-[var(--fg-subtle)]">
+                status={issue.status}
+                {typeof dimension.candidatesSubmitted === 'number' ? ` submitted=${dimension.candidatesSubmitted}` : ''}
+                {typeof dimension.candidatesRejected === 'number' ? ` rejected=${dimension.candidatesRejected}` : ''}
+              </div>
+              {issue.reason && (
+                <div className="mt-0.5 truncate text-[var(--fg-secondary)]" title={issue.reason}>
+                  {lang === 'zh' ? '原因' : 'reason'}: {issue.reason}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       {issues.length > 8 && (
         <div className="mt-1 text-[var(--fg-subtle)]">

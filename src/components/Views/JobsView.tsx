@@ -26,6 +26,7 @@ import {
   formatEvidenceIssueLabel,
   getEvidenceIssueToneClass,
   isEvidenceIssueFailure,
+  isRecord,
 } from '../../utils/evidenceStatus';
 import Select from '../ui/Select';
 
@@ -95,6 +96,10 @@ function labels(lang: string) {
     progress: zh ? '进度' : 'Progress',
     activeTask: zh ? '当前任务' : 'Active task',
     currentDimension: zh ? '当前维度' : 'Current dimension',
+    activeTaskStatus: zh ? '任务状态' : 'Task status',
+    activeTaskUpdated: zh ? '任务更新' : 'Task update',
+    events: zh ? '事件' : 'Events',
+    progressUpdated: zh ? '进度更新' : 'Progress update',
     lastEvent: zh ? '最后事件' : 'Last event',
     processingState: zh ? '处理状态' : 'Processing state',
     queuedWait: zh ? '排队等待' : 'Queued',
@@ -120,6 +125,11 @@ function labels(lang: string) {
     evidenceIssue: zh ? '证据/任务状态' : 'Evidence/task status',
     evidenceSource: zh ? '来源' : 'Source',
     reason: zh ? '原因' : 'Reason',
+    diagnostics: zh ? '诊断' : 'Diagnostics',
+    gateFailures: zh ? '门禁失败' : 'Gate failures',
+    issues: zh ? '问题' : 'Issues',
+    statuses: zh ? '状态计数' : 'Status counts',
+    timedOutStages: zh ? '超时阶段' : 'Timed out stages',
     toolCalls: zh ? '工具调用' : 'Tool calls',
     summary: zh ? '摘要' : 'Summary',
     bootstrap: 'bootstrap',
@@ -369,6 +379,7 @@ function JobRow({
 }) {
   const canCancel = job.status === 'queued' || job.status === 'running';
   const summaryChips = buildSummaryChips(job.summary);
+  const diagnosticsChips = buildDiagnosticsChips(job.summary, text);
   const efficiency = getJobEfficiency(job.summary);
   const issue = getJobEvidenceIssue(job);
   const visualStatus = getJobBucketStatus(job);
@@ -411,6 +422,8 @@ function JobRow({
         {issue && <EvidenceIssueBlock issue={issue} text={text} />}
 
         {efficiency && <EfficiencyBlock efficiency={efficiency} text={text} />}
+
+        {diagnosticsChips.length > 0 && <DiagnosticsBlock chips={diagnosticsChips} text={text} />}
 
         <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
           {Object.entries(job.request || {}).slice(0, 4).map(([key, value]) => (
@@ -491,7 +504,7 @@ function RuntimeStateBlock({
 }) {
   const activeTask = job.progress?.activeTaskLabel || job.progress?.activeTaskId || '--';
   const items = [
-    { label: text.lastEvent, value: formatRelativeTime(job.updatedAt, text) },
+    { label: text.lastEvent, value: formatRelativeTime(resolveJobActivityAt(job), text) },
     { label: text.processingState, value: describeProcessingState(job, text, issue) },
     { label: text.currentDimension, value: activeTask },
   ];
@@ -550,6 +563,7 @@ function ProgressBlock({
   text: ReturnType<typeof labels>;
 }) {
   const percent = typeof progress.percent === 'number' ? progress.percent : 0;
+  const progressChips = buildProgressFreshnessChips(progress, text);
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--fg-secondary)]">
@@ -566,6 +580,16 @@ function ProgressBlock({
         <p className="truncate text-xs text-[var(--fg-muted)]">
           {text.activeTask}: {progress.activeTaskLabel}
         </p>
+      )}
+      {progressChips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-xs text-[var(--fg-muted)]">
+          {progressChips.map((chip) => (
+            <span key={chip.key} className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5">
+              <span className="text-[var(--fg-secondary)]">{chip.label}</span>
+              <span className="ml-1 text-[var(--fg-primary)]">{chip.value}</span>
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -591,6 +615,31 @@ function EfficiencyBlock({
       </div>
       <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
         {groups.map((chip) => (
+          <span key={chip.key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
+            <span className="text-[var(--fg-secondary)]">{chip.label}</span>
+            <span className="ml-1 text-[var(--fg-primary)]">{chip.value}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticsBlock({
+  chips,
+  text,
+}: {
+  chips: Array<{ key: string; label: string; value: string }>;
+  text: ReturnType<typeof labels>;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-300">
+        <CircleDashed size={13} />
+        {text.diagnostics}
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
+        {chips.map((chip) => (
           <span key={chip.key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
             <span className="text-[var(--fg-secondary)]">{chip.label}</span>
             <span className="ml-1 text-[var(--fg-primary)]">{chip.value}</span>
@@ -635,6 +684,34 @@ function formatProgress(
     parts.push(`${text.toolCalls}: ${progress.totalToolCalls}`);
   }
   return parts.length > 0 ? parts.join(' · ') : progress.status;
+}
+
+function buildProgressFreshnessChips(
+  progress: NonNullable<DaemonJobRecord['progress']>,
+  text: ReturnType<typeof labels>
+): Array<{ key: string; label: string; value: string }> {
+  const chips: Array<{ key: string; label: string; value: string }> = [];
+  if (progress.activeTaskStatus) {
+    chips.push({ key: 'activeTaskStatus', label: text.activeTaskStatus, value: progress.activeTaskStatus });
+  }
+  if (typeof progress.activeTaskEventCount === 'number') {
+    chips.push({ key: 'activeTaskEventCount', label: text.events, value: String(progress.activeTaskEventCount) });
+  }
+  if (typeof progress.activeTaskUpdatedAt === 'number') {
+    chips.push({
+      key: 'activeTaskUpdatedAt',
+      label: text.activeTaskUpdated,
+      value: formatRelativeTime(progress.activeTaskUpdatedAt, text),
+    });
+  }
+  if (progress.updatedAt) {
+    chips.push({
+      key: 'progressUpdatedAt',
+      label: text.progressUpdated,
+      value: formatRelativeTime(progress.updatedAt, text),
+    });
+  }
+  return chips;
 }
 
 function describeProcessingState(job: DaemonJobRecord, text: ReturnType<typeof labels>, issue: EvidenceIssue | null): string {
@@ -746,6 +823,46 @@ function buildSummaryChips(summary?: Record<string, unknown>): Array<{ key: stri
   return entries;
 }
 
+function buildDiagnosticsChips(
+  summary: DaemonJobRecord['summary'],
+  text: ReturnType<typeof labels>
+): Array<{ key: string; label: string; value: string }> {
+  const diagnostics = isRecord(summary?.diagnostics) ? summary.diagnostics : null;
+  if (!diagnostics) {
+    return [];
+  }
+
+  const chips: Array<{ key: string; label: string; value: string }> = [];
+  const statuses = isRecord(diagnostics.statuses)
+    ? Object.entries(diagnostics.statuses)
+        .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+        .map(([status, count]) => `${status}: ${count}`)
+    : [];
+  if (statuses.length > 0) {
+    chips.push({ key: 'statuses', label: text.statuses, value: statuses.slice(0, 4).join(' · ') });
+  }
+  if (Array.isArray(diagnostics.issues) && diagnostics.issues.length > 0) {
+    chips.push({ key: 'issues', label: text.issues, value: String(diagnostics.issues.length) });
+  }
+  if (Array.isArray(diagnostics.gateFailures) && diagnostics.gateFailures.length > 0) {
+    chips.push({ key: 'gateFailures', label: text.gateFailures, value: String(diagnostics.gateFailures.length) });
+  }
+  if (Array.isArray(diagnostics.timedOutStages) && diagnostics.timedOutStages.length > 0) {
+    chips.push({
+      key: 'timedOutStages',
+      label: text.timedOutStages,
+      value: diagnostics.timedOutStages.filter((stage): stage is string => typeof stage === 'string').join(' · '),
+    });
+  }
+  if (diagnostics.forcedSummary === true) {
+    chips.push({ key: 'forcedSummary', label: text.forcedSummary, value: 'true' });
+  }
+  if (typeof diagnostics.cancelReason === 'string' && diagnostics.cancelReason.trim()) {
+    chips.push({ key: 'cancelReason', label: text.cancelReason, value: diagnostics.cancelReason.trim() });
+  }
+  return chips;
+}
+
 function getJobEvidenceIssue(job: DaemonJobRecord): EvidenceIssue | null {
   const explicitIssue =
     extractEvidenceIssue(job.summary, 'summary') ||
@@ -832,12 +949,12 @@ function formatDate(value?: string): string {
   });
 }
 
-function formatRelativeTime(value: string | undefined, text: ReturnType<typeof labels>): string {
-  if (!value) return '--';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '--';
+function formatRelativeTime(value: string | number | undefined, text: ReturnType<typeof labels>): string {
+  if (value === undefined || value === '') return '--';
+  const timestamp = typeof value === 'number' ? value : new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return '--';
   const zh = text.title === '后台任务';
-  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   if (seconds < 60) return zh ? `${seconds} 秒前` : `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return zh ? `${minutes} 分钟前` : `${minutes}m ago`;
@@ -845,6 +962,10 @@ function formatRelativeTime(value: string | undefined, text: ReturnType<typeof l
   if (hours < 24) return zh ? `${hours} 小时前` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return zh ? `${days} 天前` : `${days}d ago`;
+}
+
+function resolveJobActivityAt(job: DaemonJobRecord): string | number | undefined {
+  return job.progress?.activeTaskUpdatedAt ?? job.progress?.updatedAt ?? job.updatedAt;
 }
 
 function formatJobDuration(job: DaemonJobRecord): string {

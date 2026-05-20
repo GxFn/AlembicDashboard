@@ -477,8 +477,12 @@ export interface DaemonJobRecord {
   bootstrapSessionId?: string;
   compact?: boolean;
   progress?: {
+    activeTaskEventCount?: number;
     activeTaskId?: string;
     activeTaskLabel?: string;
+    activeTaskStartedAt?: number;
+    activeTaskStatus?: string;
+    activeTaskUpdatedAt?: number;
     completed?: number;
     failed?: number;
     filling?: number;
@@ -488,6 +492,7 @@ export interface DaemonJobRecord {
     status: string;
     total?: number;
     totalToolCalls?: number;
+    updatedAt?: string;
   };
   summary?: DaemonJobSummary;
   createdAt: string;
@@ -505,8 +510,12 @@ export interface AgentGateFailure {
 
 export interface AgentDiagnostics extends Record<string, unknown> {
   blockedTools?: unknown[];
+  cancelReason?: string;
   degraded?: boolean;
+  forcedSummary?: boolean;
   gateFailures?: AgentGateFailure[];
+  issues?: Array<{ taskId?: string; status?: string; reason?: string }>;
+  statuses?: Record<string, number>;
   timedOutStages?: string[];
 }
 

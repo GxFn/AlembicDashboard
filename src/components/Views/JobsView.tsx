@@ -20,10 +20,18 @@ import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
 import { getJobEfficiency } from '../../utils/efficiency';
+import {
+  type EvidenceIssue,
+  extractEvidenceIssue,
+  formatEvidenceIssueLabel,
+  getEvidenceIssueToneClass,
+  isEvidenceIssueFailure,
+} from '../../utils/evidenceStatus';
 import Select from '../ui/Select';
 
 type JobKindFilter = 'all' | DaemonJobRecord['kind'];
 type JobStatusFilter = 'all' | DaemonJobRecord['status'];
+type JobBucketStatus = DaemonJobRecord['status'];
 
 interface JobsViewProps {
   onOpenCandidates?: () => void;
@@ -57,6 +65,7 @@ const STATUS_ICONS: Record<DaemonJobRecord['status'], React.ReactNode> = {
 function labels(lang: string) {
   const zh = lang === 'zh';
   return {
+    lang,
     title: zh ? '后台任务' : 'Jobs',
     refresh: zh ? '刷新' : 'Refresh',
     startBootstrap: zh ? '启动 Bootstrap' : 'Start Bootstrap',
@@ -108,6 +117,9 @@ function labels(lang: string) {
     emptyRetry: zh ? '空结果重试' : 'empty',
     forcedSummary: zh ? '强制摘要' : 'Forced summary',
     cancelReason: zh ? '取消原因' : 'Cancel reason',
+    evidenceIssue: zh ? '证据/任务状态' : 'Evidence/task status',
+    evidenceSource: zh ? '来源' : 'Source',
+    reason: zh ? '原因' : 'Reason',
     toolCalls: zh ? '工具调用' : 'Tool calls',
     summary: zh ? '摘要' : 'Summary',
     bootstrap: 'bootstrap',
@@ -162,7 +174,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
       const kindOk = kindFilter === 'all' || job.kind === kindFilter;
-      const statusOk = statusFilter === 'all' || job.status === statusFilter;
+      const statusOk = statusFilter === 'all' || getJobBucketStatus(job) === statusFilter;
       return kindOk && statusOk;
     });
   }, [jobs, kindFilter, statusFilter]);
@@ -170,9 +182,9 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const counts = useMemo(() => {
     return {
       active: jobs.filter((job) => job.status === 'queued' || job.status === 'running').length,
-      completed: jobs.filter((job) => job.status === 'completed').length,
-      failed: jobs.filter((job) => job.status === 'failed').length,
-      cancelled: jobs.filter((job) => job.status === 'cancelled').length,
+      completed: jobs.filter((job) => getJobBucketStatus(job) === 'completed').length,
+      failed: jobs.filter((job) => getJobBucketStatus(job) === 'failed').length,
+      cancelled: jobs.filter((job) => getJobBucketStatus(job) === 'cancelled').length,
     };
   }, [jobs]);
 
@@ -358,12 +370,19 @@ function JobRow({
   const canCancel = job.status === 'queued' || job.status === 'running';
   const summaryChips = buildSummaryChips(job.summary);
   const efficiency = getJobEfficiency(job.summary);
+  const issue = getJobEvidenceIssue(job);
+  const visualStatus = getJobBucketStatus(job);
   const evidenceSessionId = job.progress?.sessionId || job.bootstrapSessionId;
+  const canOpenCandidates =
+    onOpenCandidates &&
+    !isEvidenceIssueFailure(issue) &&
+    (job.status === 'completed' || job.status === 'running');
   return (
     <div className="grid gap-4 p-4 transition-colors hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={job.status} text={text} />
+          <StatusBadge status={visualStatus} text={text} />
+          {issue && <IssueBadge issue={issue} text={text} />}
           <span className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--fg-secondary)]">
             {job.kind}
           </span>
@@ -385,9 +404,11 @@ function JobRow({
           <Meta label={text.duration} value={formatJobDuration(job)} />
         </div>
 
-        <RuntimeStateBlock job={job} text={text} />
+        <RuntimeStateBlock job={job} text={text} issue={issue} />
 
         {job.progress && <ProgressBlock progress={job.progress} text={text} />}
+
+        {issue && <EvidenceIssueBlock issue={issue} text={text} />}
 
         {efficiency && <EfficiencyBlock efficiency={efficiency} text={text} />}
 
@@ -423,7 +444,7 @@ function JobRow({
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2 lg:self-start">
-        {onOpenCandidates && (job.status === 'completed' || job.status === 'running') && (
+        {canOpenCandidates && (
           <button
             type="button"
             onClick={onOpenCandidates}
@@ -462,14 +483,16 @@ function JobRow({
 function RuntimeStateBlock({
   job,
   text,
+  issue,
 }: {
   job: DaemonJobRecord;
   text: ReturnType<typeof labels>;
+  issue: EvidenceIssue | null;
 }) {
   const activeTask = job.progress?.activeTaskLabel || job.progress?.activeTaskId || '--';
   const items = [
     { label: text.lastEvent, value: formatRelativeTime(job.updatedAt, text) },
-    { label: text.processingState, value: describeProcessingState(job, text) },
+    { label: text.processingState, value: describeProcessingState(job, text, issue) },
     { label: text.currentDimension, value: activeTask },
   ];
 
@@ -478,6 +501,43 @@ function RuntimeStateBlock({
       {items.map((item) => (
         <Meta key={item.label} label={item.label} value={item.value} />
       ))}
+    </div>
+  );
+}
+
+function IssueBadge({ issue, text }: { issue: EvidenceIssue; text: ReturnType<typeof labels> }) {
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium', getEvidenceIssueToneClass(issue))}>
+      {issue.status === 'record_repair' || issue.status === 'quality_gate_record_repair'
+        ? <Loader2 size={14} className="animate-spin" />
+        : issue.tone === 'red'
+          ? <XCircle size={14} />
+          : <StopCircle size={14} />}
+      {formatEvidenceIssueLabel(issue, text.lang)}
+    </span>
+  );
+}
+
+function EvidenceIssueBlock({
+  issue,
+  text,
+}: {
+  issue: EvidenceIssue;
+  text: ReturnType<typeof labels>;
+}) {
+  return (
+    <div className={cn('space-y-1 rounded-lg border p-2 text-xs', getEvidenceIssueToneClass(issue))}>
+      <div className="font-semibold">{text.evidenceIssue}: {formatEvidenceIssueLabel(issue, text.lang)}</div>
+      {issue.reason && (
+        <div className="text-current/80">
+          {text.reason}: {issue.reason}
+        </div>
+      )}
+      {issue.source && (
+        <div className="text-current/70">
+          {text.evidenceSource}: {issue.source}
+        </div>
+      )}
     </div>
   );
 }
@@ -577,7 +637,12 @@ function formatProgress(
   return parts.length > 0 ? parts.join(' · ') : progress.status;
 }
 
-function describeProcessingState(job: DaemonJobRecord, text: ReturnType<typeof labels>): string {
+function describeProcessingState(job: DaemonJobRecord, text: ReturnType<typeof labels>, issue: EvidenceIssue | null): string {
+  if (issue) {
+    return issue.reason
+      ? `${formatEvidenceIssueLabel(issue, text.lang)} · ${issue.reason}`
+      : formatEvidenceIssueLabel(issue, text.lang);
+  }
   if (job.status === 'queued') {
     return text.queuedWait;
   }
@@ -661,7 +726,7 @@ function buildSummaryChips(summary?: Record<string, unknown>): Array<{ key: stri
   if (!summary) {
     return [];
   }
-  const preferredKeys = ['totalTasks', 'completed', 'failed', 'duration', 'aborted', 'reason'];
+  const preferredKeys = ['status', 'totalTasks', 'completed', 'failed', 'duration', 'aborted', 'reason'];
   const entries: Array<{ key: string; label: string; value: string }> = [];
   for (const key of preferredKeys) {
     const value = formatSummaryValue(key, summary[key]);
@@ -679,6 +744,37 @@ function buildSummaryChips(summary?: Record<string, unknown>): Array<{ key: stri
     }
   }
   return entries;
+}
+
+function getJobEvidenceIssue(job: DaemonJobRecord): EvidenceIssue | null {
+  const explicitIssue =
+    extractEvidenceIssue(job.summary, 'summary') ||
+    extractEvidenceIssue(job.progress, 'progress') ||
+    extractEvidenceIssue(job.result, 'result');
+
+  if (explicitIssue) {
+    return explicitIssue;
+  }
+  if (job.status === 'failed') {
+    return { status: 'failed', reason: job.error?.message, source: 'job', tone: 'red' };
+  }
+  if (job.status === 'cancelled') {
+    return { status: 'cancelled', reason: job.summary?.reason, source: 'job', tone: 'slate' };
+  }
+  return null;
+}
+
+function getJobBucketStatus(job: DaemonJobRecord): JobBucketStatus {
+  if (job.status === 'queued' || job.status === 'running') {
+    return job.status;
+  }
+  if (job.status === 'cancelled') {
+    return 'cancelled';
+  }
+  if (job.status === 'failed' || isEvidenceIssueFailure(getJobEvidenceIssue(job))) {
+    return 'failed';
+  }
+  return job.status;
 }
 
 function formatMetricNumber(value: number): string {

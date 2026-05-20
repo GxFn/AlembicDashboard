@@ -26,6 +26,12 @@ import {
   getReportEfficiency,
   normalizeEfficiencySummary,
 } from '../../utils/efficiency';
+import {
+  type EvidenceIssue,
+  extractEvidenceIssue,
+  formatEvidenceIssueLabel,
+  getEvidenceIssueToneClass,
+} from '../../utils/evidenceStatus';
 import { formatSourceLabel } from '../../utils/sourceLabels';
 import Select from '../ui/Select';
 
@@ -182,12 +188,14 @@ function BootstrapReportCard({
   onLoadDetail(sessionId: string): void;
   defaultExpanded?: boolean;
 }) {
+  const { lang } = useI18n();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const timestamp = summary.timestamp ? new Date(summary.timestamp).getTime() : Date.now();
   const successRate = ((summary.terminalSuccessRate || 0) * 100).toFixed(0);
   const summaryEfficiency = normalizeEfficiencySummary(summary.efficiency);
   const detailEfficiency = getReportEfficiency(detail);
   const dimensionEfficiencies = getReportDimensionEfficiencies(detail).slice(0, 4);
+  const dimensionIssues = getBootstrapReportDimensionIssues(detail);
 
   useEffect(() => {
     if (defaultExpanded && summary.sessionId && detail === undefined) {
@@ -229,6 +237,11 @@ function BootstrapReportCard({
             dup={summaryEfficiency.duplicateToolCalls ?? 0} cache={summaryEfficiency.cacheHits ?? 0}/{summaryEfficiency.cacheMisses ?? 0}
           </span>
         )}
+        {dimensionIssues.length > 0 && (
+          <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-300">
+            issues={dimensionIssues.length}
+          </span>
+        )}
         <span className="ml-auto shrink-0 text-xs text-[var(--fg-subtle)] tabular-nums">
           {formatTime(timestamp)}
         </span>
@@ -248,6 +261,7 @@ function BootstrapReportCard({
                 <Metric label="blocked" value={String(detail.toolUsage?.blocked || 0)} />
                 <Metric label="timeouts" value={String(detail.toolUsage?.timeouts || 0)} />
               </div>
+              {dimensionIssues.length > 0 && <ReportIssuePanel issues={dimensionIssues} lang={lang} />}
               {detailEfficiency && <ReportEfficiencyMetrics efficiency={detailEfficiency} />}
               {dimensionEfficiencies.length > 0 && (
                 <div className="rounded bg-[var(--bg-muted)] p-2">
@@ -271,6 +285,59 @@ function BootstrapReportCard({
           ) : (
             <div className="text-[var(--fg-subtle)]">Loading report detail...</div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface BootstrapReportDimensionIssue {
+  dimension: NonNullable<BootstrapReport['dimensions']>[string];
+  dimensionId: string;
+  issue: EvidenceIssue;
+}
+
+function getBootstrapReportDimensionIssues(report?: BootstrapReport | null): BootstrapReportDimensionIssue[] {
+  if (!report?.dimensions) {
+    return [];
+  }
+  return Object.entries(report.dimensions).flatMap(([dimensionId, dimension]) => {
+    const issue = extractEvidenceIssue(dimension, dimensionId);
+    return issue ? [{ dimension, dimensionId, issue }] : [];
+  });
+}
+
+function ReportIssuePanel({ issues, lang }: { issues: BootstrapReportDimensionIssue[]; lang: string }) {
+  return (
+    <div className="rounded border border-amber-500/20 bg-amber-500/5 p-2">
+      <div className="mb-1 text-[var(--fg-subtle)]">
+        {lang === 'zh' ? '非正常维度状态' : 'Non-normal dimension states'}
+      </div>
+      <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
+        {issues.slice(0, 8).map(({ dimension, dimensionId, issue }) => (
+          <div key={dimensionId} className="rounded border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-medium text-[var(--fg-default)]">{dimensionId}</span>
+              <span className={`rounded border px-1.5 py-0.5 text-xs font-medium ${getEvidenceIssueToneClass(issue)}`}>
+                {formatEvidenceIssueLabel(issue, lang)}
+              </span>
+            </div>
+            <div className="mt-1 text-[var(--fg-subtle)]">
+              status={issue.status}
+              {typeof dimension.candidatesSubmitted === 'number' ? ` submitted=${dimension.candidatesSubmitted}` : ''}
+              {typeof dimension.candidatesRejected === 'number' ? ` rejected=${dimension.candidatesRejected}` : ''}
+            </div>
+            {issue.reason && (
+              <div className="mt-0.5 truncate text-[var(--fg-secondary)]" title={issue.reason}>
+                {lang === 'zh' ? '原因' : 'reason'}: {issue.reason}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {issues.length > 8 && (
+        <div className="mt-1 text-[var(--fg-subtle)]">
+          +{issues.length - 8}
         </div>
       )}
     </div>

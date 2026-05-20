@@ -11,9 +11,15 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Check, X, Loader2, Sparkles, Code2, Layers, BookOpen, Zap, Settings, Bot, Brain, Filter, Wand2, GitMerge, Clock, Wrench, StopCircle, TerminalSquare } from 'lucide-react';
+import { AlertTriangle, Check, X, Loader2, Sparkles, Code2, Layers, BookOpen, Zap, Settings, Bot, Brain, Filter, Wand2, GitMerge, Clock, Wrench, StopCircle, TerminalSquare } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import type { BootstrapSession, BootstrapTask, ReviewState } from '../../hooks/useBootstrapSocket';
+import {
+  type EvidenceIssue,
+  extractEvidenceIssue,
+  formatEvidenceIssueLabel,
+  getEvidenceIssueToneClass,
+} from '../../utils/evidenceStatus';
 
 /* ═══════════════════════════════════════════════════════
  *  Icon & Color mapping
@@ -59,8 +65,9 @@ function getDimIcon(dimId: string) {
  * ═══════════════════════════════════════════════════════ */
 
 const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { status, meta } = task;
+  const issue = getTaskEvidenceIssue(task);
 
   const statusStyles: Record<string, string> = {
     skeleton:  'bg-[var(--bg-subtle)] border-[var(--border-default)]',
@@ -97,7 +104,7 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
   };
 
   return (
-    <div className={`relative rounded-xl border p-4 transition-all duration-300 ${statusStyles[status] || statusStyles.skeleton}`}>
+    <div className={`relative rounded-xl border p-4 transition-all duration-300 ${issue ? getTaskIssueCardClass(issue) : statusStyles[status] || statusStyles.skeleton}`}>
       {/* Skeleton shimmer overlay */}
       {status === 'skeleton' && (
         <div className="absolute inset-0 rounded-xl overflow-hidden">
@@ -115,6 +122,7 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
       <div className="relative z-10 flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className={`flex-shrink-0 p-2 rounded-lg ${
+            issue ? getTaskIssueIconClass(issue) :
             status === 'completed' ? 'bg-emerald-100 text-emerald-600' :
             status === 'filling' ? 'bg-blue-100 text-blue-600' :
             status === 'failed' ? 'bg-red-100 text-red-600' :
@@ -132,7 +140,13 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
                 return translated !== key ? translated : meta.label;
               })()}
             </h3>
-            {status === 'completed' && task.result && (
+            {issue && (
+              <p className="text-xs text-current/80 mt-0.5 truncate max-w-[260px]">
+                {formatEvidenceIssueLabel(issue, lang)}
+                {issue.reason ? ` · ${issue.reason}` : ''}
+              </p>
+            )}
+            {status === 'completed' && task.result && !issue && (
               <p className="text-xs text-emerald-600 mt-0.5">
                 {(() => {
                   const r = task.result as Record<string, unknown>;
@@ -158,12 +172,57 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
           </div>
         </div>
         <div className="flex-shrink-0">
-          {statusBadge[status]}
+          {issue ? <TaskIssueBadge issue={issue} lang={lang} /> : statusBadge[status]}
         </div>
       </div>
     </div>
   );
 };
+
+function getTaskEvidenceIssue(task: BootstrapTask): EvidenceIssue | null {
+  const issue = extractEvidenceIssue(task.result, task.meta?.dimId || task.id);
+  if (issue) {
+    return issue;
+  }
+  if (task.status === 'failed') {
+    return { status: 'failed', reason: task.error || undefined, source: task.meta?.dimId || task.id, tone: 'red' };
+  }
+  return null;
+}
+
+function TaskIssueBadge({ issue, lang }: { issue: EvidenceIssue; lang: string }) {
+  const icon = issue.status === 'record_repair' || issue.status === 'quality_gate_record_repair'
+    ? <Loader2 className="w-3 h-3 animate-spin" />
+    : issue.tone === 'red'
+      ? <X className="w-3 h-3" />
+      : <AlertTriangle className="w-3 h-3" />;
+  return (
+    <span className={`flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs ${getEvidenceIssueToneClass(issue)}`}>
+      {icon}
+      {formatEvidenceIssueLabel(issue, lang)}
+    </span>
+  );
+}
+
+function getTaskIssueCardClass(issue: EvidenceIssue): string {
+  return {
+    amber: 'bg-amber-500/5 border-amber-500/30',
+    blue: 'bg-blue-500/5 border-blue-500/30',
+    red: 'bg-red-500/5 border-red-500/30',
+    slate: 'bg-[var(--bg-subtle)] border-[var(--border-default)]',
+    violet: 'bg-violet-500/5 border-violet-500/30',
+  }[issue.tone];
+}
+
+function getTaskIssueIconClass(issue: EvidenceIssue): string {
+  return {
+    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-300',
+    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-300',
+    red: 'bg-red-500/10 text-red-600 dark:text-red-300',
+    slate: 'bg-[var(--bg-subtle)] text-[var(--fg-muted)]',
+    violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-300',
+  }[issue.tone];
+}
 
 /* ═══════════════════════════════════════════════════════
  *  AI Review Pipeline panel
@@ -298,7 +357,7 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
   onCancel,
   isCancelling = false,
 }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [now, setNow] = useState(Date.now());
 
   // Tick every second while running
@@ -314,8 +373,12 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
 
   // ── Compute elapsed & estimated remaining time ──
   const elapsedMs = session.startedAt ? now - session.startedAt : (session.elapsedMs ?? 0);
-  const done = session.completed + session.failed;
-  const remaining = session.total - done;
+  const taskIssues = session.tasks.map((task) => getTaskEvidenceIssue(task));
+  const evidenceIssueCount = taskIssues.filter(Boolean).length;
+  const normalCompleted = session.tasks.filter((task, index) => task.status === 'completed' && !taskIssues[index]).length;
+  const failedTasks = session.tasks.filter((task, index) => task.status === 'failed' && !taskIssues[index]).length;
+  const done = normalCompleted + failedTasks + evidenceIssueCount;
+  const remaining = Math.max(0, session.total - done);
   // Use server-reported elapsed (from last task completion) for remaining estimate — fixed, not ticking
   const serverElapsedMs = session.elapsedMs ?? 0;
   const estimatedRemainingMs = done > 0 && serverElapsedMs > 0 ? Math.round((serverElapsedMs / done) * remaining) : -1;
@@ -324,6 +387,9 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
   const statusText =
     session.status === 'completed' ? t('bootstrap.allCompleted') :
     session.status === 'completed_with_errors' ? t('bootstrap.completedWithErrors') :
+    session.status === 'failed' ? (lang === 'zh' ? 'Bootstrap 失败' : 'Bootstrap failed') :
+    session.status === 'aborted' ? (lang === 'zh' ? 'Bootstrap 已中止' : 'Bootstrap aborted') :
+    session.status === 'cancelled' ? (lang === 'zh' ? 'Bootstrap 已取消' : 'Bootstrap cancelled') :
     null;
 
   return (
@@ -412,6 +478,12 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
         <div className="text-[var(--fg-muted)] text-xs">
           {t('bootstrap.dimensions', { done, total: session.total })}
         </div>
+        {evidenceIssueCount > 0 && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-300">
+            <AlertTriangle size={13} />
+            {lang === 'zh' ? '证据状态' : 'Evidence states'} {evidenceIssueCount}
+          </div>
+        )}
       </div>
 
       {/* Task cards grid — sorted by execution order */}

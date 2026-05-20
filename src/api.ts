@@ -496,6 +496,20 @@ export interface DaemonJobRecord {
   completedAt?: string;
 }
 
+export interface AgentGateFailure {
+  action?: string;
+  reason?: string;
+  stage?: string;
+  [key: string]: unknown;
+}
+
+export interface AgentDiagnostics extends Record<string, unknown> {
+  blockedTools?: unknown[];
+  degraded?: boolean;
+  gateFailures?: AgentGateFailure[];
+  timedOutStages?: string[];
+}
+
 export interface AgentEfficiencySummary {
   toolCalls?: number;
   duplicateToolCalls?: number;
@@ -517,8 +531,10 @@ export interface AgentEfficiencySummary {
 }
 
 export interface DaemonJobSummary extends Record<string, unknown> {
+  aborted?: boolean;
   efficiency?: AgentEfficiencySummary | null;
   reason?: string;
+  status?: string;
 }
 
 /** V3 KnowledgeEntry → 前端 Recipe 视图类型 */
@@ -2875,6 +2891,26 @@ export interface BootstrapReportSummary {
   efficiency?: AgentEfficiencySummary | null;
 }
 
+export interface BootstrapReportDimension extends Record<string, unknown> {
+  candidatesRejected?: number;
+  candidatesSubmitted?: number;
+  diagnostics?: AgentDiagnostics | null;
+  durationMs?: number;
+  efficiency?: AgentEfficiencySummary | null;
+  error?: string;
+  qualityGate?: {
+    action?: string;
+    scores?: Record<string, number>;
+    totalScore?: number;
+    [key: string]: unknown;
+  } | null;
+  reason?: string;
+  status?: string;
+  stages?: Record<string, unknown>;
+  tokenUsage?: Record<string, unknown>;
+  toolCallCount?: number;
+}
+
 export interface BootstrapReport {
   version?: string;
   timestamp?: string;
@@ -2885,7 +2921,7 @@ export interface BootstrapReport {
   stageToolsets?: Array<Record<string, unknown>>;
   toolUsage?: Record<string, unknown>;
   terminal?: Record<string, unknown>;
-  dimensions?: Record<string, Record<string, unknown> & { efficiency?: AgentEfficiencySummary | null }>;
+  dimensions?: Record<string, BootstrapReportDimension>;
   comparisonHints?: Record<string, unknown>;
   efficiency?: AgentEfficiencySummary | null;
   [key: string]: unknown;

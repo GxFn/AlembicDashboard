@@ -68,7 +68,7 @@ export interface TestModeConfig {
 
 export interface BootstrapSession {
   id: string;
-  status: 'running' | 'completed' | 'completed_with_errors' | 'idle';
+  status: 'running' | 'completed' | 'completed_with_errors' | 'failed' | 'aborted' | 'cancelled' | 'idle';
   progress: number;
   total: number;
   completed: number;
@@ -381,7 +381,12 @@ export function useBootstrapSocket(): UseBootstrapSocketReturn {
     }
   }, []);
 
-  const isAllDone = session?.status === 'completed' || session?.status === 'completed_with_errors';
+  const isAllDone =
+    session?.status === 'completed' ||
+    session?.status === 'completed_with_errors' ||
+    session?.status === 'failed' ||
+    session?.status === 'aborted' ||
+    session?.status === 'cancelled';
 
   return { session, isConnected, isAllDone, reviewState, candidateCreatedTick, resetSession, initFromApiResponse };
 }

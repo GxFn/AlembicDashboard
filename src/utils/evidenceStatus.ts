@@ -70,7 +70,7 @@ export function extractEvidenceIssue(value: unknown, source?: string): EvidenceI
   }
 
   return {
-    reason: firstString(value.reason, value.error, firstGateReason(diagnostics), efficiency?.cancelReason),
+    reason: firstReason(value.reason, value.error, firstGateReason(diagnostics), efficiency?.cancelReason),
     source,
     status,
     tone: ISSUE_TONES[status] || 'amber',
@@ -84,6 +84,10 @@ export function formatEvidenceIssueLabel(issue: EvidenceIssue | string, lang = '
     return status.replaceAll('_', ' ');
   }
   return lang === 'zh' ? labels.zh : labels.en;
+}
+
+export function formatEvidenceIssueReason(value: unknown): string | undefined {
+  return formatReasonValue(value, new Set());
 }
 
 export function getEvidenceIssueToneClass(issue: EvidenceIssue): string {
@@ -148,15 +152,70 @@ function firstGateAction(diagnostics: AgentDiagnostics | null): unknown {
   return gateFailures.find((failure) => normalizeIssueStatus(failure.action))?.action;
 }
 
-function firstGateReason(diagnostics: AgentDiagnostics | null): string | undefined {
+function firstGateReason(diagnostics: AgentDiagnostics | null): unknown {
   const gateFailures = Array.isArray(diagnostics?.gateFailures) ? diagnostics.gateFailures : [];
-  return gateFailures.find((failure) => typeof failure.reason === 'string' && failure.reason.trim())?.reason;
+  return gateFailures.find((failure) => formatEvidenceIssueReason(failure.reason))?.reason;
 }
 
-function firstString(...values: unknown[]): string | undefined {
+function firstReason(...values: unknown[]): string | undefined {
   for (const value of values) {
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
+    const reason = formatEvidenceIssueReason(value);
+    if (reason) {
+      return reason;
+    }
+  }
+  return undefined;
+}
+
+function formatReasonValue(value: unknown, seen: Set<unknown>): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    return value.trim() || undefined;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (value instanceof Error) {
+    return value.message.trim() || value.name;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => formatReasonValue(item, seen))
+      .filter((item): item is string => Boolean(item));
+    return parts.length > 0 ? parts.join(' · ') : undefined;
+  }
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if (seen.has(value)) {
+    return undefined;
+  }
+  seen.add(value);
+
+  const message = firstReasonField(value, seen, ['message', 'reason', 'error', 'cause', 'detail', 'details']);
+  const code = firstReasonField(value, seen, ['code', 'status', 'cancelReason']);
+  if (message && code && !message.includes(code)) {
+    return `${code} · ${message}`;
+  }
+  if (message || code) {
+    return message || code;
+  }
+
+  try {
+    const json = JSON.stringify(value);
+    return json && json !== '{}' ? json : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function firstReasonField(record: UnknownRecord, seen: Set<unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const reason = formatReasonValue(record[key], seen);
+    if (reason) {
+      return reason;
     }
   }
   return undefined;

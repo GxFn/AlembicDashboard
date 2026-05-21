@@ -18,6 +18,7 @@ import {
   type EvidenceIssue,
   extractEvidenceIssue,
   formatEvidenceIssueLabel,
+  formatEvidenceIssueReason,
   getEvidenceIssueToneClass,
 } from '../../utils/evidenceStatus';
 
@@ -68,6 +69,7 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
   const { t, lang } = useI18n();
   const { status, meta } = task;
   const issue = getTaskEvidenceIssue(task);
+  const taskErrorText = formatEvidenceIssueReason(task.error);
   const issueText = issue
     ? [formatEvidenceIssueLabel(issue, lang), issue.reason].filter(Boolean).join(' · ')
     : '';
@@ -166,9 +168,9 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
                 })()}
               </p>
             )}
-            {status === 'failed' && task.error && !issue && (
-              <p className="mt-0.5 min-w-0 truncate text-xs text-red-500" title={task.error}>
-                {task.error}
+            {status === 'failed' && taskErrorText && !issue && (
+              <p className="mt-0.5 min-w-0 truncate text-xs text-red-500" title={taskErrorText}>
+                {taskErrorText}
               </p>
             )}
           </div>
@@ -187,7 +189,12 @@ function getTaskEvidenceIssue(task: BootstrapTask): EvidenceIssue | null {
     return issue;
   }
   if (task.status === 'failed') {
-    return { status: 'failed', reason: task.error || undefined, source: task.meta?.dimId || task.id, tone: 'red' };
+    return {
+      status: 'failed',
+      reason: formatEvidenceIssueReason(task.error),
+      source: task.meta?.dimId || task.id,
+      tone: 'red',
+    };
   }
   return null;
 }

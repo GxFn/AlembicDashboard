@@ -473,7 +473,7 @@ export interface DaemonJobRecord {
   projectId: string | null;
   request: Record<string, unknown>;
   result?: unknown;
-  error?: { message: string; stack?: string };
+  error?: { message?: unknown; stack?: string } | string | null;
   bootstrapSessionId?: string;
   compact?: boolean;
   progress?: {
@@ -503,7 +503,7 @@ export interface DaemonJobRecord {
 
 export interface AgentGateFailure {
   action?: string;
-  reason?: string;
+  reason?: unknown;
   stage?: string;
   [key: string]: unknown;
 }

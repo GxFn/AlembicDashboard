@@ -31,7 +31,7 @@ export interface BootstrapTask {
   startedAt?: number | null;
   completedAt?: number | null;
   result?: Record<string, unknown> | null;
-  error?: string | null;
+  error?: unknown;
 }
 
 /** AI 审查轮次状态 */
@@ -228,7 +228,7 @@ export function useBootstrapSocket(): UseBootstrapSocketReturn {
       }
     };
 
-    const onTaskFailed = (data: { taskId: string; error: string; progress: number }) => {
+    const onTaskFailed = (data: { taskId: string; error: unknown; progress: number }) => {
       setSession(prev => {
         if (!prev) return prev;
         const updatedTasks = prev.tasks.map(t =>

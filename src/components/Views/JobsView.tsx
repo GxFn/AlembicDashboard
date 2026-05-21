@@ -24,6 +24,7 @@ import {
   type EvidenceIssue,
   extractEvidenceIssue,
   formatEvidenceIssueLabel,
+  formatEvidenceIssueReason,
   getEvidenceIssueToneClass,
   isEvidenceIssueFailure,
   isRecord,
@@ -383,6 +384,7 @@ function JobRow({
   const efficiency = getJobEfficiency(job.summary);
   const issue = getJobEvidenceIssue(job);
   const visualStatus = getJobBucketStatus(job);
+  const jobErrorText = formatEvidenceIssueReason(job.error);
   const evidenceSessionId = job.progress?.sessionId || job.bootstrapSessionId;
   const canOpenCandidates =
     onOpenCandidates &&
@@ -449,9 +451,9 @@ function JobRow({
           </div>
         )}
 
-        {job.error?.message && (
-          <p className="max-w-4xl truncate text-xs text-red-600">
-            {text.error}: {job.error.message}
+        {jobErrorText && (
+          <p className="max-w-4xl truncate text-xs text-red-600" title={jobErrorText}>
+            {text.error}: {jobErrorText}
           </p>
         )}
       </div>
@@ -879,10 +881,10 @@ function getJobEvidenceIssue(job: DaemonJobRecord): EvidenceIssue | null {
     return explicitIssue;
   }
   if (job.status === 'failed') {
-    return { status: 'failed', reason: job.error?.message, source: 'job', tone: 'red' };
+    return { status: 'failed', reason: formatEvidenceIssueReason(job.error), source: 'job', tone: 'red' };
   }
   if (job.status === 'cancelled') {
-    return { status: 'cancelled', reason: job.summary?.reason, source: 'job', tone: 'slate' };
+    return { status: 'cancelled', reason: formatEvidenceIssueReason(job.summary?.reason), source: 'job', tone: 'slate' };
   }
   return null;
 }

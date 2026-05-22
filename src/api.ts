@@ -429,18 +429,35 @@ function watcherStatusFromRuntime(boundary: RuntimeBoundary): string {
   return 'unknown';
 }
 
+type HostManagedUnavailableCode =
+  | 'HOST_AI_MANAGED'
+  | 'HOST_AGENT_MANAGED'
+  | 'CODEX_HOST_AGENT_MANAGED'
+  | 'LOCAL_AI_UNAVAILABLE';
+
+const HOST_MANAGED_UNAVAILABLE_CODES = new Set<string>([
+  'HOST_AI_MANAGED',
+  'HOST_AGENT_MANAGED',
+  'CODEX_HOST_AGENT_MANAGED',
+  'LOCAL_AI_UNAVAILABLE',
+]);
+
 export interface HostManagedUnavailableDetails {
-  code: 'HOST_AI_MANAGED';
+  code: HostManagedUnavailableCode;
   message: string;
   hostManaged: true;
+  hostAgentManaged?: true;
+  localAiUnavailable?: true;
   unavailable?: boolean;
   status?: number;
   data?: unknown;
 }
 
 export class HostManagedUnavailableError extends Error {
-  readonly code = 'HOST_AI_MANAGED';
+  readonly code: HostManagedUnavailableCode;
   readonly hostManaged = true;
+  readonly hostAgentManaged?: true;
+  readonly localAiUnavailable?: true;
   readonly unavailable?: boolean;
   readonly status?: number;
   readonly data?: unknown;
@@ -448,6 +465,9 @@ export class HostManagedUnavailableError extends Error {
   constructor(details: HostManagedUnavailableDetails) {
     super(details.message);
     this.name = 'HostManagedUnavailableError';
+    this.code = details.code;
+    this.hostAgentManaged = details.hostAgentManaged;
+    this.localAiUnavailable = details.localAiUnavailable;
     this.unavailable = details.unavailable;
     this.status = details.status;
     this.data = details.data;
@@ -459,8 +479,11 @@ export function isHostManagedUnavailable(err: unknown): err is HostManagedUnavai
   return err instanceof HostManagedUnavailableError ||
     (typeof err === 'object' &&
       err !== null &&
-      'code' in err &&
-      (err as { code?: unknown }).code === 'HOST_AI_MANAGED');
+      (
+        ('code' in err && HOST_MANAGED_UNAVAILABLE_CODES.has(String((err as { code?: unknown }).code))) ||
+        (err as { hostManaged?: unknown }).hostManaged === true ||
+        (err as { hostAgentManaged?: unknown }).hostAgentManaged === true
+      ));
 }
 
 export interface DaemonJobRecord {
@@ -851,6 +874,10 @@ function readString(record: Record<string, unknown> | null, key: string): string
   return typeof value === 'string' ? value : undefined;
 }
 
+function readBoolean(record: Record<string, unknown> | null, key: string): boolean {
+  return record?.[key] === true;
+}
+
 function parseHostManagedUnavailable(
   payload: unknown,
   status?: number,
@@ -859,16 +886,51 @@ function parseHostManagedUnavailable(
   const root = asRecord(payload);
   const data = asRecord(root?.data);
   const error = asRecord(root?.error);
-  const code = readString(error, 'code') || readString(root, 'code') || readString(data, 'reason');
+  const meta = asRecord(root?.meta) || asRecord(data?.meta);
+  const boundary = asRecord(root?.boundary) || asRecord(data?.boundary) || asRecord(error?.boundary);
+  const code =
+    readString(error, 'code') ||
+    readString(root, 'code') ||
+    readString(data, 'code') ||
+    readString(data, 'reason') ||
+    readString(root, 'canonicalCode') ||
+    readString(data, 'canonicalCode') ||
+    readString(root, 'boundaryCode') ||
+    readString(data, 'boundaryCode') ||
+    readString(meta, 'boundaryCode') ||
+    readString(boundary, 'code');
+  const managedBy =
+    readString(root, 'managedBy') ||
+    readString(data, 'managedBy') ||
+    readString(meta, 'managedBy') ||
+    readString(boundary, 'managedBy');
   const message =
     readString(error, 'message') ||
     readString(root, 'message') ||
     readString(data, 'message') ||
     fallbackMessage;
+  const hostAgentManaged =
+    readBoolean(root, 'hostAgentManaged') ||
+    readBoolean(data, 'hostAgentManaged') ||
+    readBoolean(meta, 'hostAgentManaged') ||
+    readBoolean(boundary, 'hostAgentManaged') ||
+    readBoolean(root, 'hostAiManaged') ||
+    readBoolean(data, 'hostAiManaged') ||
+    managedBy === 'codex-host-agent' ||
+    managedBy === 'host-agent';
+  const localAiUnavailable =
+    readBoolean(root, 'localAiUnavailable') ||
+    readBoolean(data, 'localAiUnavailable') ||
+    readBoolean(meta, 'localAiUnavailable') ||
+    readBoolean(boundary, 'localAiUnavailable');
   const hostManaged =
-    code === 'HOST_AI_MANAGED' ||
-    root?.hostManaged === true ||
-    data?.hostManaged === true ||
+    (typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code)) ||
+    readBoolean(root, 'hostManaged') ||
+    readBoolean(data, 'hostManaged') ||
+    readBoolean(meta, 'hostManaged') ||
+    readBoolean(boundary, 'hostManaged') ||
+    hostAgentManaged ||
+    localAiUnavailable ||
     status === 501 ||
     status === 410;
 
@@ -877,10 +939,14 @@ function parseHostManagedUnavailable(
   }
 
   return {
-    code: 'HOST_AI_MANAGED',
+    code: typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code)
+      ? code as HostManagedUnavailableCode
+      : 'HOST_AI_MANAGED',
     message,
     hostManaged: true,
-    unavailable: root?.unavailable === true || data?.unavailable === true || status === 501 || status === 410,
+    hostAgentManaged: hostAgentManaged ? true : undefined,
+    localAiUnavailable: localAiUnavailable ? true : undefined,
+    unavailable: readBoolean(root, 'unavailable') || readBoolean(data, 'unavailable') || status === 501 || status === 410,
     status,
     data: data || root || payload,
   };

@@ -174,7 +174,7 @@ const HelpView: React.FC = () => {
                   <li dangerouslySetInnerHTML={{ __html: t('help.recipeBullet3') }} />
                 </ul>
               </div>
-              {/* 5. Agent Runtime */}
+              {/* 5. Alembic internal AI */}
               <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
                 <h4 className="font-semibold text-indigo-900 mb-2 flex items-center gap-2">
                   <ArrowRightLeft size={ICON_SIZES.lg} />

@@ -366,9 +366,15 @@ const Header: React.FC<HeaderProps> = ({
       if (shouldClean) {
         try {
           const result = await api.cleanupMockData();
-          console.log(`Mock cleanup: ${result.deleted} entries deleted`);
-        } catch (e) {
-          console.error('Mock cleanup failed', e);
+          notify(t('header.mockCleanupSuccessBody', { count: result.deleted }), {
+            title: t('header.mockCleanupSuccessTitle'),
+            type: 'success',
+          });
+        } catch (err: unknown) {
+          notify(getErrorMessage(err, t('header.mockCleanupFailedBody')), {
+            title: t('header.mockCleanupFailedTitle'),
+            type: 'error',
+          });
         }
       }
     }

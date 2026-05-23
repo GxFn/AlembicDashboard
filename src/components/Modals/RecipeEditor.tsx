@@ -4,7 +4,7 @@ import { Recipe } from '../../types';
 import api from '../../api';
 import MarkdownWithHighlight from '../Shared/MarkdownWithHighlight';
 import HighlightedCodeEditor from '../Shared/HighlightedCodeEditor';
-import CodeBlock from '../Shared/CodeBlock';
+import CodeBlock from '../Shared/LazyCodeBlock';
 import { ICON_SIZES } from '../../constants/icons';
 import PageOverlay from '../Shared/PageOverlay';
 import { useI18n } from '../../i18n';

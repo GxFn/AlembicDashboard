@@ -991,7 +991,7 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSE events have dynamic payloads
+  // SSE events have dynamic payloads.
   [key: string]: any;
 }
 
@@ -2549,7 +2549,7 @@ Skill 文档格式要求：
       message?: string;
       startedAt?: number;
       finishedAt?: number;
-      result?: any;
+      result?: unknown;
       error?: string;
     };
     wiki?: {
@@ -2730,7 +2730,7 @@ Skill 文档格式要求：
     minScore?: number;
     maxErrors?: number;
     maxFiles?: number;
-  }): Promise<any> {
+  }): Promise<unknown> {
     const res = await http.get('/guard/report', { params: options });
     return res.data?.data;
   },

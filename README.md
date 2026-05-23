@@ -8,17 +8,21 @@ It does not own Core runtime logic, Agent decisions, tool execution, CLI / daemo
 
 ```bash
 npm run dev
+npm run lint
+npm run test
 npm run typecheck
+npm run check
 npm run build
 npm run preview
 ```
 
 - `npm run dev` starts the Vite development server.
+- `npm run lint` runs the repository-local Dashboard lint baseline for unsafe console output, erased error types, object rendering regressions, user-specific paths, and the current explicit-`any` budget on high-risk files.
+- `npm run test` runs executable Dashboard contract smoke tests for quality gates, mock cleanup notifications, markdown rendering, chunk boundaries, and readable error handling.
 - `npm run typecheck` runs TypeScript without emitting files.
+- `npm run check` runs lint, tests, typecheck, and production build as the Dashboard quality gate.
 - `npm run build` runs TypeScript and then creates the production Vite bundle.
 - `npm run preview` serves a previously built `dist/` bundle for local inspection.
-
-`lint` and `test` are not wired yet. Add them deliberately when the lint and test framework choices are confirmed for this standalone frontend.
 
 ## Backend Connection
 

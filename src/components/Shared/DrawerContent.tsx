@@ -10,7 +10,7 @@
  */
 import React from 'react';
 import { FileCode, FileText, Shield, Layers, Lightbulb } from 'lucide-react';
-import CodeBlock from './CodeBlock';
+import CodeBlock from './LazyCodeBlock';
 import MarkdownWithHighlight from './MarkdownWithHighlight';
 
 /* ══════════════════════════════════════════════════════════

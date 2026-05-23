@@ -32,7 +32,7 @@ function initMermaid(dark: boolean) {
   lastTheme = theme;
 }
 
-interface MermaidBlockProps {
+export interface MermaidBlockProps {
   code: string;
 }
 

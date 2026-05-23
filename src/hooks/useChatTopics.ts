@@ -15,7 +15,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   diff?: Array<{ field: string; label: string; before: string; after: string }>;
-  preview?: Record<string, any>;
+  preview?: Record<string, unknown>;
   timestamp: number;
 }
 

@@ -1,7 +1,7 @@
 /**
  * 类型安全的错误信息提取工具
  *
- * 用于 `catch (err: unknown)` 场景，替代 `catch (err: any)` 的 `.message` 直接访问。
+ * 用于 `catch (err: unknown)` 场景，替代直接读取未收窄错误对象的 `.message`。
  */
 
 /** Axios 风格错误结构（仅类型守卫用，不引入 axios 依赖） */

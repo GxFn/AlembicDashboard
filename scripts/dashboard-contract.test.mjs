@@ -1,0 +1,74 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+
+function read(relativePath) {
+  return readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+test('package exposes real local quality gates', () => {
+  const pkg = JSON.parse(read('package.json'));
+  for (const scriptName of ['lint', 'test', 'typecheck', 'build', 'check']) {
+    assert.equal(typeof pkg.scripts?.[scriptName], 'string', `${scriptName} script is required`);
+    assert.doesNotMatch(pkg.scripts[scriptName], /echo|exit\s+0|true/, `${scriptName} must not be a placeholder`);
+  }
+  assert.match(pkg.scripts.lint, /lint-dashboard\.mjs/);
+  assert.match(pkg.scripts.test, /dashboard-contract\.test\.mjs/);
+});
+
+test('mock cleanup path reports success and failure through notifications', () => {
+  const header = read('src/components/Layout/Header.tsx');
+  const start = header.indexOf('const handleSelectAi');
+  const end = header.indexOf('const loadProviders');
+  assert.ok(start >= 0 && end > start, 'AI provider switch handler should be present');
+
+  const block = header.slice(start, end);
+  assert.match(block, /api\.cleanupMockData\(\)/);
+  assert.match(block, /notify\(t\('header\.mockCleanupSuccessBody'/);
+  assert.match(block, /notify\(getErrorMessage\(err, t\('header\.mockCleanupFailedBody'\)\)/);
+  assert.doesNotMatch(block, /console\.(log|error)\([^)]*cleanup/i);
+
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+  for (const key of [
+    'mockCleanupSuccessTitle',
+    'mockCleanupSuccessBody',
+    'mockCleanupFailedTitle',
+    'mockCleanupFailedBody',
+  ]) {
+    assert.match(zh, new RegExp(`${key}:`), `zh locale must define ${key}`);
+    assert.match(en, new RegExp(`${key}:`), `en locale must define ${key}`);
+  }
+});
+
+test('markdown renderer is typed and heavy renderers are lazy-loaded', () => {
+  const markdown = read('src/components/Shared/MarkdownWithHighlight.tsx');
+  const segment = read('src/components/Shared/MarkdownSegment.tsx');
+  const lazyCode = read('src/components/Shared/LazyCodeBlock.tsx');
+  assert.match(markdown, /React\.lazy\(\(\) => import\('\.\/MarkdownSegment'\)\)/);
+  assert.match(segment, /type Components/);
+  assert.match(lazyCode, /React\.lazy\(\(\) => import\('\.\/CodeBlock'\)\)/);
+  assert.match(markdown, /React\.lazy\(\(\) => import\('\.\/MermaidBlock'\)\)/);
+  assert.match(markdown, /React\.Suspense/);
+  assert.doesNotMatch(markdown, /:\s*any\b/);
+  assert.doesNotMatch(segment, /:\s*any\b/);
+});
+
+test('vite chunks isolate markdown and mermaid without splitting syntax internals', () => {
+  const config = read('vite.config.ts');
+  assert.match(config, /return 'markdown'/);
+  assert.match(config, /return 'mermaid'/);
+  assert.match(config, /return 'syntax-highlight'/);
+  assert.match(config, /isSyntaxHighlightPackage/);
+});
+
+test('object errors keep a readable fallback instead of rendering object identity', () => {
+  const errorUtil = read('src/utils/error.ts');
+  assert.match(errorUtil, /export function getErrorMessage\(err: unknown/);
+  assert.match(errorUtil, /typeof data\.error === 'object'/);
+  assert.doesNotMatch(errorUtil, /\[object Object\]/);
+});

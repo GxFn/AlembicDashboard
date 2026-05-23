@@ -3,7 +3,7 @@ import { Zap, CheckCircle, Pencil, Check, Inbox, Layers, Loader2 } from 'lucide-
 import { ScanResultItem } from '../../types';
 import { categories, LANGUAGE_OPTIONS, normalizeLanguageId, importPlaceholder } from '../../constants';
 import { ICON_SIZES } from '../../constants/icons';
-import CodeBlock from '../Shared/CodeBlock';
+import CodeBlock from '../Shared/LazyCodeBlock';
 import HighlightedCodeEditor from '../Shared/HighlightedCodeEditor';
 import { useI18n } from '../../i18n';
 import Select from '../ui/Select';

@@ -186,9 +186,10 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
   let cancelled = false;
   setReportLoading(true);
   api.getGuardReport()
-    .then((data: GuardReport | null) => {
-    if (!cancelled && data) {
-      setGuardReport(data);
+    .then((data) => {
+    const report = data as GuardReport | null;
+    if (!cancelled && report) {
+      setGuardReport(report);
     }
     })
     .catch(() => {

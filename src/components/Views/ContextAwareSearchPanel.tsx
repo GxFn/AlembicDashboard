@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, X, Zap, Target, Code, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
 import api from '../../api';
-import CodeBlock from '../Shared/CodeBlock';
+import CodeBlock from '../Shared/LazyCodeBlock';
 import { ICON_SIZES } from '../../constants/icons';
 import PageOverlay from '../Shared/PageOverlay';
 import { useI18n } from '../../i18n';

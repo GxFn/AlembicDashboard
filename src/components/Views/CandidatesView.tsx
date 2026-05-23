@@ -5,7 +5,8 @@ import { ProjectData, KnowledgeEntry, Recipe } from '../../types';
 import api, { isHostManagedUnavailable } from '../../api';
 import { notify } from '../../utils/notification';
 import { categoryConfigs } from '../../constants';
-import CodeBlock, { normalizeCode } from '../Shared/CodeBlock';
+import CodeBlock from '../Shared/LazyCodeBlock';
+import { normalizeCode } from '../../utils/code';
 
 import Pagination from '../Shared/Pagination';
 import { ICON_SIZES } from '../../constants/icons';

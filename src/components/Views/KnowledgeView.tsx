@@ -17,7 +17,7 @@ import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
 import { formatSourceLabel } from '../../utils/sourceLabels';
 import { categoryConfigs } from '../../constants';
-import { normalizeCode } from '../Shared/CodeBlock';
+import { normalizeCode } from '../../utils/code';
 import Pagination from '../Shared/Pagination';
 import { KnowledgeSkeleton } from '../Skeletons';
 import { Drawer } from '../Layout/Drawer';

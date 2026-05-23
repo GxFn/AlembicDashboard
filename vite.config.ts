@@ -5,6 +5,75 @@ import type { Socket } from 'net'
 // 本地 `alembic ui --port` 会通过 VITE_API_URL 告诉 Dashboard dev server 后端地址。
 const apiTarget = (process.env.VITE_API_URL || 'http://127.0.0.1:3000').replace(/\/$/, '')
 
+const MARKDOWN_CHUNK_PACKAGES = [
+  'react-markdown',
+  'remark-gfm',
+  'remark-parse',
+  'remark-rehype',
+  'unified',
+  'bail',
+  'ccount',
+  'comma-separated-tokens',
+  'decode-named-character-reference',
+  'devlop',
+  'estree-util-is-identifier-name',
+  'hast-util-parse-selector',
+  'hast-util-to-jsx-runtime',
+  'hast-util-whitespace',
+  'html-url-attributes',
+  'mdast-util',
+  'micromark',
+  'parse-entities',
+  'property-information',
+  'space-separated-tokens',
+  'stringify-entities',
+  'trough',
+  'trim-lines',
+  'unist-util',
+  'vfile',
+  'zwitch',
+];
+
+const MERMAID_CHUNK_PACKAGES = [
+  '@mermaid-js',
+  'cytoscape',
+  'cytoscape-cose-bilkent',
+  'cytoscape-fcose',
+  'd3',
+  'dagre-d3-es',
+  'dompurify',
+  'katex',
+  'khroma',
+  'mermaid',
+  'roughjs',
+];
+
+const SYNTAX_HIGHLIGHT_CHUNK_PACKAGES = [
+  'highlight.js',
+  'hastscript',
+  'lowlight',
+  'prismjs',
+  'react-syntax-highlighter',
+  'refractor',
+];
+
+function isNodePackage(id: string, packageName: string): boolean {
+  const normalized = id.replaceAll('\\', '/');
+  return normalized.includes(`/node_modules/${packageName}/`);
+}
+
+function isMarkdownPackage(id: string): boolean {
+  return MARKDOWN_CHUNK_PACKAGES.some((pkg) => isNodePackage(id, pkg));
+}
+
+function isMermaidPackage(id: string): boolean {
+  return MERMAID_CHUNK_PACKAGES.some((pkg) => isNodePackage(id, pkg));
+}
+
+function isSyntaxHighlightPackage(id: string): boolean {
+  return SYNTAX_HIGHLIGHT_CHUNK_PACKAGES.some((pkg) => isNodePackage(id, pkg));
+}
+
 // ── EPIPE/ECONNRESET 静默 ──────────────────────────────────────
 // 问题: Vite 内部在 proxyReqWs 事件上注册 socket.on('error', logger),
 // 注册顺序在 opts.configure() 之后。Node EventEmitter 会调用所有 listener,
@@ -35,7 +104,7 @@ export default defineConfig({
         configure: (proxy) => {
           proxy.on('error', (err) => {
             if (err.message?.includes('EPIPE') || err.message?.includes('ECONNRESET')) return;
-            console.log('[vite-proxy] error:', err.message);
+            console.warn('[vite-proxy] error:', err.message);
           });
           // configure 中注册的 proxyReqWs 先于 Vite 内部的注册,
           // 在此 patch socket.emit 可拦截后续所有 error 事件
@@ -63,13 +132,16 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
+          if (isMermaidPackage(id)) return 'mermaid';
+          if (isMarkdownPackage(id)) return 'markdown';
+          // CodeBlock is lazy-loaded; keep syntax-highlighter internals together
+          // in one async chunk to avoid the prior refractor/prismjs TDZ split.
+          if (isSyntaxHighlightPackage(id)) return 'syntax-highlight';
+          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) return 'react';
           if (id.includes('framer-motion')) return 'framer-motion';
           if (id.includes('lucide-react')) return 'icons';
           if (id.includes('axios')) return 'axios';
           if (id.includes('yaml')) return 'yaml';
-          // react-syntax-highlighter 与 refractor/prismjs 有复杂的内部依赖
-          // 单独拆分会产生循环引用 TDZ 错误，让它们跟随 vendor 一起打包
-          return 'vendor';
         }
       }
     }

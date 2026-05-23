@@ -30,7 +30,7 @@ interface ChatMsg {
   role: 'user' | 'assistant' | 'system';
   content: string;
   diff?: DiffField[];
-  preview?: Record<string, any>;
+  preview?: Record<string, unknown>;
   excludedFields?: string[];
   timestamp: number;
 }
@@ -79,7 +79,7 @@ export const useGlobalChat = () => useContext(GlobalChatContext);
 
 const uid = () => Math.random().toString(36).substring(2, 10);
 
-const REFINE_FIELD_DEFS: { key: string; labelKey: string; format?: (v: any) => string }[] = [
+const REFINE_FIELD_DEFS: { key: string; labelKey: string; format?: (v: unknown) => string }[] = [
   { key: 'description', labelKey: 'globalChat.refineFields.summary' },
   { key: 'pattern', labelKey: 'globalChat.refineFields.code' },
   { key: 'markdown', labelKey: 'globalChat.refineFields.markdown' },
@@ -91,10 +91,10 @@ const REFINE_FIELD_DEFS: { key: string; labelKey: string; format?: (v: any) => s
   { key: 'relations', labelKey: 'globalChat.refineFields.relations', format: (v) => JSON.stringify(v || {}, null, 2) },
 ];
 
-function buildDiffFields(before: Record<string, any>, after: Record<string, any>, t: (key: string) => string): DiffField[] {
+function buildDiffFields(before: Record<string, unknown>, after: Record<string, unknown>, t: (key: string) => string): DiffField[] {
   const fields: DiffField[] = [];
   for (const def of REFINE_FIELD_DEFS) {
-    const fmt = def.format || ((v: any) => String(v ?? ''));
+    const fmt = def.format || ((v: unknown) => String(v ?? ''));
     const bStr = fmt(before[def.key]);
     const aStr = fmt(after[def.key]);
     if (aStr && aStr !== bStr) {

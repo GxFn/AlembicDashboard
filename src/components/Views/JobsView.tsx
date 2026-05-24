@@ -6,6 +6,8 @@ import {
   Braces,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   CircleDashed,
   Clock3,
@@ -58,6 +60,8 @@ const STATUS_ORDER: DaemonJobRecord['status'][] = [
   'failed',
   'cancelled',
 ];
+
+const JOBS_PAGE_SIZE = 6;
 
 const STATUS_STYLES: Record<DaemonJobRecord['status'], string> = {
   queued: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
@@ -167,6 +171,8 @@ function labels(lang: string) {
     statusCompleted: zh ? '完成' : 'Completed',
     statusFailed: zh ? '失败' : 'Failed',
     statusCancelled: zh ? '取消' : 'Cancelled',
+    prevPage: zh ? '上一页' : 'Previous',
+    nextPage: zh ? '下一页' : 'Next',
   };
 }
 
@@ -178,10 +184,11 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const [refreshing, setRefreshing] = useState(false);
   const [kindFilter, setKindFilter] = useState<JobKindFilter>('all');
   const [statusFilter, setStatusFilter] = useState<JobStatusFilter>('all');
+  const [page, setPage] = useState(1);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   const [startingKind, setStartingKind] = useState<DaemonJobRecord['kind'] | null>(null);
+  const focusedJobId = useMemo(() => new URLSearchParams(window.location.search).get('job'), []);
   const [expandedJobIds, setExpandedJobIds] = useState<Set<string>>(() => {
-    const focusedJobId = new URLSearchParams(window.location.search).get('job');
     return focusedJobId ? new Set([focusedJobId]) : new Set();
   });
 
@@ -207,12 +214,11 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   }, [loadJobs]);
 
   useEffect(() => {
-    const focusedJobId = new URLSearchParams(window.location.search).get('job');
     if (!focusedJobId) {
       return;
     }
     setExpandedJobIds((prev) => new Set(prev).add(focusedJobId));
-  }, []);
+  }, [focusedJobId]);
 
   useEffect(() => {
     const hasActive = jobs.some((job) => job.status === 'queued' || job.status === 'running');
@@ -244,6 +250,31 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
       return kindOk && statusOk;
     });
   }, [jobs, kindFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / JOBS_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedJobs = useMemo(() => {
+    const start = (currentPage - 1) * JOBS_PAGE_SIZE;
+    return filteredJobs.slice(start, start + JOBS_PAGE_SIZE);
+  }, [currentPage, filteredJobs]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [kindFilter, statusFilter]);
+
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    if (!focusedJobId) {
+      return;
+    }
+    const focusedIndex = filteredJobs.findIndex((job) => job.id === focusedJobId);
+    if (focusedIndex >= 0) {
+      setPage(Math.floor(focusedIndex / JOBS_PAGE_SIZE) + 1);
+    }
+  }, [filteredJobs, focusedJobId]);
 
   const counts = useMemo(() => {
     return {
@@ -373,20 +404,20 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
         />
       </div>
 
-      <div className="max-w-full overflow-x-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-sm">
+      <div className="max-w-full overflow-x-hidden">
         {loading ? (
-          <div className="flex h-48 items-center justify-center text-[var(--fg-muted)]">
+          <div className="flex h-48 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--fg-muted)]">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             {text.refresh}
           </div>
         ) : filteredJobs.length === 0 ? (
-          <div className="flex h-48 flex-col items-center justify-center gap-2 text-[var(--fg-muted)]">
+          <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--fg-muted)]">
             <CircleDashed size={24} />
             <p className="text-sm">{jobs.length === 0 ? text.noJobs : text.noFilteredJobs}</p>
           </div>
         ) : (
-          <div className="space-y-3 p-3">
-            {filteredJobs.map((job) => (
+          <div className="space-y-3">
+            {paginatedJobs.map((job) => (
               <JobRow
                 key={job.id}
                 job={job}
@@ -400,6 +431,31 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
                 onOpenReports={onOpenReports}
               />
             ))}
+            {totalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-xs text-[var(--fg-secondary)]">
+                <span>{formatJobsPageSummary(currentPage, totalPages, filteredJobs.length, text)}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="inline-flex h-8 items-center gap-1 rounded-md border border-[var(--border-default)] px-2.5 font-medium text-[var(--fg-secondary)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronLeft size={14} />
+                    {text.prevPage}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="inline-flex h-8 items-center gap-1 rounded-md border border-[var(--border-default)] px-2.5 font-medium text-[var(--fg-secondary)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {text.nextPage}
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -428,6 +484,17 @@ function StatTile({
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
+}
+
+function formatJobsPageSummary(
+  page: number,
+  totalPages: number,
+  totalItems: number,
+  text: ReturnType<typeof labels>
+): string {
+  return text.lang === 'zh'
+    ? `第 ${page}/${totalPages} 页 · 共 ${totalItems} 条`
+    : `Page ${page}/${totalPages} · ${totalItems} jobs`;
 }
 
 function JobRow({
@@ -464,7 +531,7 @@ function JobRow({
     !isEvidenceIssueFailure(issue) &&
     (job.status === 'completed' || job.status === 'running');
   return (
-    <div className="grid min-w-0 gap-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
+    <div className="grid min-w-0 gap-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={visualStatus} text={text} />

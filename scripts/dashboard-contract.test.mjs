@@ -110,10 +110,16 @@ test('jobs view lets the page scroll without inner list scrolling', () => {
   assert.match(app, /overflow-y-auto overflow-x-hidden/);
   assert.match(app, /activeTab === 'jobs' \? 'min-h-full min-w-0'/);
   assert.match(jobs, /flex min-h-full min-w-0 flex-col overflow-x-hidden/);
-  assert.match(jobs, /max-w-full overflow-x-hidden rounded-xl/);
-  assert.match(jobs, /space-y-3 p-3/);
+  assert.match(jobs, /const JOBS_PAGE_SIZE = 6/);
+  assert.match(jobs, /paginatedJobs\.map/);
+  assert.match(jobs, /focusedIndex \/ JOBS_PAGE_SIZE/);
+  assert.match(jobs, /formatJobsPageSummary\(currentPage, totalPages, filteredJobs\.length, text\)/);
+  assert.match(jobs, /<div className="max-w-full overflow-x-hidden">/);
+  assert.match(jobs, /<div className="space-y-3">/);
   assert.match(jobs, /rounded-xl border border-\[var\(--border-default\)\] bg-\[var\(--bg-surface\)\] p-4/);
   assert.match(jobs, /max-w-full break-words/);
+  assert.doesNotMatch(jobs, /hover:border-\[var\(--border-strong\)\] hover:bg-\[var\(--bg-subtle\)\]/);
+  assert.doesNotMatch(jobs, /max-w-full overflow-x-hidden rounded-xl border border-\[var\(--border-default\)\] bg-\[var\(--bg-surface\)\] shadow-sm/);
   assert.doesNotMatch(jobs, /divide-y divide-\[var\(--border-muted\)\]/);
   assert.doesNotMatch(jobs, /min-h-0 flex-1 overflow-y-auto/);
   assert.doesNotMatch(jobs, /overscroll-contain/);

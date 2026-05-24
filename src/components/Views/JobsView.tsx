@@ -739,21 +739,21 @@ function JobProcessTimeline({
 
       <div
         ref={timelineListRef}
-        className="h-[36rem] overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--border-default)] bg-[#080b10] px-3 py-2 shadow-inner overscroll-contain"
+        className="h-[36rem] overflow-y-auto overflow-x-hidden rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-slate-100 shadow-inner overscroll-contain"
         aria-label={text.timelineTerminal}
       >
         {loading ? (
-          <div className="flex items-center gap-2 px-1 py-4 text-xs text-[var(--fg-muted)]">
+          <div className="flex items-center gap-2 px-1 py-4 text-xs text-slate-400">
             <Loader2 size={14} className="animate-spin" />
             {text.timelineLoading}
           </div>
         ) : error ? (
-          <div className="flex items-start gap-2 px-1 py-4 text-xs text-red-600">
+          <div className="flex items-start gap-2 px-1 py-4 text-xs text-red-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <span>{text.timelineError}: {error}</span>
           </div>
         ) : visibleEvents.length === 0 ? (
-          <div className="flex items-start gap-2 px-1 py-4 text-xs text-[var(--fg-muted)]">
+          <div className="flex items-start gap-2 px-1 py-4 text-xs text-slate-400">
             <CircleDashed size={14} className="mt-0.5 shrink-0" />
             <span>{text.timelineEmpty}</span>
           </div>
@@ -803,38 +803,38 @@ function ProcessEventItem({
   );
 
   return (
-    <div className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-[var(--border-default)] py-3 pl-4 text-xs first:pt-1 last:pb-1">
-      <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-[var(--bg-surface)]', tone.dot)} />
+    <div className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-slate-800 py-3 pl-4 text-xs first:pt-1 last:pb-1">
+      <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-slate-950', tone.dot)} />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
           {icon}
           {event.kind}
         </span>
-        <span className="min-w-0 break-all font-semibold text-[var(--fg-primary)]">{event.title}</span>
+        <span className="min-w-0 break-all font-semibold text-slate-100">{event.title}</span>
         {event.timestamp && (
-          <span className="text-[var(--fg-muted)]">{formatEventTimestamp(event.timestamp)}</span>
+          <span className="text-slate-500">{formatEventTimestamp(event.timestamp)}</span>
         )}
       </div>
       {event.summary && (
-        <p className="whitespace-pre-wrap break-all leading-relaxed text-[var(--fg-secondary)]">{event.summary}</p>
+        <p className="whitespace-pre-wrap break-all leading-relaxed text-slate-300">{event.summary}</p>
       )}
       {event.content && (
-        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] p-3">
+        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-slate-800 bg-slate-900/80 p-3">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-muted)]">{text.content}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{text.content}</div>
             <button
               type="button"
               onClick={() => onContentExpandedChange(!contentExpanded)}
-              className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-default)] px-2 text-[11px] font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-surface)] hover:text-[var(--fg-primary)]"
+              className="inline-flex h-6 items-center gap-1 rounded-md border border-slate-700 px-2 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100"
             >
               {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               {contentExpanded ? text.collapseContent : text.expandContent}
             </button>
           </div>
           {contentExpanded ? (
-            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-[var(--fg-primary)]">{event.content}</pre>
+            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-slate-100">{event.content}</pre>
           ) : (
-            <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--fg-muted)]">
+            <div className="rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-400">
               {text.contentCollapsed}
             </div>
           )}
@@ -842,11 +842,11 @@ function ProcessEventItem({
       )}
       {event.artifactRefs && event.artifactRefs.length > 0 && (
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="text-[var(--fg-muted)]">{text.artifacts}</span>
+          <span className="text-slate-500">{text.artifacts}</span>
           {event.artifactRefs.map((artifact) => (
             <span
               key={`${artifact.kind}:${artifact.ref}`}
-              className="max-w-full break-all rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-300"
+              className="max-w-full break-all rounded-md border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-violet-200"
               title={artifact.ref}
             >
               {artifact.label || artifact.kind}: {artifact.ref}
@@ -855,11 +855,11 @@ function ProcessEventItem({
         </div>
       )}
       {metaItems.length > 0 && (
-        <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[var(--fg-muted)]">
+        <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-slate-400">
           {metaItems.map((item) => (
-            <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
-              <span className="text-[var(--fg-secondary)]">{item.label}</span>
-              <span className="ml-1">{item.value}</span>
+            <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-slate-800 bg-slate-900/80 px-1.5 py-0.5">
+              <span className="text-slate-500">{item.label}</span>
+              <span className="ml-1 text-slate-300">{item.value}</span>
             </span>
           ))}
         </div>
@@ -900,31 +900,31 @@ function isLlmProcessEvent(event: JobProcessDeveloperView): boolean {
 function getProcessEventTone(event: JobProcessDeveloperView): { badge: string; dot: string } {
   if (event.kind === 'error' || event.severity === 'error') {
     return {
-      badge: 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-300',
+      badge: 'border-red-400/30 bg-red-400/10 text-red-300',
       dot: 'border-red-500 bg-red-500',
     };
   }
   if (event.kind === 'artifact') {
     return {
-      badge: 'border-violet-500/20 bg-violet-500/10 text-violet-600 dark:text-violet-300',
+      badge: 'border-violet-400/30 bg-violet-400/10 text-violet-300',
       dot: 'border-violet-500 bg-violet-500',
     };
   }
   if (event.kind.startsWith('llm.')) {
     return {
-      badge: 'border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-300',
+      badge: 'border-blue-400/30 bg-blue-400/10 text-blue-300',
       dot: 'border-blue-500 bg-blue-500',
     };
   }
   if (event.kind === 'tool') {
     return {
-      badge: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+      badge: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300',
       dot: 'border-emerald-500 bg-emerald-500',
     };
   }
   return {
-    badge: 'border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--fg-secondary)]',
-    dot: 'border-[var(--border-default)] bg-[var(--fg-muted)]',
+    badge: 'border-slate-700 bg-slate-900 text-slate-200',
+    dot: 'border-slate-700 bg-slate-400',
   };
 }
 

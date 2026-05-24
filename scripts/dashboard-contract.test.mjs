@@ -107,11 +107,15 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /artifactRefs/);
   assert.match(jobs, /ProcessEventItem/);
   assert.match(jobs, /h-\[36rem\] overflow-y-auto overflow-x-hidden/);
+  assert.match(jobs, /border-slate-800 bg-slate-950/);
+  assert.match(jobs, /border-slate-800 bg-slate-900\/80/);
+  assert.match(jobs, /text-slate-100/);
   assert.match(jobs, /timelineListRef\.current\.scrollTop = timelineListRef\.current\.scrollHeight/);
   assert.match(jobs, /isLlmProcessEvent/);
   assert.match(jobs, /contentCollapsed/);
   assert.match(jobs, /onContentExpandedChange\(!contentExpanded\)/);
   assert.match(jobs, /max-w-full whitespace-pre-wrap break-all/);
+  assert.doesNotMatch(jobs, /bg-\[#080b10\]/);
   assert.doesNotMatch(jobs, /isLlmEvent &&/);
   assert.doesNotMatch(jobs, /raw\s*log/i);
 

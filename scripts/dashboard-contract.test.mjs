@@ -98,3 +98,15 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(bootstrap, /onOpenJobDetails/);
   assert.match(bootstrap, /pickKeyProcessEvents/);
 });
+
+test('jobs view keeps long process details scrollable', () => {
+  const app = read('src/App.tsx');
+  const jobs = read('src/components/Views/JobsView.tsx');
+
+  assert.match(app, /min-h-0 flex-1/);
+  assert.match(app, /className="h-full min-h-0"/);
+  assert.match(jobs, /flex h-full min-h-0 flex-col/);
+  assert.match(jobs, /min-h-0 flex-1 overflow-y-auto/);
+  assert.match(jobs, /overscroll-contain/);
+  assert.match(jobs, /max-w-full break-words/);
+});

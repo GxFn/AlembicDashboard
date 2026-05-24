@@ -298,7 +298,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
@@ -373,7 +373,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-sm">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-sm overscroll-contain">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-[var(--fg-muted)]">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -464,7 +464,7 @@ function JobRow({
     !isEvidenceIssueFailure(issue) &&
     (job.status === 'completed' || job.status === 'running');
   return (
-    <div className="grid gap-4 p-4 transition-colors hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
+    <div className="grid min-w-0 gap-4 p-4 transition-colors hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={visualStatus} text={text} />
@@ -502,12 +502,12 @@ function JobRow({
 
         <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
           {Object.entries(job.request || {}).slice(0, 4).map(([key, value]) => (
-            <span key={key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
+            <span key={key} className="max-w-full break-words rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
               {key}: {String(value)}
             </span>
           ))}
           {job.bootstrapSessionId && (
-            <span className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
+            <span className="max-w-full break-words rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
               session: {job.bootstrapSessionId}
             </span>
           )}
@@ -517,7 +517,7 @@ function JobRow({
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--fg-muted)]">
             <span className="text-[var(--fg-secondary)]">{text.summary}</span>
             {summaryChips.map((chip) => (
-              <span key={chip.key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
+              <span key={chip.key} className="max-w-full break-words rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1">
                 {chip.label}: {chip.value}
               </span>
             ))}
@@ -706,12 +706,12 @@ function ProcessEventItem({
         </div>
       )}
       {event.artifactRefs && event.artifactRefs.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="text-[var(--fg-muted)]">{text.artifacts}</span>
           {event.artifactRefs.map((artifact) => (
             <span
               key={`${artifact.kind}:${artifact.ref}`}
-              className="rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-300"
+              className="max-w-full break-words rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-300"
               title={artifact.ref}
             >
               {artifact.label || artifact.kind}: {artifact.ref}
@@ -720,9 +720,9 @@ function ProcessEventItem({
         </div>
       )}
       {metaItems.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 text-[11px] text-[var(--fg-muted)]">
+        <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[var(--fg-muted)]">
           {metaItems.map((item) => (
-            <span key={`${item.label}:${item.value}`} className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
+            <span key={`${item.label}:${item.value}`} className="max-w-full break-words rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
               <span className="text-[var(--fg-secondary)]">{item.label}</span>
               <span className="ml-1">{item.value}</span>
             </span>

@@ -1159,14 +1159,14 @@ const App: React.FC = () => {
       candidateCount={candidateCount}
     />
 
-    <div className={`flex-1 ${activeTab === 'wiki' ? 'overflow-hidden' : 'overflow-y-auto p-4 xl:p-6 2xl:p-8'}`}>
+    <div className={`min-h-0 flex-1 ${activeTab === 'wiki' ? 'overflow-hidden' : 'overflow-y-auto p-4 xl:p-6 2xl:p-8'}`}>
       <AnimatePresence mode="wait">
       <motion.div
         key={activeTab}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] } }}
         exit={{ opacity: 0, transition: { duration: 0.15 } }}
-        className="h-full"
+        className="h-full min-h-0"
       >
       {loading ? (
       <div className="flex items-center justify-center h-full">

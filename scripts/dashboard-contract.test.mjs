@@ -169,6 +169,11 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /selectedTimelineJobId/);
   assert.match(jobs, /selectedTimelineJob && \(/);
   assert.match(jobs, /onOpenTimeline=\{\(\) => setSelectedTimelineJobId\(job\.id\)\}/);
+  assert.match(jobs, /type TimelineDisplayMode = 'default' \| 'compact'/);
+  assert.match(jobs, /const \[timelineDisplayMode, setTimelineDisplayMode\] = useState<TimelineDisplayMode>\('default'\)/);
+  assert.match(jobs, /role="group"[\s\S]*aria-label=\{text\.timelineModeTitle\}/);
+  assert.match(jobs, /aria-pressed=\{timelineDisplayMode === mode\}/);
+  assert.match(jobs, /displayMode=\{timelineDisplayMode\}/);
   assert.match(jobs, /const timelineSubtitleParts = \[/);
   assert.match(jobs, /subtitle=\{timelineSubtitleParts\.join\(' · '\)\}/);
   assert.match(jobs, /<Drawer open=\{open\} onClose=\{onClose\} size="full">/);
@@ -179,8 +184,10 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /const contentToggle = event\.content && contentShouldCollapse \? \(/);
   assert.match(jobs, /items-start justify-between/);
   assert.match(jobs, /event\.content && effectiveContentExpanded && \(/);
+  assert.match(jobs, /displayMode === 'default' \? getLlmOutputCompletenessHints\(event, text\.lang\) : \[\]/);
   assert.match(jobs, /aria-label=\{text\.outputCompleteness\}/);
   assert.match(jobs, /getLlmOutputCompletenessToneClass\(hint\.tone\)/);
+  assert.match(jobs, /displayMode === 'default' && metaItems\.length > 0/);
   assert.match(jobs, /node\.scrollTop = node\.scrollHeight/);
   assert.match(jobs, /isLlmProcessEvent/);
   assert.match(jobs, /onContentExpandedChange\(!contentExpanded\)/);

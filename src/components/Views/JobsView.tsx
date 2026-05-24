@@ -60,6 +60,7 @@ import { Drawer } from '../Layout/Drawer';
 type JobKindFilter = 'all' | DaemonJobRecord['kind'];
 type JobStatusFilter = 'all' | DaemonJobRecord['status'];
 type JobBucketStatus = DaemonJobRecord['status'];
+type TimelineDisplayMode = 'default' | 'compact';
 
 interface JobsViewProps {
   onOpenCandidates?: () => void;
@@ -167,6 +168,9 @@ function labels(lang: string) {
     timelineCount: zh ? '事件' : 'events',
     hiddenEvents: zh ? '隐藏事件' : 'hidden',
     retainedEvents: zh ? '保留事件' : 'retained',
+    timelineModeTitle: zh ? 'Timeline 显示模式' : 'Timeline display mode',
+    timelineDefaultMode: zh ? '默认' : 'Default',
+    timelineCompactMode: zh ? '简洁' : 'Compact',
     outputCompleteness: zh ? '输出完整性' : 'Output completeness',
     expandContent: zh ? '展开内容' : 'Expand content',
     collapseContent: zh ? '收起内容' : 'Collapse content',
@@ -664,6 +668,7 @@ function JobProcessTimeline({
   open: boolean;
   onClose: () => void;
 }) {
+  const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('default');
   const isActive = job.status === 'queued' || job.status === 'running';
   const {
     events,
@@ -746,6 +751,7 @@ function JobProcessTimeline({
               key={eventKey}
               event={event}
               text={text}
+              displayMode={timelineDisplayMode}
               contentExpanded={expandedContentEventIds.has(eventKey)}
               onContentExpandedChange={(expanded) => setContentExpanded(eventKey, expanded)}
             />
@@ -763,6 +769,31 @@ function JobProcessTimeline({
         subtitle={timelineSubtitleParts.join(' · ')}
       >
         <Drawer.HeaderActions>
+          <div
+            className="inline-flex h-8 items-center rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] p-0.5"
+            role="group"
+            aria-label={text.timelineModeTitle}
+          >
+            {([
+              ['default', text.timelineDefaultMode],
+              ['compact', text.timelineCompactMode],
+            ] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setTimelineDisplayMode(mode)}
+                aria-pressed={timelineDisplayMode === mode}
+                className={cn(
+                  'h-6 rounded px-2 text-[11px] font-medium transition-colors',
+                  timelineDisplayMode === mode
+                    ? 'bg-[var(--bg-surface)] text-[var(--fg-primary)] shadow-sm'
+                    : 'text-[var(--fg-muted)] hover:text-[var(--fg-primary)]'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => refresh()}
@@ -806,11 +837,13 @@ function getLlmOutputCompletenessToneClass(tone: LlmOutputCompletenessTone): str
 function ProcessEventItem({
   event,
   text,
+  displayMode,
   contentExpanded,
   onContentExpandedChange,
 }: {
   event: JobProcessDeveloperView;
   text: ReturnType<typeof labels>;
+  displayMode: TimelineDisplayMode;
   contentExpanded: boolean;
   onContentExpandedChange: (expanded: boolean) => void;
 }) {
@@ -821,7 +854,7 @@ function ProcessEventItem({
   const nudgeType = getProcessEventNudgeType(event);
   const contentShouldCollapse = shouldCollapseProcessEventContentByDefault(event);
   const effectiveContentExpanded = Boolean(event.content) && (!contentShouldCollapse || contentExpanded);
-  const llmOutputHints = getLlmOutputCompletenessHints(event, text.lang);
+  const llmOutputHints = displayMode === 'default' ? getLlmOutputCompletenessHints(event, text.lang) : [];
   const metaItems = [
     { label: text.sequence, value: `#${event.sequence}` },
     { label: 'kind', value: event.kind },
@@ -900,7 +933,7 @@ function ProcessEventItem({
           ))}
         </div>
       )}
-      {metaItems.length > 0 && (
+      {displayMode === 'default' && metaItems.length > 0 && (
         <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[#64748b] dark:text-[#94a3b8]">
           {metaItems.map((item) => (
             <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-[#cbd5e1] bg-[#f8fafc] px-1.5 py-0.5 dark:border-[#334155] dark:bg-[#111827]">

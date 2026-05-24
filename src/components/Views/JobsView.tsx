@@ -165,10 +165,8 @@ function labels(lang: string) {
     timelineCount: zh ? '事件' : 'events',
     hiddenEvents: zh ? '隐藏事件' : 'hidden',
     retainedEvents: zh ? '保留事件' : 'retained',
-    content: zh ? '内容' : 'Content',
     expandContent: zh ? '展开内容' : 'Expand content',
     collapseContent: zh ? '收起内容' : 'Collapse content',
-    contentCollapsed: zh ? '内容已收起' : 'Content collapsed',
     artifacts: zh ? '产物' : 'Artifacts',
     sequence: zh ? '序号' : 'Sequence',
     dimension: zh ? '维度' : 'Dimension',
@@ -679,6 +677,13 @@ function JobProcessTimeline({
 
   const visibleEvents = useMemo(() => events, [events]);
   const timelineListRef = useRef<HTMLDivElement>(null);
+  const timelineSubtitleParts = [
+    `${visibleEvents.length} ${text.timelineCount}`,
+    retainedCount > 0 ? `${text.retainedEvents}: ${retainedCount}` : '',
+    hiddenCount > 0 ? `${text.hiddenEvents}: ${hiddenCount}` : '',
+    endpointCapability?.available === false ? 'events unavailable' : '',
+    isActive ? (refreshing ? text.timelineRefreshing : text.timelineWaiting) : '',
+  ].filter(Boolean);
 
   const scrollTimelineToBottom = useCallback((node: HTMLDivElement | null) => {
     if (!node) {
@@ -752,7 +757,7 @@ function JobProcessTimeline({
       <Drawer.Header
         leading={<Terminal size={16} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />}
         title={text.processTimeline}
-        subtitle={`${visibleEvents.length} ${text.timelineCount}${retainedCount > 0 ? ` · ${text.retainedEvents}: ${retainedCount}` : ''}`}
+        subtitle={timelineSubtitleParts.join(' · ')}
       >
         <Drawer.HeaderActions>
           <button
@@ -767,42 +772,14 @@ function JobProcessTimeline({
           <Drawer.CloseButton onClose={onClose} />
         </Drawer.HeaderActions>
       </Drawer.Header>
-      <Drawer.Body padded={false} className="flex min-h-0 flex-col overflow-hidden p-3 sm:p-4">
-        <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
-          {isActive && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[11px] text-blue-600 dark:text-blue-300">
-              <Loader2 size={11} className="animate-spin" />
-              {refreshing ? text.timelineRefreshing : text.timelineWaiting}
-            </span>
-          )}
-          <span className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
-            {visibleEvents.length} {text.timelineCount}
-          </span>
-          {retainedCount > 0 && (
-            <span className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
-              {text.retainedEvents}: {retainedCount}
-            </span>
-          )}
-          {hiddenCount > 0 && (
-            <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
-              {text.hiddenEvents}: {hiddenCount}
-            </span>
-          )}
-          {endpointCapability?.available === false && (
-            <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
-              events unavailable
-            </span>
-          )}
-        </div>
-        <div className="min-h-0 flex-1">
-          {/* 过程终端使用显式 light/dark 色值，避免 legacy dark-mode 覆盖重写 slate-900。 */}
-          <div
-            ref={timelineListRef}
-            className="h-full overflow-y-auto overflow-x-hidden rounded-lg border border-[#d8e0ec] bg-[#f8fafc] px-3 py-2 text-[#0f172a] shadow-inner overscroll-contain dark:border-[#1e293b] dark:bg-[#020617] dark:text-[#e2e8f0]"
-            aria-label={text.timelineTerminal}
-          >
-            {renderTimelineContent()}
-          </div>
+      <Drawer.Body padded={false} className="min-h-0 overflow-hidden">
+        {/* 过程 Timeline 直接贴合侧边栏；显式 light/dark 色值避免 legacy dark-mode 覆盖。 */}
+        <div
+          ref={timelineListRef}
+          className="h-full overflow-y-auto overflow-x-hidden px-5 py-4 text-[#0f172a] overscroll-contain dark:text-[#e2e8f0]"
+          aria-label={text.timelineTerminal}
+        >
+          {renderTimelineContent()}
         </div>
       </Drawer.Body>
     </Drawer>
@@ -841,6 +818,16 @@ function ProcessEventItem({
   ].filter((item): item is { label: string; value: string } =>
     typeof item.value === 'string' && item.value.length > 0
   );
+  const contentToggle = event.content && contentShouldCollapse ? (
+    <button
+      type="button"
+      onClick={() => onContentExpandedChange(!contentExpanded)}
+      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-[#475569] transition-colors hover:bg-[#e2e8f0] hover:text-[#0f172a] dark:text-[#cbd5e1] dark:hover:bg-[#1e293b] dark:hover:text-white"
+    >
+      {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      {contentExpanded ? text.collapseContent : text.expandContent}
+    </button>
+  ) : null;
 
   return (
     <div
@@ -848,42 +835,24 @@ function ProcessEventItem({
       className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-[#cbd5e1] py-3 pl-4 text-xs first:pt-1 last:pb-1 dark:border-[#334155]"
     >
       <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-[#f8fafc] dark:bg-[#020617]', tone.dot)} />
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
-          {icon}
-          {semanticLabel}
-        </span>
-        <span className="min-w-0 break-all font-semibold text-[#0f172a] dark:text-[#f8fafc]">{event.title}</span>
-        {event.timestamp && (
-          <span className="text-[#64748b] dark:text-[#94a3b8]">{formatEventTimestamp(event.timestamp)}</span>
-        )}
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
+            {icon}
+            {semanticLabel}
+          </span>
+          <span className="min-w-0 break-all font-semibold text-[#0f172a] dark:text-[#f8fafc]">{event.title}</span>
+          {event.timestamp && (
+            <span className="text-[#64748b] dark:text-[#94a3b8]">{formatEventTimestamp(event.timestamp)}</span>
+          )}
+        </div>
+        {contentToggle}
       </div>
       {event.summary && (
         <p className="whitespace-pre-wrap break-all leading-relaxed text-[#1e293b] dark:text-[#e2e8f0]">{event.summary}</p>
       )}
-      {event.content && (
-        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-[#cbd5e1] bg-white p-3 text-[#0f172a] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#475569] dark:text-[#cbd5e1]">{text.content}</div>
-            {contentShouldCollapse && (
-              <button
-                type="button"
-                onClick={() => onContentExpandedChange(!contentExpanded)}
-                className="inline-flex h-6 items-center gap-1 rounded-md border border-[#cbd5e1] px-2 text-[11px] font-medium text-[#334155] transition-colors hover:bg-[#e2e8f0] hover:text-[#0f172a] dark:border-[#475569] dark:text-[#e2e8f0] dark:hover:bg-[#1e293b] dark:hover:text-white"
-              >
-                {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                {contentExpanded ? text.collapseContent : text.expandContent}
-              </button>
-            )}
-          </div>
-          {effectiveContentExpanded ? (
-            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-[#0f172a] dark:text-[#f8fafc]">{event.content}</pre>
-          ) : (
-            <div className="rounded-md border border-[#cbd5e1] bg-[#f8fafc] px-2 py-1 text-[11px] text-[#475569] dark:border-[#334155] dark:bg-[#020617] dark:text-[#cbd5e1]">
-              {text.contentCollapsed}
-            </div>
-          )}
-        </div>
+      {event.content && effectiveContentExpanded && (
+        <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-[#1e293b] dark:text-[#e2e8f0]">{event.content}</pre>
       )}
       {event.artifactRefs && event.artifactRefs.length > 0 && (
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">

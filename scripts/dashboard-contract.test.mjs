@@ -159,19 +159,23 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /selectedTimelineJobId/);
   assert.match(jobs, /selectedTimelineJob && \(/);
   assert.match(jobs, /onOpenTimeline=\{\(\) => setSelectedTimelineJobId\(job\.id\)\}/);
+  assert.match(jobs, /const timelineSubtitleParts = \[/);
+  assert.match(jobs, /subtitle=\{timelineSubtitleParts\.join\(' · '\)\}/);
   assert.match(jobs, /<Drawer open=\{open\} onClose=\{onClose\} size="full">/);
-  assert.match(jobs, /<Drawer\.Body padded=\{false\} className="flex min-h-0 flex-col overflow-hidden p-3 sm:p-4">/);
+  assert.match(jobs, /<Drawer\.Body padded=\{false\} className="min-h-0 overflow-hidden">/);
   assert.match(jobs, /ref=\{timelineListRef\}/);
   assert.match(jobs, /scrollTimelineToBottom\(timelineListRef\.current\)/);
-  assert.match(jobs, /border-\[#d8e0ec\] bg-\[#f8fafc\]/);
-  assert.match(jobs, /dark:border-\[#1e293b\] dark:bg-\[#020617\]/);
-  assert.match(jobs, /border-\[#cbd5e1\] bg-white p-3 text-\[#0f172a\]/);
-  assert.match(jobs, /dark:border-\[#334155\] dark:bg-\[#0f172a\] dark:text-\[#e2e8f0\]/);
+  assert.match(jobs, /className="h-full overflow-y-auto overflow-x-hidden px-5 py-4 text-\[#0f172a\] overscroll-contain dark:text-\[#e2e8f0\]"/);
+  assert.match(jobs, /const contentToggle = event\.content && contentShouldCollapse \? \(/);
+  assert.match(jobs, /items-start justify-between/);
+  assert.match(jobs, /event\.content && effectiveContentExpanded && \(/);
   assert.match(jobs, /node\.scrollTop = node\.scrollHeight/);
   assert.match(jobs, /isLlmProcessEvent/);
-  assert.match(jobs, /contentCollapsed/);
   assert.match(jobs, /onContentExpandedChange\(!contentExpanded\)/);
   assert.match(jobs, /max-w-full whitespace-pre-wrap break-all/);
+  assert.doesNotMatch(jobs, /\{visibleEvents\.length\} \{text\.timelineCount\}/);
+  assert.doesNotMatch(jobs, /contentCollapsed/);
+  assert.doesNotMatch(jobs, /border-\[#cbd5e1\] bg-white p-3/);
   assert.doesNotMatch(jobs, /bg-\[#080b10\]/);
   assert.doesNotMatch(jobs, /isLlmEvent &&/);
   assert.doesNotMatch(jobs, /raw\s*log/i);
@@ -195,7 +199,7 @@ test('jobs process terminal readability rules are enforced in the DOM contract',
 
   assert.match(jobs, /shouldCollapseProcessEventContentByDefault\(event\)/);
   assert.match(jobs, /const effectiveContentExpanded = Boolean\(event\.content\) && \(!contentShouldCollapse \|\| contentExpanded\)/);
-  assert.match(jobs, /contentShouldCollapse && \(/);
+  assert.match(jobs, /event\.content && contentShouldCollapse \? \(/);
   assert.match(jobs, /data-process-event-sequence=\{event\.sequence\}/);
   assert.match(jobs, /text-\[#0f172a\]/);
   assert.match(jobs, /text-\[#1e293b\]/);

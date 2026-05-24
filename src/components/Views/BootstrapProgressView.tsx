@@ -11,9 +11,12 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Check, X, Loader2, Sparkles, Code2, Layers, BookOpen, Zap, Settings, Bot, Brain, Filter, Wand2, GitMerge, Clock, Wrench, StopCircle, TerminalSquare } from 'lucide-react';
+import { AlertTriangle, Check, X, Loader2, Sparkles, Code2, Layers, BookOpen, Zap, Settings, Bot, Brain, Filter, Wand2, GitMerge, Clock, Wrench, StopCircle, TerminalSquare, ExternalLink, Activity } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import type { BootstrapSession, BootstrapTask, ReviewState } from '../../hooks/useBootstrapSocket';
+import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
+import { pickKeyProcessEvents } from '../../utils/jobProcessEvents';
+import type { JobProcessDeveloperView } from '../../api';
 import {
   type EvidenceIssue,
   extractEvidenceIssue,
@@ -355,6 +358,101 @@ function formatDuration(ms: number): string {
   return `${min}m ${sec.toString().padStart(2, '0')}s`;
 }
 
+function BootstrapProcessSummary({
+  jobId,
+  events,
+  loading,
+  error,
+  hiddenCount,
+  onOpenJobDetails,
+}: {
+  jobId: string;
+  events: JobProcessDeveloperView[];
+  loading: boolean;
+  error: string | null;
+  hiddenCount: number;
+  onOpenJobDetails?: (jobId: string) => void;
+}) {
+  const { lang } = useI18n();
+  const zh = lang === 'zh';
+
+  return (
+    <div className="mb-5 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+            <Activity size={16} />
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-[var(--fg-primary)]">
+              {zh ? '最近关键事件' : 'Recent key events'}
+            </div>
+            <div className="min-w-0 truncate text-xs text-[var(--fg-muted)]" title={jobId}>
+              Job {jobId}
+            </div>
+          </div>
+        </div>
+        {onOpenJobDetails && (
+          <button
+            type="button"
+            onClick={() => onOpenJobDetails(jobId)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:border-blue-500/40 hover:text-blue-500"
+          >
+            <ExternalLink size={13} />
+            {zh ? '任务详情' : 'Job details'}
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {loading && events.length === 0 ? (
+          <div className="flex items-center gap-2 text-xs text-[var(--fg-muted)]">
+            <Loader2 size={13} className="animate-spin" />
+            {zh ? '正在读取进程事件...' : 'Loading process events...'}
+          </div>
+        ) : error ? (
+          <div className="flex items-center gap-2 text-xs text-amber-500">
+            <AlertTriangle size={13} />
+            {error}
+          </div>
+        ) : events.length === 0 ? (
+          <div className="text-xs text-[var(--fg-muted)]">
+            {zh ? '暂无可展示的关键事件。' : 'No key events yet.'}
+          </div>
+        ) : (
+          events.map((event) => (
+            <div key={event.eventId || `${event.jobId}:${event.sequence}`} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-blue-500">
+                  {event.kind}
+                </span>
+                {event.phase && (
+                  <span className="rounded-md bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
+                    {event.phase}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1 text-xs font-semibold text-[var(--fg-primary)]">
+                  {event.title}
+                </span>
+              </div>
+              {(event.summary || event.content) && (
+                <div className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-[var(--fg-secondary)]">
+                  {event.summary || event.content}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+        {hiddenCount > 0 && (
+          <div className="text-[11px] text-[var(--fg-muted)]">
+            {zh ? `另有 ${hiddenCount} 条事件按策略隐藏` : `${hiddenCount} events hidden by policy`}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════
  *  Main progress panel
  * ═══════════════════════════════════════════════════════ */
@@ -370,6 +468,8 @@ interface BootstrapProgressViewProps {
   onCancel?: () => void;
   /** Whether cancel is in flight */
   isCancelling?: boolean;
+  /** Opens the backing daemon job detail in Jobs view */
+  onOpenJobDetails?: (jobId: string) => void;
 }
 
 const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
@@ -379,9 +479,17 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
   onDismiss,
   onCancel,
   isCancelling = false,
+  onOpenJobDetails,
 }) => {
   const { t, lang } = useI18n();
   const [now, setNow] = useState(Date.now());
+  const activeJobId = session?.activeJob?.id ?? null;
+  const processEvents = useJobProcessEvents(activeJobId, {
+    enabled: Boolean(activeJobId),
+    active: session?.status === 'running',
+    limit: 40,
+  });
+  const recentProcessEvents = pickKeyProcessEvents(processEvents.events, 3);
 
   // Tick every second while running
   useEffect(() => {
@@ -508,6 +616,17 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
           </div>
         )}
       </div>
+
+      {activeJobId && (
+        <BootstrapProcessSummary
+          jobId={activeJobId}
+          events={recentProcessEvents}
+          loading={processEvents.loading}
+          error={processEvents.error}
+          hiddenCount={processEvents.hiddenCount}
+          onOpenJobDetails={onOpenJobDetails}
+        />
+      )}
 
       {/* Task cards grid — sorted by execution order */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">

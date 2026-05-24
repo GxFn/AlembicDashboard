@@ -72,3 +72,29 @@ test('object errors keep a readable fallback instead of rendering object identit
   assert.match(errorUtil, /typeof data\.error === 'object'/);
   assert.doesNotMatch(errorUtil, /\[object Object\]/);
 });
+
+test('jobs process timeline consumes typed events contract', () => {
+  const api = read('src/api.ts');
+  const hook = read('src/hooks/useJobProcessEvents.ts');
+  const jobs = read('src/components/Views/JobsView.tsx');
+  const bootstrap = read('src/components/Views/BootstrapProgressView.tsx');
+
+  assert.match(api, /interface JobProcessDeveloperView/);
+  assert.match(api, /developerViews: JobProcessDeveloperView\[\]/);
+  assert.match(api, /getJobProcessEvents\(jobId: string/);
+  assert.match(api, /`\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/events`/);
+
+  assert.match(hook, /job:process-event/);
+  assert.match(hook, /afterSequence/);
+  assert.match(hook, /mergeProcessEvents/);
+  assert.match(hook, /socket\.io\.on\('reconnect'/);
+
+  assert.match(jobs, /JobProcessTimeline/);
+  assert.match(jobs, /artifactRefs/);
+  assert.match(jobs, /ProcessEventItem/);
+  assert.doesNotMatch(jobs, /raw\s*log/i);
+
+  assert.match(bootstrap, /BootstrapProcessSummary/);
+  assert.match(bootstrap, /onOpenJobDetails/);
+  assert.match(bootstrap, /pickKeyProcessEvents/);
+});

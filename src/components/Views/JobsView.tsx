@@ -1,25 +1,36 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  AlertTriangle,
+  Bot,
+  Braces,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   CircleDashed,
   Clock3,
   Copy,
   ExternalLink,
+  FileCode2,
   FileText,
+  GitBranch,
   Loader2,
+  MessageSquareText,
+  Package,
   Play,
   RefreshCw,
   RotateCw,
   StopCircle,
+  Wrench,
   XCircle,
 } from 'lucide-react';
-import api, { type DaemonJobRecord } from '../../api';
+import api, { type DaemonJobRecord, type JobProcessDeveloperView } from '../../api';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
 import { getJobEfficiency } from '../../utils/efficiency';
+import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
 import {
   type EvidenceIssue,
   extractEvidenceIssue,
@@ -127,6 +138,22 @@ function labels(lang: string) {
     evidenceSource: zh ? '来源' : 'Source',
     reason: zh ? '原因' : 'Reason',
     diagnostics: zh ? '诊断' : 'Diagnostics',
+    processTimeline: zh ? '过程 Timeline' : 'Process timeline',
+    showTimeline: zh ? '展开过程' : 'Show timeline',
+    hideTimeline: zh ? '收起过程' : 'Hide timeline',
+    timelineLoading: zh ? '正在读取过程事件' : 'Loading process events',
+    timelineEmpty: zh ? '暂无过程事件；旧任务或后端重启后可能只保留基础进度' : 'No process events yet; old jobs or daemon restarts may only keep basic progress.',
+    timelineError: zh ? '过程事件读取失败' : 'Failed to load process events',
+    timelineRefresh: zh ? '刷新过程' : 'Refresh process',
+    timelineCount: zh ? '事件' : 'events',
+    hiddenEvents: zh ? '隐藏事件' : 'hidden',
+    retainedEvents: zh ? '保留事件' : 'retained',
+    content: zh ? '内容' : 'Content',
+    artifacts: zh ? '产物' : 'Artifacts',
+    sequence: zh ? '序号' : 'Sequence',
+    dimension: zh ? '维度' : 'Dimension',
+    target: zh ? '目标' : 'Target',
+    severity: zh ? '级别' : 'Severity',
     gateFailures: zh ? '门禁失败' : 'Gate failures',
     issues: zh ? '问题' : 'Issues',
     statuses: zh ? '状态计数' : 'Status counts',
@@ -153,6 +180,10 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const [statusFilter, setStatusFilter] = useState<JobStatusFilter>('all');
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   const [startingKind, setStartingKind] = useState<DaemonJobRecord['kind'] | null>(null);
+  const [expandedJobIds, setExpandedJobIds] = useState<Set<string>>(() => {
+    const focusedJobId = new URLSearchParams(window.location.search).get('job');
+    return focusedJobId ? new Set([focusedJobId]) : new Set();
+  });
 
   const loadJobs = useCallback(async (quiet = false) => {
     if (quiet) {
@@ -176,11 +207,35 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   }, [loadJobs]);
 
   useEffect(() => {
+    const focusedJobId = new URLSearchParams(window.location.search).get('job');
+    if (!focusedJobId) {
+      return;
+    }
+    setExpandedJobIds((prev) => new Set(prev).add(focusedJobId));
+  }, []);
+
+  useEffect(() => {
     const hasActive = jobs.some((job) => job.status === 'queued' || job.status === 'running');
     if (!hasActive) return;
     const timer = setInterval(() => loadJobs(true), 2500);
     return () => clearInterval(timer);
   }, [jobs, loadJobs]);
+
+  useEffect(() => {
+    const activeJobIds = jobs
+      .filter((job) => job.status === 'queued' || job.status === 'running')
+      .map((job) => job.id);
+    if (activeJobIds.length === 0) {
+      return;
+    }
+    setExpandedJobIds((prev) => {
+      const next = new Set(prev);
+      for (const jobId of activeJobIds) {
+        next.add(jobId);
+      }
+      return next;
+    });
+  }, [jobs]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
@@ -228,6 +283,18 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const copyJobId = async (jobId: string) => {
     await navigator.clipboard.writeText(jobId);
     notify(text.copied, { type: 'success' });
+  };
+
+  const toggleTimeline = (jobId: string) => {
+    setExpandedJobIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) {
+        next.delete(jobId);
+      } else {
+        next.add(jobId);
+      }
+      return next;
+    });
   };
 
   return (
@@ -325,8 +392,10 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
                 job={job}
                 text={text}
                 busy={busyJobId === job.id}
+                expanded={expandedJobIds.has(job.id)}
                 onCancel={() => cancelJob(job)}
                 onCopy={() => copyJobId(job.id)}
+                onToggleTimeline={() => toggleTimeline(job.id)}
                 onOpenCandidates={onOpenCandidates}
                 onOpenReports={onOpenReports}
               />
@@ -365,16 +434,20 @@ function JobRow({
   job,
   text,
   busy,
+  expanded,
   onCancel,
   onCopy,
+  onToggleTimeline,
   onOpenCandidates,
   onOpenReports,
 }: {
   job: DaemonJobRecord;
   text: ReturnType<typeof labels>;
   busy: boolean;
+  expanded: boolean;
   onCancel: () => void;
   onCopy: () => void;
+  onToggleTimeline: () => void;
   onOpenCandidates?: () => void;
   onOpenReports?: (sessionId?: string) => void;
 }) {
@@ -456,9 +529,19 @@ function JobRow({
             {text.error}: {jobErrorText}
           </p>
         )}
+
+        {expanded && <JobProcessTimeline job={job} text={text} />}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2 lg:self-start">
+        <button
+          type="button"
+          onClick={onToggleTimeline}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+        >
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {expanded ? text.hideTimeline : text.showTimeline}
+        </button>
         {canOpenCandidates && (
           <button
             type="button"
@@ -493,6 +576,225 @@ function JobRow({
       </div>
     </div>
   );
+}
+
+function JobProcessTimeline({
+  job,
+  text,
+}: {
+  job: DaemonJobRecord;
+  text: ReturnType<typeof labels>;
+}) {
+  const isActive = job.status === 'queued' || job.status === 'running';
+  const {
+    events,
+    loading,
+    refreshing,
+    error,
+    hiddenCount,
+    retainedCount,
+    endpointCapability,
+    refresh,
+  } = useJobProcessEvents(job.id, { enabled: true, active: isActive, limit: 120 });
+
+  const visibleEvents = useMemo(() => events, [events]);
+
+  return (
+    <div className="mt-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-muted)] px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--fg-primary)]">
+            <Activity size={13} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />
+            {text.processTimeline}
+          </span>
+          <span className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
+            {visibleEvents.length} {text.timelineCount}
+          </span>
+          {retainedCount > 0 && (
+            <span className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
+              {text.retainedEvents}: {retainedCount}
+            </span>
+          )}
+          {hiddenCount > 0 && (
+            <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+              {text.hiddenEvents}: {hiddenCount}
+            </span>
+          )}
+          {endpointCapability?.available === false && (
+            <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+              events unavailable
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => refresh()}
+          className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+          title={text.timelineRefresh}
+        >
+          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+          {text.timelineRefresh}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 px-3 py-4 text-xs text-[var(--fg-muted)]">
+          <Loader2 size={14} className="animate-spin" />
+          {text.timelineLoading}
+        </div>
+      ) : error ? (
+        <div className="flex items-start gap-2 px-3 py-4 text-xs text-red-600">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{text.timelineError}: {error}</span>
+        </div>
+      ) : visibleEvents.length === 0 ? (
+        <div className="flex items-start gap-2 px-3 py-4 text-xs text-[var(--fg-muted)]">
+          <CircleDashed size={14} className="mt-0.5 shrink-0" />
+          <span>{text.timelineEmpty}</span>
+        </div>
+      ) : (
+        <div className="space-y-0 px-3 py-2">
+          {visibleEvents.map((event) => (
+            <ProcessEventItem key={event.eventId || `${event.jobId}:${event.sequence}:${event.kind}`} event={event} text={text} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProcessEventItem({
+  event,
+  text,
+}: {
+  event: JobProcessDeveloperView;
+  text: ReturnType<typeof labels>;
+}) {
+  const tone = getProcessEventTone(event);
+  const icon = getProcessEventIcon(event);
+  const metaItems = [
+    { label: text.sequence, value: `#${event.sequence}` },
+    { label: 'kind', value: event.kind },
+    { label: 'phase', value: event.phase },
+    { label: text.dimension, value: event.dimensionId },
+    { label: text.target, value: event.targetName },
+    { label: text.severity, value: event.severity },
+  ].filter((item): item is { label: string; value: string } =>
+    typeof item.value === 'string' && item.value.length > 0
+  );
+
+  return (
+    <div className="relative grid gap-3 border-l border-[var(--border-default)] py-3 pl-4 text-xs first:pt-1 last:pb-1">
+      <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-[var(--bg-surface)]', tone.dot)} />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
+          {icon}
+          {event.kind}
+        </span>
+        <span className="min-w-0 font-semibold text-[var(--fg-primary)]">{event.title}</span>
+        {event.timestamp && (
+          <span className="text-[var(--fg-muted)]">{formatEventTimestamp(event.timestamp)}</span>
+        )}
+      </div>
+      {event.summary && (
+        <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--fg-secondary)]">{event.summary}</p>
+      )}
+      {event.content && (
+        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] p-3">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-muted)]">{text.content}</div>
+          <pre className="whitespace-pre-wrap break-words font-sans leading-relaxed text-[var(--fg-primary)]">{event.content}</pre>
+        </div>
+      )}
+      {event.artifactRefs && event.artifactRefs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[var(--fg-muted)]">{text.artifacts}</span>
+          {event.artifactRefs.map((artifact) => (
+            <span
+              key={`${artifact.kind}:${artifact.ref}`}
+              className="rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-300"
+              title={artifact.ref}
+            >
+              {artifact.label || artifact.kind}: {artifact.ref}
+            </span>
+          ))}
+        </div>
+      )}
+      {metaItems.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[11px] text-[var(--fg-muted)]">
+          {metaItems.map((item) => (
+            <span key={`${item.label}:${item.value}`} className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
+              <span className="text-[var(--fg-secondary)]">{item.label}</span>
+              <span className="ml-1">{item.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getProcessEventIcon(event: JobProcessDeveloperView): React.ReactNode {
+  if (event.kind === 'llm.input' || event.kind === 'llm.output' || event.kind === 'llm.reflection') {
+    return <Bot size={12} />;
+  }
+  if (event.kind === 'tool') {
+    return <Wrench size={12} />;
+  }
+  if (event.kind === 'artifact') {
+    return <Package size={12} />;
+  }
+  if (event.kind === 'checkpoint') {
+    return <GitBranch size={12} />;
+  }
+  if (event.kind === 'error' || event.severity === 'error') {
+    return <AlertTriangle size={12} />;
+  }
+  if (event.kind === 'summary') {
+    return <MessageSquareText size={12} />;
+  }
+  if (event.kind === 'workflow') {
+    return <Braces size={12} />;
+  }
+  return <FileCode2 size={12} />;
+}
+
+function getProcessEventTone(event: JobProcessDeveloperView): { badge: string; dot: string } {
+  if (event.kind === 'error' || event.severity === 'error') {
+    return {
+      badge: 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-300',
+      dot: 'border-red-500 bg-red-500',
+    };
+  }
+  if (event.kind === 'artifact') {
+    return {
+      badge: 'border-violet-500/20 bg-violet-500/10 text-violet-600 dark:text-violet-300',
+      dot: 'border-violet-500 bg-violet-500',
+    };
+  }
+  if (event.kind.startsWith('llm.')) {
+    return {
+      badge: 'border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-300',
+      dot: 'border-blue-500 bg-blue-500',
+    };
+  }
+  if (event.kind === 'tool') {
+    return {
+      badge: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+      dot: 'border-emerald-500 bg-emerald-500',
+    };
+  }
+  return {
+    badge: 'border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--fg-secondary)]',
+    dot: 'border-[var(--border-default)] bg-[var(--fg-muted)]',
+  };
+}
+
+function formatEventTimestamp(value: string | number): string {
+  const date = typeof value === 'number' ? new Date(value) : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function RuntimeStateBlock({

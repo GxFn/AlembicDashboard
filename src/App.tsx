@@ -1213,6 +1213,10 @@ const App: React.FC = () => {
               onDismiss={() => bootstrap.resetSession()}
               onCancel={handleCancelBootstrap}
               isCancelling={isCancellingBootstrap}
+              onOpenJobDetails={(jobId) => {
+                const params = new URLSearchParams({ job: jobId });
+                navigateToTab('jobs', { search: params.toString() });
+              }}
             />
           </div>
         )}

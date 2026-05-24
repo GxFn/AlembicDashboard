@@ -143,6 +143,110 @@ function recordArray(value: unknown): UnknownRecord[] {
   return Array.isArray(value) ? value.map(asRuntimeRecord).filter((item): item is UnknownRecord => item !== null) : [];
 }
 
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function processArtifactRefs(value: unknown): JobProcessArtifactRef[] {
+  return recordArray(value)
+    .map((record): JobProcessArtifactRef | null => {
+      const kind = firstString(record.kind);
+      const ref = firstString(record.ref);
+      if (!kind || !ref) {
+        return null;
+      }
+      const artifact: JobProcessArtifactRef = {
+        kind,
+        ref,
+      };
+      const label = stringOrUndefined(record.label);
+      const mimeType = stringOrUndefined(record.mimeType);
+      if (label) {
+        artifact.label = label;
+      }
+      if (mimeType) {
+        artifact.mimeType = mimeType;
+      }
+      return artifact;
+    })
+    .filter((item): item is JobProcessArtifactRef => item !== null);
+}
+
+function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: string): JobProcessDeveloperView | null {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const eventId = firstString(record.eventId, record.id);
+  const jobId = firstString(record.jobId, fallbackJobId);
+  const sequence = firstNumber(record.sequence);
+  const kind = firstString(record.kind);
+  const title = firstString(record.title, record.summary, kind);
+  if (!eventId || !jobId || sequence === null || !kind || !title) {
+    return null;
+  }
+
+  const metadata = asRuntimeRecord(record.metadata);
+  return {
+    eventId,
+    jobId,
+    sequence,
+    kind,
+    phase: stringOrUndefined(record.phase),
+    title,
+    summary: stringOrUndefined(record.summary),
+    content: stringOrUndefined(record.content),
+    severity: stringOrUndefined(record.severity),
+    sourceClass: stringOrUndefined(record.sourceClass),
+    displayPolicy: stringOrUndefined(record.displayPolicy),
+    dimensionId: stringOrUndefined(record.dimensionId),
+    targetName: stringOrUndefined(record.targetName),
+    parentEventId: stringOrUndefined(record.parentEventId),
+    artifactRefs: processArtifactRefs(record.artifactRefs),
+    metadata: metadata ?? undefined,
+    timestamp: numberOrUndefined(record.timestamp) ?? stringOrUndefined(record.timestamp),
+  };
+}
+
+function normalizeProcessEndpointCapability(value: unknown): JobProcessEndpointCapability | undefined {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  return {
+    available: record.available !== false,
+    endpoint: stringOrUndefined(record.endpoint),
+    supportedKinds: stringArray(record.supportedKinds),
+    supportedSourceClasses: stringArray(record.supportedSourceClasses),
+    supportedDisplayPolicies: stringArray(record.supportedDisplayPolicies),
+    supportedRetentionPolicies: stringArray(record.supportedRetentionPolicies),
+  };
+}
+
+function normalizeJobProcessEventsResponse(value: unknown, fallbackJobId: string): JobProcessEventsResponse {
+  const record = asRuntimeRecord(value) ?? {};
+  const jobId = firstString(record.jobId, fallbackJobId) ?? fallbackJobId;
+  const developerViews = recordArray(record.developerViews)
+    .map((item) => normalizeProcessDeveloperView(item, jobId))
+    .filter((item): item is JobProcessDeveloperView => item !== null)
+    .sort((a, b) => a.sequence - b.sequence);
+
+  return {
+    jobId,
+    count: firstNumber(record.count) ?? developerViews.length,
+    retainedCount: firstNumber(record.retainedCount) ?? developerViews.length,
+    nextSequence: firstNumber(record.nextSequence) ?? ((developerViews.at(-1)?.sequence ?? 0) + 1),
+    hiddenCount: firstNumber(record.hiddenCount) ?? 0,
+    developerViews,
+    endpointCapability: normalizeProcessEndpointCapability(record.endpointCapability),
+  };
+}
+
 function fallbackDisplayName(projectRoot: string): string {
   const parts = projectRoot.split('/').filter(Boolean);
   return parts[parts.length - 1] || projectRoot || 'Alembic';
@@ -498,6 +602,7 @@ export interface DaemonJobRecord {
   result?: unknown;
   error?: { message?: unknown; stack?: string } | string | null;
   bootstrapSessionId?: string;
+  eventsUrl?: string;
   compact?: boolean;
   progress?: {
     activeTaskEventCount?: number;
@@ -522,6 +627,75 @@ export interface DaemonJobRecord {
   updatedAt: string;
   startedAt?: string;
   completedAt?: string;
+}
+
+export type JobProcessEventKind =
+  | 'workflow'
+  | 'llm.input'
+  | 'llm.reflection'
+  | 'llm.output'
+  | 'tool'
+  | 'artifact'
+  | 'checkpoint'
+  | 'error'
+  | 'summary'
+  | string;
+
+export type JobProcessSourceClass =
+  | 'developer-facing'
+  | 'machine-only'
+  | 'raw-provider'
+  | 'secret'
+  | 'hidden-reasoning'
+  | string;
+
+export type JobProcessDisplayPolicy = 'full' | 'summary' | 'hidden' | string;
+export type JobProcessSeverity = 'info' | 'warning' | 'error' | 'success' | string;
+
+export interface JobProcessArtifactRef {
+  kind: string;
+  ref: string;
+  label?: string;
+  mimeType?: string;
+}
+
+export interface JobProcessDeveloperView {
+  eventId: string;
+  jobId: string;
+  sequence: number;
+  kind: JobProcessEventKind;
+  phase?: string;
+  title: string;
+  summary?: string;
+  content?: string;
+  severity?: JobProcessSeverity;
+  sourceClass?: JobProcessSourceClass;
+  displayPolicy?: JobProcessDisplayPolicy;
+  dimensionId?: string;
+  targetName?: string;
+  parentEventId?: string;
+  artifactRefs?: JobProcessArtifactRef[];
+  metadata?: Record<string, unknown>;
+  timestamp?: number | string;
+}
+
+export interface JobProcessEndpointCapability {
+  available: boolean;
+  endpoint?: string;
+  supportedKinds?: string[];
+  supportedSourceClasses?: string[];
+  supportedDisplayPolicies?: string[];
+  supportedRetentionPolicies?: string[];
+}
+
+export interface JobProcessEventsResponse {
+  jobId: string;
+  count: number;
+  retainedCount: number;
+  nextSequence: number;
+  hiddenCount: number;
+  developerViews: JobProcessDeveloperView[];
+  endpointCapability?: JobProcessEndpointCapability;
 }
 
 export interface AgentGateFailure {
@@ -1538,6 +1712,14 @@ export const api = {
   async getJob(jobId: string, opts?: { compact?: boolean }): Promise<DaemonJobRecord | null> {
     const res = await http.get(`/jobs/${encodeURIComponent(jobId)}`, { params: opts || {} });
     return res.data?.data?.job || null;
+  },
+
+  async getJobProcessEvents(jobId: string, opts?: {
+    afterSequence?: number;
+    limit?: number;
+  }): Promise<JobProcessEventsResponse> {
+    const res = await http.get(`/jobs/${encodeURIComponent(jobId)}/events`, { params: opts || {} });
+    return normalizeJobProcessEventsResponse(res.data?.data, jobId);
   },
 
   async cancelJob(jobId: string, reason?: string): Promise<DaemonJobRecord | null> {

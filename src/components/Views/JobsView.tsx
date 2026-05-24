@@ -532,25 +532,29 @@ function JobRow({
     (job.status === 'completed' || job.status === 'running');
   return (
     <div className="grid min-w-0 gap-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto]">
-      <div className="min-w-0 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={visualStatus} text={text} />
-          {issue && <IssueBadge issue={issue} text={text} />}
-          <span className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--fg-secondary)]">
-            {job.kind}
-          </span>
-          <span className="truncate font-mono text-xs text-[var(--fg-muted)]">{job.id}</span>
-          <button
-            type="button"
-            onClick={onCopy}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
-            aria-label="Copy job id"
-          >
-            <Copy size={13} />
-          </button>
+      <div className="min-w-0 space-y-3">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <StatusBadge status={visualStatus} text={text} />
+            {issue && <IssueBadge issue={issue} text={text} />}
+            <span className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--fg-secondary)]">
+              {job.kind}
+            </span>
+          </div>
+          <div className="inline-flex min-w-0 items-center gap-1.5 self-start rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1 sm:self-auto">
+            <span className="truncate font-mono text-xs text-[var(--fg-muted)]">{job.id}</span>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-surface)] hover:text-[var(--fg-primary)]"
+              aria-label="Copy job id"
+            >
+              <Copy size={13} />
+            </button>
+          </div>
         </div>
 
-        <div className="grid gap-2 text-xs text-[var(--fg-secondary)] md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-x-4 gap-y-2 border-y border-[var(--border-muted)] py-2 text-xs text-[var(--fg-secondary)] sm:grid-cols-2 xl:grid-cols-4">
           <Meta label={text.source} value={job.source} />
           <Meta label={text.created} value={formatDate(job.createdAt)} />
           <Meta label={text.updated} value={formatDate(job.updatedAt)} />
@@ -881,7 +885,7 @@ function RuntimeStateBlock({
   ];
 
   return (
-    <div className="grid gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)]/50 p-2 text-xs text-[var(--fg-secondary)] md:grid-cols-3">
+    <div className="grid gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)]/40 p-2 text-xs text-[var(--fg-secondary)] md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.8fr)_minmax(0,0.8fr)]">
       {items.map((item) => (
         <Meta key={item.label} label={item.label} value={item.value} />
       ))}
@@ -1039,8 +1043,8 @@ function StatusBadge({ status, text }: { status: DaemonJobRecord['status']; text
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 break-words">
-      <span className="text-[var(--fg-muted)]">{label}</span>
-      <span className="ml-1 break-words text-[var(--fg-primary)]">{value}</span>
+      <span className="block text-[11px] leading-4 text-[var(--fg-muted)]">{label}</span>
+      <span className="mt-0.5 block break-words font-medium leading-5 text-[var(--fg-primary)]">{value}</span>
     </div>
   );
 }

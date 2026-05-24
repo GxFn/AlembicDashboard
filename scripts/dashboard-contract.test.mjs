@@ -117,6 +117,10 @@ test('jobs view lets the page scroll without inner list scrolling', () => {
   assert.match(jobs, /<div className="max-w-full overflow-x-hidden">/);
   assert.match(jobs, /<div className="space-y-3">/);
   assert.match(jobs, /rounded-xl border border-\[var\(--border-default\)\] bg-\[var\(--bg-surface\)\] p-4/);
+  assert.match(jobs, /sm:flex-row sm:items-center sm:justify-between/);
+  assert.match(jobs, /border-y border-\[var\(--border-muted\)\] py-2/);
+  assert.match(jobs, /md:grid-cols-\[minmax\(0,0\.8fr\)_minmax\(0,1\.8fr\)_minmax\(0,0\.8fr\)\]/);
+  assert.match(jobs, /block text-\[11px\] leading-4/);
   assert.match(jobs, /max-w-full break-words/);
   assert.doesNotMatch(jobs, /hover:border-\[var\(--border-strong\)\] hover:bg-\[var\(--bg-subtle\)\]/);
   assert.doesNotMatch(jobs, /max-w-full overflow-x-hidden rounded-xl border border-\[var\(--border-default\)\] bg-\[var\(--bg-surface\)\] shadow-sm/);

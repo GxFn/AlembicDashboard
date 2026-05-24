@@ -555,13 +555,17 @@ function JobRow({
           </div>
         </div>
 
-        <div className="grid gap-x-4 gap-y-2 border-y border-[var(--border-muted)] py-2 text-xs text-[var(--fg-secondary)] sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-          <Meta label={text.source} value={job.source} />
-          <Meta label={text.created} value={formatDate(job.createdAt)} />
-          <Meta label={text.updated} value={formatDate(job.updatedAt)} />
-          <Meta label={text.duration} value={formatJobDuration(job)} />
-          <Meta label={text.processingState} value={describeProcessingState(job, text, issue)} />
-          <Meta label={text.currentDimension} value={getCurrentDimensionLabel(job)} />
+        <div className="grid gap-x-6 gap-y-2 border-y border-[var(--border-muted)] py-2 text-xs text-[var(--fg-secondary)] md:grid-cols-2">
+          <div className="grid min-w-0 gap-2">
+            <Meta label={text.source} value={job.source} />
+            <Meta label={text.processingState} value={describeProcessingState(job, text, issue)} />
+            <Meta label={text.currentDimension} value={getCurrentDimensionLabel(job)} />
+          </div>
+          <div className="grid min-w-0 gap-2">
+            <Meta label={text.created} value={formatDate(job.createdAt)} />
+            <Meta label={text.updated} value={formatDate(job.updatedAt)} />
+            <Meta label={text.duration} value={formatJobDuration(job)} />
+          </div>
         </div>
 
         {job.progress && <ProgressBlock progress={job.progress} text={text} />}

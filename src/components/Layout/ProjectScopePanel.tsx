@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Database, FolderGit2, FolderPlus, RefreshCw, SearchCheck, Server } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Database, FolderGit2, FolderPlus, RefreshCw, SearchCheck, Server } from 'lucide-react';
 import api from '../../api';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
@@ -64,8 +64,13 @@ export function ProjectScopePanel({ runtimeBoundary }: { runtimeBoundary?: Runti
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolutionText, setResolutionText] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const sourceFolders = useMemo(() => sourceFoldersFor(folders, summary), [folders, summary]);
+  const displayName = summary?.displayName ?? runtimeBoundary?.project.projectId ?? t('header.projectScopeTitle');
+  const storageKind = summary?.storageKind ?? '—';
+  const readyText = loading ? t('header.projectScopeLoading') : t('header.projectScopeReady');
+  const folderCountText = t('header.projectScopeFolderCount', { count: sourceFolders.length });
 
   const loadProjectScope = useCallback(async () => {
     if (!isSupported) {
@@ -188,85 +193,133 @@ export function ProjectScopePanel({ runtimeBoundary }: { runtimeBoundary?: Runti
         </Button>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        <ProjectScopeField label={t('header.projectScopeControlRoot')} value={summary?.controlRoot} className="col-span-2" />
-        <ProjectScopeField label={t('header.projectScopeDataRoot')} value={summary?.dataRoot} />
-        <ProjectScopeField label={t('header.projectScopeStorageKind')} value={summary?.storageKind} />
-        <ProjectScopeField label={t('header.projectScopeId')} value={summary?.projectScopeId ?? runtimeBoundary?.project.projectScopeId} className="col-span-2" />
-      </div>
-
-      <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-surface)] p-2">
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-[var(--fg-default)]">
-            <FolderGit2 size={13} className="text-sky-500" />
-            {t('header.projectScopeFolders')}
-          </span>
-          <span className="shrink-0 rounded-full bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--fg-subtle)]">
-            {sourceFolders.length}
-          </span>
-        </div>
-        {sourceFolders.length === 0 ? (
-          <p className="text-xs text-[var(--fg-subtle)]">{t('header.projectScopeFoldersEmpty')}</p>
-        ) : (
-          <div className="space-y-1">
-            {sourceFolders.map((folder) => (
-              <div
-                key={`${folder.folderId}:${folder.path}`}
-                className="rounded-[var(--radius-sm)] border border-[var(--border-muted)] bg-[var(--bg-subtle)]/60 px-2 py-1"
-              >
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">
-                    {folder.role}
-                  </span>
-                  <span className="truncate text-xs font-medium text-[var(--fg-default)]">{folder.displayName}</span>
-                </div>
-                <p className="mt-0.5 truncate text-[11px] text-[var(--fg-subtle)]" title={folder.path}>
-                  {compactPath(folder.path)}
-                </p>
-              </div>
-            ))}
+      <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-surface)] px-2.5 py-2">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-[var(--fg-default)]" title={displayName}>
+              {displayName}
+            </p>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-[var(--fg-subtle)]">
+              <span className="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-1.5 py-0.5 font-medium text-emerald-600">
+                {readyText}
+              </span>
+              <span className="rounded-full border border-[var(--border-muted)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
+                {storageKind}
+              </span>
+              <span className="rounded-full border border-[var(--border-muted)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
+                {folderCountText}
+              </span>
+            </div>
           </div>
-        )}
+          <span className="shrink-0 rounded-full border border-[var(--border-muted)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--fg-subtle)]">
+            {summary?.projectScopeId ? t('header.projectScopeBound') : t('header.projectScopeUnbound')}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]"
+          aria-expanded={detailsOpen}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setDetailsOpen((value) => !value);
+          }}
+        >
+          <ChevronDown
+            size={13}
+            className={cn('transition-transform', detailsOpen ? 'rotate-180' : '')}
+          />
+          {detailsOpen ? t('header.projectScopeHideDetails') : t('header.projectScopeDetails')}
+        </button>
       </div>
 
-      <form className="mt-2 space-y-1.5" onSubmit={handleAddFolder}>
-        <label className="sr-only" htmlFor="project-scope-folder-path">{t('header.projectScopeFolderPath')}</label>
-        <input
-          id="project-scope-folder-path"
-          value={folderPath}
-          onChange={(event) => setFolderPath(event.target.value)}
-          onClick={(event) => event.stopPropagation()}
-          placeholder={t('header.projectScopeFolderPlaceholder')}
-          className="h-8 w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--fg-default)] outline-none placeholder:text-[var(--fg-muted)] focus:border-[var(--accent)]/50"
-        />
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="secondary"
-            size="sm"
-            type="button"
-            disabled={!folderPath.trim()}
-            loading={resolving}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              void handleResolveFolder();
-            }}
-          >
-            <SearchCheck size={13} />
-            {t('header.projectScopeResolve')}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            type="submit"
-            disabled={!folderPath.trim()}
-            loading={adding}
-          >
-            <FolderPlus size={13} />
-            {t('header.projectScopeAddFolder')}
-          </Button>
+      {detailsOpen && (
+        <div className="mt-2 space-y-2 rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-subtle)]/40 p-2">
+          <div className="grid grid-cols-2 gap-1.5">
+            <ProjectScopeField label={t('header.projectScopeControlRoot')} value={summary?.controlRoot} className="col-span-2" />
+            <ProjectScopeField label={t('header.projectScopeDataRoot')} value={summary?.dataRoot} />
+            <ProjectScopeField label={t('header.projectScopeStorageKind')} value={summary?.storageKind} />
+            <ProjectScopeField label={t('header.projectScopeId')} value={summary?.projectScopeId ?? runtimeBoundary?.project.projectScopeId} className="col-span-2" />
+          </div>
+
+          <div className="rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-surface)] p-2">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-[var(--fg-default)]">
+                <FolderGit2 size={13} className="text-sky-500" />
+                {t('header.projectScopeFolders')}
+              </span>
+              <span className="shrink-0 rounded-full bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--fg-subtle)]">
+                {sourceFolders.length}
+              </span>
+            </div>
+            {sourceFolders.length === 0 ? (
+              <p className="text-xs text-[var(--fg-subtle)]">{t('header.projectScopeFoldersEmpty')}</p>
+            ) : (
+              <div className="space-y-1">
+                {sourceFolders.map((folder) => (
+                  <div
+                    key={`${folder.folderId}:${folder.path}`}
+                    className="rounded-[var(--radius-sm)] border border-[var(--border-muted)] bg-[var(--bg-subtle)]/60 px-2 py-1"
+                  >
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">
+                        {folder.role}
+                      </span>
+                      <span className="truncate text-xs font-medium text-[var(--fg-default)]">{folder.displayName}</span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[11px] text-[var(--fg-subtle)]" title={folder.path}>
+                      {compactPath(folder.path)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <form className="space-y-1.5" onSubmit={handleAddFolder}>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--fg-default)]">
+              <FolderPlus size={13} className="text-emerald-500" />
+              {t('header.projectScopeManage')}
+            </div>
+            <label className="sr-only" htmlFor="project-scope-folder-path">{t('header.projectScopeFolderPath')}</label>
+            <input
+              id="project-scope-folder-path"
+              value={folderPath}
+              onChange={(event) => setFolderPath(event.target.value)}
+              onClick={(event) => event.stopPropagation()}
+              placeholder={t('header.projectScopeFolderPlaceholder')}
+              className="h-8 w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--fg-default)] outline-none placeholder:text-[var(--fg-muted)] focus:border-[var(--accent)]/50"
+            />
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                disabled={!folderPath.trim()}
+                loading={resolving}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void handleResolveFolder();
+                }}
+              >
+                <SearchCheck size={13} />
+                {t('header.projectScopeResolve')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                type="submit"
+                disabled={!folderPath.trim()}
+                loading={adding}
+              >
+                <FolderPlus size={13} />
+                {t('header.projectScopeAddFolder')}
+              </Button>
+            </div>
+          </form>
         </div>
-      </form>
+      )}
 
       {resolutionText && (
         <p className="mt-1.5 truncate text-[11px] text-emerald-600" title={resolutionText}>

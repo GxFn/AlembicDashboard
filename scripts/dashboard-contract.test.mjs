@@ -346,7 +346,17 @@ test('project scope panel consumes Alembic ProjectScope API without fake source 
   assert.match(panel, /projectScopeStorageKind/);
   assert.match(panel, /projectScopeId/);
   assert.match(panel, /projectScopeFolders/);
+  assert.match(panel, /const \[detailsOpen, setDetailsOpen\] = useState\(false\)/);
+  assert.match(panel, /const displayName = summary\?\.displayName/);
+  assert.match(panel, /const folderCountText = t\('header\.projectScopeFolderCount'/);
+  assert.match(panel, /aria-expanded=\{detailsOpen\}/);
+  assert.match(panel, /\{detailsOpen \? t\('header\.projectScopeHideDetails'\) : t\('header\.projectScopeDetails'\)\}/);
+  assert.match(panel, /detailsOpen && \(/);
+  assert.match(panel, /projectScopeBound/);
+  assert.match(panel, /projectScopeUnbound/);
+  assert.match(panel, /projectScopeManage/);
   assert.match(panel, /role: sourceFolders\.length === 0 \? 'primary-source' : 'source'/);
+  assert.doesNotMatch(panel, /<ProjectScopeField[\s\S]*<ProjectScopeField[\s\S]*<div className="mt-2 rounded-\[var\(--radius-md\)\] border border-\[var\(--border-muted\)\] bg-\[var\(--bg-surface\)\] px-2\.5 py-2">/);
   assert.doesNotMatch(panel, /removeProjectScope|deleteProjectScope|disableProjectScope/i);
   assert.doesNotMatch(panel, /mock|fake/i);
 
@@ -358,6 +368,14 @@ test('project scope panel consumes Alembic ProjectScope API without fake source 
     'projectScopeStorageKind',
     'projectScopeId',
     'projectScopeFolders',
+    'projectScopeFolderCount',
+    'projectScopeReady',
+    'projectScopeLoading',
+    'projectScopeBound',
+    'projectScopeUnbound',
+    'projectScopeDetails',
+    'projectScopeHideDetails',
+    'projectScopeManage',
     'projectScopeAddFolder',
     'projectScopeResolve',
   ]) {

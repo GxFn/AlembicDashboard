@@ -13,9 +13,18 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, X, Loader2, Sparkles, Code2, Layers, BookOpen, Zap, Settings, Bot, Brain, Filter, Wand2, GitMerge, Clock, Wrench, StopCircle, TerminalSquare, ExternalLink, Activity } from 'lucide-react';
 import { useI18n } from '../../i18n';
+import { cn } from '../../lib/utils';
 import type { BootstrapSession, BootstrapTask, ReviewState } from '../../hooks/useBootstrapSocket';
 import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
-import { pickKeyProcessEvents } from '../../utils/jobProcessEvents';
+import {
+  formatProcessEventSemanticLabel,
+  getProcessEventMetadataText,
+  getProcessEventNudgeType,
+  getProcessEventPreviewText,
+  getProcessEventSemanticCategory,
+  getProcessEventSemanticKind,
+  pickKeyProcessEvents,
+} from '../../utils/jobProcessEvents';
 import type { JobProcessDeveloperView } from '../../api';
 import {
   type EvidenceIssue,
@@ -420,28 +429,41 @@ function BootstrapProcessSummary({
             {zh ? '暂无可展示的关键事件。' : 'No key events yet.'}
           </div>
         ) : (
-          events.map((event) => (
-            <div key={event.eventId || `${event.jobId}:${event.sequence}`} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-blue-500">
-                  {event.kind}
-                </span>
-                {event.phase && (
-                  <span className="rounded-md bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
-                    {event.phase}
+          events.map((event) => {
+            const semanticKind = getProcessEventSemanticKind(event);
+            const nudgeType = getProcessEventNudgeType(event);
+            const findingCount = getProcessEventMetadataText(event, 'findingCount');
+            const preview = getProcessEventPreviewText(event, 180);
+            const tone = getBootstrapProcessEventTone(event);
+            const chips = [
+              event.phase,
+              semanticKind,
+              nudgeType,
+              findingCount ? `${zh ? '发现' : 'findings'} ${findingCount}` : undefined,
+            ].filter((item): item is string => typeof item === 'string' && item.length > 0);
+            return (
+              <div key={event.eventId || `${event.jobId}:${event.sequence}`} className={cn('rounded-lg border px-3 py-2', tone.card)}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cn('rounded-md px-1.5 py-0.5 text-[11px] font-semibold', tone.badge)}>
+                    {formatProcessEventSemanticLabel(event, lang)}
                   </span>
-                )}
-                <span className="min-w-0 flex-1 text-xs font-semibold text-[var(--fg-primary)]">
-                  {event.title}
-                </span>
-              </div>
-              {(event.summary || event.content) && (
-                <div className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-[var(--fg-secondary)]">
-                  {event.summary || event.content}
+                  {chips.map((chip) => (
+                    <span key={chip} className="rounded-md bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
+                      {chip}
+                    </span>
+                  ))}
+                  <span className="min-w-0 flex-1 text-xs font-semibold text-[var(--fg-primary)]">
+                    {event.title}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))
+                {preview && (
+                  <div className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-[var(--fg-secondary)]">
+                    {preview}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
         {hiddenCount > 0 && (
           <div className="text-[11px] text-[var(--fg-muted)]">
@@ -451,6 +473,37 @@ function BootstrapProcessSummary({
       </div>
     </div>
   );
+}
+
+function getBootstrapProcessEventTone(event: JobProcessDeveloperView): { badge: string; card: string } {
+  switch (getProcessEventSemanticCategory(event)) {
+    case 'error':
+      return {
+        badge: 'bg-red-500/10 text-red-600 dark:text-red-300',
+        card: 'border-red-500/20 bg-red-500/5',
+      };
+    case 'findings':
+      return {
+        badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+        card: 'border-amber-500/20 bg-amber-500/5',
+      };
+    case 'transition':
+      return {
+        badge: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+        card: 'border-cyan-500/20 bg-cyan-500/5',
+      };
+    case 'nudge':
+    case 'reflection':
+      return {
+        badge: 'bg-violet-500/10 text-violet-700 dark:text-violet-300',
+        card: 'border-violet-500/20 bg-violet-500/5',
+      };
+    default:
+      return {
+        badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-300',
+        card: 'border-[var(--border-default)] bg-[var(--bg-surface)]',
+      };
+  }
 }
 
 /* ═══════════════════════════════════════════════════════

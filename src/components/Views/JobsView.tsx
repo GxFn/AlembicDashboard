@@ -34,7 +34,14 @@ import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
 import { getJobEfficiency } from '../../utils/efficiency';
 import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
-import { processEventStableKey } from '../../utils/jobProcessEvents';
+import {
+  formatProcessEventSemanticLabel,
+  getProcessEventMetadataText,
+  getProcessEventNudgeType,
+  getProcessEventSemanticCategory,
+  getProcessEventSemanticKind,
+  processEventStableKey,
+} from '../../utils/jobProcessEvents';
 import {
   type EvidenceIssue,
   extractEvidenceIssue,
@@ -165,6 +172,10 @@ function labels(lang: string) {
     dimension: zh ? '维度' : 'Dimension',
     target: zh ? '目标' : 'Target',
     severity: zh ? '级别' : 'Severity',
+    semanticKind: zh ? '语义' : 'Semantic',
+    nudgeType: zh ? 'Nudge 类型' : 'Nudge type',
+    findingCount: zh ? '发现数' : 'Findings',
+    findingSources: zh ? '发现来源' : 'Finding sources',
     gateFailures: zh ? '门禁失败' : 'Gate failures',
     issues: zh ? '问题' : 'Issues',
     statuses: zh ? '状态计数' : 'Status counts',
@@ -791,12 +802,19 @@ function ProcessEventItem({
 }) {
   const tone = getProcessEventTone(event);
   const icon = getProcessEventIcon(event);
+  const semanticLabel = formatProcessEventSemanticLabel(event, text.lang);
+  const semanticKind = getProcessEventSemanticKind(event);
+  const nudgeType = getProcessEventNudgeType(event);
   const metaItems = [
     { label: text.sequence, value: `#${event.sequence}` },
     { label: 'kind', value: event.kind },
+    { label: text.semanticKind, value: semanticKind },
+    { label: text.nudgeType, value: nudgeType },
     { label: 'phase', value: event.phase },
     { label: text.dimension, value: event.dimensionId },
     { label: text.target, value: event.targetName },
+    { label: text.findingCount, value: getProcessEventMetadataText(event, 'findingCount') },
+    { label: text.findingSources, value: getProcessEventMetadataText(event, 'findingSources') },
     { label: text.severity, value: event.severity },
   ].filter((item): item is { label: string; value: string } =>
     typeof item.value === 'string' && item.value.length > 0
@@ -808,7 +826,7 @@ function ProcessEventItem({
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
           {icon}
-          {event.kind}
+          {semanticLabel}
         </span>
         <span className="min-w-0 break-all font-semibold text-slate-100">{event.title}</span>
         {event.timestamp && (
@@ -869,6 +887,19 @@ function ProcessEventItem({
 }
 
 function getProcessEventIcon(event: JobProcessDeveloperView): React.ReactNode {
+  const category = getProcessEventSemanticCategory(event);
+  if (category === 'findings') {
+    return <FileText size={12} />;
+  }
+  if (category === 'transition') {
+    return <GitBranch size={12} />;
+  }
+  if (category === 'nudge') {
+    return <MessageSquareText size={12} />;
+  }
+  if (category === 'reflection') {
+    return <Bot size={12} />;
+  }
   if (isLlmProcessEvent(event)) {
     return <Bot size={12} />;
   }
@@ -898,29 +929,51 @@ function isLlmProcessEvent(event: JobProcessDeveloperView): boolean {
 }
 
 function getProcessEventTone(event: JobProcessDeveloperView): { badge: string; dot: string } {
-  if (event.kind === 'error' || event.severity === 'error') {
-    return {
-      badge: 'border-red-400/30 bg-red-400/10 text-red-300',
-      dot: 'border-red-500 bg-red-500',
-    };
-  }
-  if (event.kind === 'artifact') {
-    return {
-      badge: 'border-violet-400/30 bg-violet-400/10 text-violet-300',
-      dot: 'border-violet-500 bg-violet-500',
-    };
-  }
-  if (event.kind.startsWith('llm.')) {
-    return {
-      badge: 'border-blue-400/30 bg-blue-400/10 text-blue-300',
-      dot: 'border-blue-500 bg-blue-500',
-    };
-  }
-  if (event.kind === 'tool') {
-    return {
-      badge: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300',
-      dot: 'border-emerald-500 bg-emerald-500',
-    };
+  switch (getProcessEventSemanticCategory(event)) {
+    case 'error':
+      return {
+        badge: 'border-red-400/30 bg-red-400/10 text-red-300',
+        dot: 'border-red-500 bg-red-500',
+      };
+    case 'findings':
+      return {
+        badge: 'border-amber-300/40 bg-amber-300/10 text-amber-200',
+        dot: 'border-amber-400 bg-amber-400',
+      };
+    case 'transition':
+      return {
+        badge: 'border-cyan-300/40 bg-cyan-300/10 text-cyan-200',
+        dot: 'border-cyan-400 bg-cyan-400',
+      };
+    case 'nudge':
+    case 'reflection':
+      return {
+        badge: 'border-violet-400/30 bg-violet-400/10 text-violet-300',
+        dot: 'border-violet-500 bg-violet-500',
+      };
+    case 'llm':
+      return {
+        badge: 'border-blue-400/30 bg-blue-400/10 text-blue-300',
+        dot: 'border-blue-500 bg-blue-500',
+      };
+    case 'tool':
+      return {
+        badge: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300',
+        dot: 'border-emerald-500 bg-emerald-500',
+      };
+    case 'artifact':
+      return {
+        badge: 'border-fuchsia-400/30 bg-fuchsia-400/10 text-fuchsia-200',
+        dot: 'border-fuchsia-500 bg-fuchsia-500',
+      };
+    case 'summary':
+      return {
+        badge: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200',
+        dot: 'border-emerald-500 bg-emerald-500',
+      };
+    case 'checkpoint':
+    default:
+      break;
   }
   return {
     badge: 'border-slate-700 bg-slate-900 text-slate-200',

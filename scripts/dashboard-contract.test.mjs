@@ -102,10 +102,21 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(eventUtils, /JOB_PROCESS_EVENTS_CACHE_EVENT_LIMIT = 120/);
   assert.match(eventUtils, /cleanupJobProcessEventsDisplayCache/);
   assert.match(eventUtils, /expandedContentEventIds/);
+  assert.match(eventUtils, /getProcessEventSemanticCategory/);
+  assert.match(eventUtils, /metadata\?\.\[key\]/);
+  assert.match(eventUtils, /dimension-findings/);
+  assert.match(eventUtils, /tier-findings/);
+  assert.match(eventUtils, /transition-nudge/);
+  assert.match(eventUtils, /findingSources/);
+  assert.match(eventUtils, /getProcessEventSemanticPriority/);
 
   assert.match(jobs, /JobProcessTimeline/);
   assert.match(jobs, /artifactRefs/);
   assert.match(jobs, /ProcessEventItem/);
+  assert.match(jobs, /formatProcessEventSemanticLabel\(event, text\.lang\)/);
+  assert.match(jobs, /getProcessEventSemanticKind\(event\)/);
+  assert.match(jobs, /getProcessEventNudgeType\(event\)/);
+  assert.match(jobs, /getProcessEventMetadataText\(event, 'findingCount'\)/);
   assert.match(jobs, /h-\[36rem\] overflow-y-auto overflow-x-hidden/);
   assert.match(jobs, /border-slate-800 bg-slate-950/);
   assert.match(jobs, /border-slate-800 bg-slate-900\/80/);
@@ -122,6 +133,9 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(bootstrap, /BootstrapProcessSummary/);
   assert.match(bootstrap, /onOpenJobDetails/);
   assert.match(bootstrap, /pickKeyProcessEvents/);
+  assert.match(bootstrap, /getProcessEventPreviewText\(event, 180\)/);
+  assert.match(bootstrap, /getBootstrapProcessEventTone/);
+  assert.match(bootstrap, /formatProcessEventSemanticLabel\(event, lang\)/);
 });
 
 test('jobs view lets the page scroll without inner list scrolling', () => {

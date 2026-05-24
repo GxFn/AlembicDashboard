@@ -121,7 +121,9 @@ test('jobs view lets the page scroll without inner list scrolling', () => {
   assert.match(jobs, /border-y border-\[var\(--border-muted\)\] py-2/);
   assert.match(jobs, /sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6/);
   assert.match(jobs, /getCurrentDimensionLabel\(job\)/);
-  assert.match(jobs, /block text-\[11px\] leading-4/);
+  assert.match(jobs, /flex min-w-0 flex-wrap items-baseline gap-x-1\.5/);
+  assert.match(jobs, /text-\[11px\] leading-5 text-\[var\(--fg-muted\)\]/);
+  assert.match(jobs, /min-w-0 break-words font-medium leading-5/);
   assert.match(jobs, /badgeIssue && <IssueBadge issue=\{badgeIssue\} text=\{text\} \/>/);
   assert.match(jobs, /blockIssue && <EvidenceIssueBlock issue=\{blockIssue\} text=\{text\} \/>/);
   assert.match(jobs, /function isDuplicateStatusIssue/);

@@ -1018,9 +1018,9 @@ function StatusBadge({ status, text }: { status: DaemonJobRecord['status']; text
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 break-words">
-      <span className="block text-[11px] leading-4 text-[var(--fg-muted)]">{label}</span>
-      <span className="mt-0.5 block break-words font-medium leading-5 text-[var(--fg-primary)]">{value}</span>
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 break-words">
+      <span className="text-[11px] leading-5 text-[var(--fg-muted)]">{label}</span>
+      <span className="min-w-0 break-words font-medium leading-5 text-[var(--fg-primary)]">{value}</span>
     </div>
   );
 }

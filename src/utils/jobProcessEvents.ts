@@ -42,6 +42,15 @@ export type ProcessEventSemanticCategory =
   | 'summary'
   | 'default';
 
+export type LlmOutputCompletenessTone = 'neutral' | 'info' | 'warning' | 'danger';
+
+export interface LlmOutputCompletenessHint {
+  id: string;
+  label: string;
+  value?: string;
+  tone: LlmOutputCompletenessTone;
+}
+
 export interface JobProcessEventsDisplayCache {
   jobId: string;
   updatedAt: number;
@@ -218,6 +227,172 @@ export function getProcessEventMetadataText(event: JobProcessDeveloperView, key:
     return items.length > 0 ? items.join(', ') : undefined;
   }
   return undefined;
+}
+
+export function getProcessEventMetadataNumber(event: JobProcessDeveloperView, key: string): number | undefined {
+  const value = event.metadata?.[key];
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+export function getProcessEventMetadataBoolean(event: JobProcessDeveloperView, key: string): boolean | undefined {
+  const value = event.metadata?.[key];
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    if (value.toLowerCase() === 'true') {
+      return true;
+    }
+    if (value.toLowerCase() === 'false') {
+      return false;
+    }
+  }
+  return undefined;
+}
+
+function firstProcessEventMetadataText(event: JobProcessDeveloperView, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = getProcessEventMetadataText(event, key);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function firstProcessEventMetadataNumber(event: JobProcessDeveloperView, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = getProcessEventMetadataNumber(event, key);
+    if (typeof value === 'number') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function firstProcessEventMetadataBoolean(event: JobProcessDeveloperView, keys: string[]): boolean | undefined {
+  for (const key of keys) {
+    const value = getProcessEventMetadataBoolean(event, key);
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function formatCount(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function charCountLabel(value: number, lang: string): string {
+  return lang === 'zh' ? `${formatCount(value)} 字` : `${formatCount(value)} chars`;
+}
+
+function tokenCountLabel(value: number, lang: string): string {
+  return lang === 'zh' ? `${formatCount(value)} Token` : `${formatCount(value)} tokens`;
+}
+
+function isProviderLengthFinishReason(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  return ['length', 'max_tokens', 'max_output_tokens', 'token_limit', 'output_limit'].includes(value.toLowerCase());
+}
+
+export function isLlmOutputProcessEvent(event: JobProcessDeveloperView): boolean {
+  return event.kind === 'llm.output';
+}
+
+export function getLlmOutputCompletenessHints(event: JobProcessDeveloperView, lang: string): LlmOutputCompletenessHint[] {
+  if (!isLlmOutputProcessEvent(event)) {
+    return [];
+  }
+
+  const hints: LlmOutputCompletenessHint[] = [];
+  const visibleTextChars =
+    firstProcessEventMetadataNumber(event, ['visibleTextChars', 'visibleChars', 'textChars', 'outputTextChars']) ??
+    (event.content ? event.content.length : undefined);
+  if (typeof visibleTextChars === 'number') {
+    hints.push({
+      id: 'visibleTextChars',
+      label: lang === 'zh' ? '可见输出' : 'Visible output',
+      value: charCountLabel(visibleTextChars, lang),
+      tone: 'neutral',
+    });
+  }
+
+  const reasoningContentChars = firstProcessEventMetadataNumber(event, ['reasoningContentChars', 'hiddenReasoningChars']);
+  const reasoningTokens = firstProcessEventMetadataNumber(event, ['reasoningTokens', 'reasoningContentTokens']);
+  const reasoningOmittedFlag = firstProcessEventMetadataBoolean(event, ['reasoningContentOmitted', 'hasHiddenReasoningContent']);
+  const reasoningOmitted =
+    reasoningOmittedFlag === true ||
+    (
+      reasoningOmittedFlag === undefined &&
+      (
+        (typeof reasoningContentChars === 'number' && reasoningContentChars > 0) ||
+        (typeof reasoningTokens === 'number' && reasoningTokens > 0)
+      )
+    );
+  if (reasoningOmitted) {
+    const detailParts = [
+      typeof reasoningContentChars === 'number' ? charCountLabel(reasoningContentChars, lang) : '',
+      typeof reasoningTokens === 'number' ? tokenCountLabel(reasoningTokens, lang) : '',
+    ].filter(Boolean);
+    hints.push({
+      id: 'reasoningContentOmitted',
+      label: lang === 'zh' ? 'Reasoning 已省略' : 'Reasoning omitted',
+      value: detailParts.length > 0 ? detailParts.join(' / ') : undefined,
+      tone: 'info',
+    });
+  }
+
+  const finishReason = firstProcessEventMetadataText(event, ['finishReason', 'providerFinishReason', 'stopReason']);
+  const providerOutputTruncated =
+    firstProcessEventMetadataBoolean(event, ['providerOutputTruncated', 'providerTruncated']) === true ||
+    isProviderLengthFinishReason(finishReason);
+  if (finishReason) {
+    hints.push({
+      id: 'finishReason',
+      label: lang === 'zh' ? '结束原因' : 'Finish reason',
+      value: finishReason,
+      tone: providerOutputTruncated ? 'warning' : 'neutral',
+    });
+  } else if (providerOutputTruncated) {
+    hints.push({
+      id: 'providerOutputTruncated',
+      label: lang === 'zh' ? 'Provider 已截断' : 'Provider truncated',
+      tone: 'warning',
+    });
+  }
+
+  const contentTruncated = firstProcessEventMetadataBoolean(event, [
+    'contentTruncated',
+    'bridgeContentTruncated',
+    'developerViewContentTruncated',
+  ]);
+  if (contentTruncated === true) {
+    const originalChars = firstProcessEventMetadataNumber(event, ['contentOriginalChars', 'originalChars']);
+    const retainedChars = firstProcessEventMetadataNumber(event, ['contentRetainedChars', 'retainedChars']);
+    const value =
+      typeof originalChars === 'number' && typeof retainedChars === 'number'
+        ? `${charCountLabel(retainedChars, lang)} / ${charCountLabel(originalChars, lang)}`
+        : undefined;
+    hints.push({
+      id: 'contentTruncated',
+      label: lang === 'zh' ? 'Alembic 已截断' : 'Alembic truncated',
+      value,
+      tone: 'danger',
+    });
+  }
+
+  return hints;
 }
 
 export function getProcessEventSemanticKind(event: JobProcessDeveloperView): string | undefined {

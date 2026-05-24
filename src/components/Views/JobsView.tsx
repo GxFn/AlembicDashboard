@@ -36,10 +36,12 @@ import { getJobEfficiency } from '../../utils/efficiency';
 import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
 import {
   formatProcessEventSemanticLabel,
+  getLlmOutputCompletenessHints,
   getProcessEventMetadataText,
   getProcessEventNudgeType,
   getProcessEventSemanticCategory,
   getProcessEventSemanticKind,
+  type LlmOutputCompletenessTone,
   processEventStableKey,
   shouldCollapseProcessEventContentByDefault,
 } from '../../utils/jobProcessEvents';
@@ -165,6 +167,7 @@ function labels(lang: string) {
     timelineCount: zh ? '事件' : 'events',
     hiddenEvents: zh ? '隐藏事件' : 'hidden',
     retainedEvents: zh ? '保留事件' : 'retained',
+    outputCompleteness: zh ? '输出完整性' : 'Output completeness',
     expandContent: zh ? '展开内容' : 'Expand content',
     collapseContent: zh ? '收起内容' : 'Collapse content',
     artifacts: zh ? '产物' : 'Artifacts',
@@ -786,6 +789,20 @@ function JobProcessTimeline({
   );
 }
 
+function getLlmOutputCompletenessToneClass(tone: LlmOutputCompletenessTone): string {
+  switch (tone) {
+    case 'info':
+      return 'border-blue-500/25 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-200';
+    case 'warning':
+      return 'border-amber-500/30 bg-amber-50 text-amber-700 dark:border-amber-300/40 dark:bg-amber-300/10 dark:text-amber-200';
+    case 'danger':
+      return 'border-red-500/30 bg-red-50 text-red-700 dark:border-red-400/40 dark:bg-red-400/10 dark:text-red-200';
+    case 'neutral':
+    default:
+      return 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] dark:border-[#334155] dark:bg-[#111827] dark:text-[#e2e8f0]';
+  }
+}
+
 function ProcessEventItem({
   event,
   text,
@@ -804,6 +821,7 @@ function ProcessEventItem({
   const nudgeType = getProcessEventNudgeType(event);
   const contentShouldCollapse = shouldCollapseProcessEventContentByDefault(event);
   const effectiveContentExpanded = Boolean(event.content) && (!contentShouldCollapse || contentExpanded);
+  const llmOutputHints = getLlmOutputCompletenessHints(event, text.lang);
   const metaItems = [
     { label: text.sequence, value: `#${event.sequence}` },
     { label: 'kind', value: event.kind },
@@ -850,6 +868,20 @@ function ProcessEventItem({
       </div>
       {event.summary && (
         <p className="whitespace-pre-wrap break-all leading-relaxed text-[#1e293b] dark:text-[#e2e8f0]">{event.summary}</p>
+      )}
+      {llmOutputHints.length > 0 && (
+        <div className="flex min-w-0 flex-wrap gap-1.5" aria-label={text.outputCompleteness}>
+          {llmOutputHints.map((hint) => (
+            <span
+              key={hint.id}
+              className={cn('inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium', getLlmOutputCompletenessToneClass(hint.tone))}
+              title={hint.value ? `${hint.label}: ${hint.value}` : hint.label}
+            >
+              <span className="shrink-0">{hint.label}</span>
+              {hint.value && <span className="min-w-0 break-all font-semibold">{hint.value}</span>}
+            </span>
+          ))}
+        </div>
       )}
       {event.content && effectiveContentExpanded && (
         <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-[#1e293b] dark:text-[#e2e8f0]">{event.content}</pre>

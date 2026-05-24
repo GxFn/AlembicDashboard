@@ -147,12 +147,22 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(eventUtils, /getProcessEventSemanticPriority/);
   assert.match(eventUtils, /JOB_PROCESS_EVENT_CONTENT_COLLAPSE_LINE_LIMIT = 10/);
   assert.match(eventUtils, /shouldCollapseProcessEventContentByDefault/);
+  assert.match(eventUtils, /export function getProcessEventMetadataNumber/);
+  assert.match(eventUtils, /export function getProcessEventMetadataBoolean/);
+  assert.match(eventUtils, /export function getLlmOutputCompletenessHints/);
+  assert.match(eventUtils, /visibleTextChars/);
+  assert.match(eventUtils, /hasHiddenReasoningContent/);
+  assert.match(eventUtils, /reasoningContentOmitted/);
+  assert.match(eventUtils, /finishReason/);
+  assert.match(eventUtils, /providerOutputTruncated/);
+  assert.match(eventUtils, /contentTruncated/);
 
   assert.match(jobs, /JobProcessTimeline/);
   assert.match(jobs, /import \{ Drawer \} from '\.\.\/Layout\/Drawer'/);
   assert.match(jobs, /artifactRefs/);
   assert.match(jobs, /ProcessEventItem/);
   assert.match(jobs, /formatProcessEventSemanticLabel\(event, text\.lang\)/);
+  assert.match(jobs, /getLlmOutputCompletenessHints\(event, text\.lang\)/);
   assert.match(jobs, /getProcessEventSemanticKind\(event\)/);
   assert.match(jobs, /getProcessEventNudgeType\(event\)/);
   assert.match(jobs, /getProcessEventMetadataText\(event, 'findingCount'\)/);
@@ -169,6 +179,8 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /const contentToggle = event\.content && contentShouldCollapse \? \(/);
   assert.match(jobs, /items-start justify-between/);
   assert.match(jobs, /event\.content && effectiveContentExpanded && \(/);
+  assert.match(jobs, /aria-label=\{text\.outputCompleteness\}/);
+  assert.match(jobs, /getLlmOutputCompletenessToneClass\(hint\.tone\)/);
   assert.match(jobs, /node\.scrollTop = node\.scrollHeight/);
   assert.match(jobs, /isLlmProcessEvent/);
   assert.match(jobs, /onContentExpandedChange\(!contentExpanded\)/);
@@ -176,6 +188,7 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.doesNotMatch(jobs, /\{visibleEvents\.length\} \{text\.timelineCount\}/);
   assert.doesNotMatch(jobs, /contentCollapsed/);
   assert.doesNotMatch(jobs, /border-\[#cbd5e1\] bg-white p-3/);
+  assert.doesNotMatch(jobs, /line-clamp|max-h-\[/);
   assert.doesNotMatch(jobs, /bg-\[#080b10\]/);
   assert.doesNotMatch(jobs, /isLlmEvent &&/);
   assert.doesNotMatch(jobs, /raw\s*log/i);

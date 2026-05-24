@@ -102,16 +102,18 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(bootstrap, /pickKeyProcessEvents/);
 });
 
-test('jobs view keeps long process details scrollable', () => {
+test('jobs view lets the page scroll without inner list scrolling', () => {
   const app = read('src/App.tsx');
   const jobs = read('src/components/Views/JobsView.tsx');
 
   assert.match(app, /min-h-0 flex-1/);
-  assert.match(app, /className="h-full min-h-0"/);
-  assert.match(jobs, /flex h-full min-h-0 flex-col/);
-  assert.match(jobs, /min-h-0 flex-1 overflow-y-auto/);
-  assert.match(jobs, /overscroll-contain/);
+  assert.match(app, /overflow-y-auto overflow-x-hidden/);
+  assert.match(app, /activeTab === 'jobs' \? 'min-h-full min-w-0'/);
+  assert.match(jobs, /flex min-h-full min-w-0 flex-col overflow-x-hidden/);
+  assert.match(jobs, /max-w-full overflow-x-hidden rounded-xl/);
   assert.match(jobs, /max-w-full break-words/);
+  assert.doesNotMatch(jobs, /min-h-0 flex-1 overflow-y-auto/);
+  assert.doesNotMatch(jobs, /overscroll-contain/);
 });
 
 test('socket process events share REST content normalization', () => {

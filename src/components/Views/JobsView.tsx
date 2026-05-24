@@ -298,7 +298,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full min-w-0 flex-col overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
@@ -373,7 +373,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-sm overscroll-contain">
+      <div className="max-w-full overflow-x-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-sm">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-[var(--fg-muted)]">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -525,7 +525,7 @@ function JobRow({
         )}
 
         {jobErrorText && (
-          <p className="max-w-4xl truncate text-xs text-red-600" title={jobErrorText}>
+          <p className="max-w-full whitespace-pre-wrap break-words text-xs text-red-600" title={jobErrorText}>
             {text.error}: {jobErrorText}
           </p>
         )}
@@ -533,7 +533,7 @@ function JobRow({
         {expanded && <JobProcessTimeline job={job} text={text} />}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2 lg:self-start">
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:self-start">
         <button
           type="button"
           onClick={onToggleTimeline}
@@ -600,7 +600,7 @@ function JobProcessTimeline({
   const visibleEvents = useMemo(() => events, [events]);
 
   return (
-    <div className="mt-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
+    <div className="mt-3 max-w-full overflow-x-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-muted)] px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--fg-primary)]">
@@ -887,14 +887,14 @@ function ProgressBlock({
         />
       </div>
       {progress.activeTaskLabel && (
-        <p className="truncate text-xs text-[var(--fg-muted)]">
+        <p className="max-w-full break-words text-xs text-[var(--fg-muted)]">
           {text.activeTask}: {progress.activeTaskLabel}
         </p>
       )}
       {progressChips.length > 0 && (
         <div className="flex flex-wrap gap-1.5 text-xs text-[var(--fg-muted)]">
           {progressChips.map((chip) => (
-            <span key={chip.key} className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5">
+            <span key={chip.key} className="max-w-full break-words rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5">
               <span className="text-[var(--fg-secondary)]">{chip.label}</span>
               <span className="ml-1 text-[var(--fg-primary)]">{chip.value}</span>
             </span>
@@ -925,7 +925,7 @@ function EfficiencyBlock({
       </div>
       <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
         {groups.map((chip) => (
-          <span key={chip.key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
+          <span key={chip.key} className="max-w-full break-words rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
             <span className="text-[var(--fg-secondary)]">{chip.label}</span>
             <span className="ml-1 text-[var(--fg-primary)]">{chip.value}</span>
           </span>
@@ -950,7 +950,7 @@ function DiagnosticsBlock({
       </div>
       <div className="flex flex-wrap gap-2 text-xs text-[var(--fg-muted)]">
         {chips.map((chip) => (
-          <span key={chip.key} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
+          <span key={chip.key} className="max-w-full break-words rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1">
             <span className="text-[var(--fg-secondary)]">{chip.label}</span>
             <span className="ml-1 text-[var(--fg-primary)]">{chip.value}</span>
           </span>
@@ -971,9 +971,9 @@ function StatusBadge({ status, text }: { status: DaemonJobRecord['status']; text
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 break-words">
       <span className="text-[var(--fg-muted)]">{label}</span>
-      <span className="ml-1 truncate text-[var(--fg-primary)]">{value}</span>
+      <span className="ml-1 break-words text-[var(--fg-primary)]">{value}</span>
     </div>
   );
 }

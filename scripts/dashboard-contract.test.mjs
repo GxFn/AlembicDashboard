@@ -98,6 +98,17 @@ test('object errors keep a readable fallback instead of rendering object identit
   assert.doesNotMatch(errorUtil, /\[object Object\]/);
 });
 
+test('bootstrap dimension completion does not refresh content mid-run', () => {
+  const app = read('src/App.tsx');
+  const hook = read('src/hooks/useBootstrapSocket.ts');
+
+  assert.match(app, /bootstrap\.isAllDone[\s\S]*fetchData\(\)/);
+  assert.doesNotMatch(app, /candidateCreatedTick/);
+  assert.doesNotMatch(app, /setTimeout\(\(\) => fetchData\(\), 2000\)/);
+  assert.doesNotMatch(hook, /candidateCreatedTick/);
+  assert.doesNotMatch(hook, /setCandidateCreatedTick/);
+});
+
 test('jobs process timeline consumes typed events contract', () => {
   const api = read('src/api.ts');
   const hook = read('src/hooks/useJobProcessEvents.ts');
@@ -138,17 +149,25 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(eventUtils, /shouldCollapseProcessEventContentByDefault/);
 
   assert.match(jobs, /JobProcessTimeline/);
+  assert.match(jobs, /import \{ Drawer \} from '\.\.\/Layout\/Drawer'/);
   assert.match(jobs, /artifactRefs/);
   assert.match(jobs, /ProcessEventItem/);
   assert.match(jobs, /formatProcessEventSemanticLabel\(event, text\.lang\)/);
   assert.match(jobs, /getProcessEventSemanticKind\(event\)/);
   assert.match(jobs, /getProcessEventNudgeType\(event\)/);
   assert.match(jobs, /getProcessEventMetadataText\(event, 'findingCount'\)/);
-  assert.match(jobs, /h-\[36rem\] overflow-y-auto overflow-x-hidden/);
-  assert.match(jobs, /border-slate-800 bg-slate-950/);
-  assert.match(jobs, /border-slate-700 bg-slate-900 p-3 text-slate-100/);
-  assert.match(jobs, /text-slate-100/);
-  assert.match(jobs, /timelineListRef\.current\.scrollTop = timelineListRef\.current\.scrollHeight/);
+  assert.match(jobs, /selectedTimelineJobId/);
+  assert.match(jobs, /selectedTimelineJob && \(/);
+  assert.match(jobs, /onOpenTimeline=\{\(\) => setSelectedTimelineJobId\(job\.id\)\}/);
+  assert.match(jobs, /<Drawer open=\{open\} onClose=\{onClose\} size="full">/);
+  assert.match(jobs, /<Drawer\.Body padded=\{false\} className="flex min-h-0 flex-col overflow-hidden p-3 sm:p-4">/);
+  assert.match(jobs, /ref=\{timelineListRef\}/);
+  assert.match(jobs, /scrollTimelineToBottom\(timelineListRef\.current\)/);
+  assert.match(jobs, /border-\[#d8e0ec\] bg-\[#f8fafc\]/);
+  assert.match(jobs, /dark:border-\[#1e293b\] dark:bg-\[#020617\]/);
+  assert.match(jobs, /border-\[#cbd5e1\] bg-white p-3 text-\[#0f172a\]/);
+  assert.match(jobs, /dark:border-\[#334155\] dark:bg-\[#0f172a\] dark:text-\[#e2e8f0\]/);
+  assert.match(jobs, /node\.scrollTop = node\.scrollHeight/);
   assert.match(jobs, /isLlmProcessEvent/);
   assert.match(jobs, /contentCollapsed/);
   assert.match(jobs, /onContentExpandedChange\(!contentExpanded\)/);
@@ -178,11 +197,19 @@ test('jobs process terminal readability rules are enforced in the DOM contract',
   assert.match(jobs, /const effectiveContentExpanded = Boolean\(event\.content\) && \(!contentShouldCollapse \|\| contentExpanded\)/);
   assert.match(jobs, /contentShouldCollapse && \(/);
   assert.match(jobs, /data-process-event-sequence=\{event\.sequence\}/);
-  assert.match(jobs, /text-slate-50/);
-  assert.match(jobs, /text-slate-200/);
-  assert.match(jobs, /text-slate-300/);
+  assert.match(jobs, /text-\[#0f172a\]/);
+  assert.match(jobs, /text-\[#1e293b\]/);
+  assert.match(jobs, /text-\[#475569\]/);
+  assert.match(jobs, /dark:text-\[#f8fafc\]/);
+  assert.match(jobs, /dark:text-\[#e2e8f0\]/);
+  assert.match(jobs, /dark:text-\[#cbd5e1\]/);
+  assert.match(jobs, /dark:text-\[#94a3b8\]/);
+  assert.match(jobs, /bg-blue-50 text-blue-700 dark:border-blue-400\/30 dark:bg-blue-400\/10 dark:text-blue-300/);
+  assert.match(jobs, /bg-violet-50 text-violet-700 dark:border-violet-400\/30 dark:bg-violet-400\/10 dark:text-violet-300/);
   assert.doesNotMatch(jobs, /text-slate-500">\{formatEventTimestamp/);
   assert.doesNotMatch(jobs, /border-slate-800 bg-slate-900\/80/);
+  assert.doesNotMatch(jobs, /bg-slate-900/);
+  assert.doesNotMatch(jobs, /text-slate-100/);
 });
 
 test('jobs view lets the page scroll without inner list scrolling', () => {

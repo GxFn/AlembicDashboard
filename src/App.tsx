@@ -305,14 +305,6 @@ const App: React.FC = () => {
     }
   }, [bootstrap.isAllDone, bootstrap.session?.id]);
 
-  // Bootstrap 维度任务创建候选后，增量刷新内容区域（节流 2s，防止短时间多维度完成时频繁请求）
-  useEffect(() => {
-    if (bootstrap.candidateCreatedTick > 0) {
-      const timer = setTimeout(() => fetchData(), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [bootstrap.candidateCreatedTick]);
-
   // Navigation
   const navigateToTab = (tab: TabType, options?: { preserveSearch?: boolean; search?: string }) => {
   setActiveTab(tab);

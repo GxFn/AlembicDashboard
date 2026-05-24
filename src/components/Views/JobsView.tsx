@@ -53,6 +53,7 @@ import {
   isRecord,
 } from '../../utils/evidenceStatus';
 import Select from '../ui/Select';
+import { Drawer } from '../Layout/Drawer';
 
 type JobKindFilter = 'all' | DaemonJobRecord['kind'];
 type JobStatusFilter = 'all' | DaemonJobRecord['status'];
@@ -152,7 +153,7 @@ function labels(lang: string) {
     reason: zh ? '原因' : 'Reason',
     diagnostics: zh ? '诊断' : 'Diagnostics',
     processTimeline: zh ? '过程 Timeline' : 'Process timeline',
-    showTimeline: zh ? '展开过程' : 'Show timeline',
+    showTimeline: zh ? '查看过程' : 'View process',
     hideTimeline: zh ? '收起过程' : 'Hide timeline',
     timelineLoading: zh ? '正在读取过程事件' : 'Loading process events',
     timelineEmpty: zh ? '暂无过程事件；旧任务或后端重启后可能只保留基础进度' : 'No process events yet; old jobs or daemon restarts may only keep basic progress.',
@@ -207,9 +208,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   const [startingKind, setStartingKind] = useState<DaemonJobRecord['kind'] | null>(null);
   const focusedJobId = useMemo(() => new URLSearchParams(window.location.search).get('job'), []);
-  const [expandedJobIds, setExpandedJobIds] = useState<Set<string>>(() => {
-    return focusedJobId ? new Set([focusedJobId]) : new Set();
-  });
+  const [selectedTimelineJobId, setSelectedTimelineJobId] = useState<string | null>(focusedJobId);
 
   const loadJobs = useCallback(async (quiet = false) => {
     if (quiet) {
@@ -236,7 +235,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
     if (!focusedJobId) {
       return;
     }
-    setExpandedJobIds((prev) => new Set(prev).add(focusedJobId));
+    setSelectedTimelineJobId(focusedJobId);
   }, [focusedJobId]);
 
   useEffect(() => {
@@ -245,22 +244,6 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
     const timer = setInterval(() => loadJobs(true), 2500);
     return () => clearInterval(timer);
   }, [jobs, loadJobs]);
-
-  useEffect(() => {
-    const activeJobIds = jobs
-      .filter((job) => job.status === 'queued' || job.status === 'running')
-      .map((job) => job.id);
-    if (activeJobIds.length === 0) {
-      return;
-    }
-    setExpandedJobIds((prev) => {
-      const next = new Set(prev);
-      for (const jobId of activeJobIds) {
-        next.add(jobId);
-      }
-      return next;
-    });
-  }, [jobs]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
@@ -276,6 +259,9 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
     const start = (currentPage - 1) * JOBS_PAGE_SIZE;
     return filteredJobs.slice(start, start + JOBS_PAGE_SIZE);
   }, [currentPage, filteredJobs]);
+  const selectedTimelineJob = useMemo(() => {
+    return jobs.find((job) => job.id === selectedTimelineJobId) || null;
+  }, [jobs, selectedTimelineJobId]);
 
   useEffect(() => {
     setPage(1);
@@ -333,18 +319,6 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const copyJobId = async (jobId: string) => {
     await navigator.clipboard.writeText(jobId);
     notify(text.copied, { type: 'success' });
-  };
-
-  const toggleTimeline = (jobId: string) => {
-    setExpandedJobIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(jobId)) {
-        next.delete(jobId);
-      } else {
-        next.add(jobId);
-      }
-      return next;
-    });
   };
 
   return (
@@ -442,10 +416,9 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
                 job={job}
                 text={text}
                 busy={busyJobId === job.id}
-                expanded={expandedJobIds.has(job.id)}
                 onCancel={() => cancelJob(job)}
                 onCopy={() => copyJobId(job.id)}
-                onToggleTimeline={() => toggleTimeline(job.id)}
+                onOpenTimeline={() => setSelectedTimelineJobId(job.id)}
                 onOpenCandidates={onOpenCandidates}
                 onOpenReports={onOpenReports}
               />
@@ -478,6 +451,14 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
           </div>
         )}
       </div>
+      {selectedTimelineJob && (
+        <JobProcessTimeline
+          job={selectedTimelineJob}
+          text={text}
+          open={Boolean(selectedTimelineJob)}
+          onClose={() => setSelectedTimelineJobId(null)}
+        />
+      )}
     </div>
   );
 };
@@ -520,20 +501,18 @@ function JobRow({
   job,
   text,
   busy,
-  expanded,
   onCancel,
   onCopy,
-  onToggleTimeline,
+  onOpenTimeline,
   onOpenCandidates,
   onOpenReports,
 }: {
   job: DaemonJobRecord;
   text: ReturnType<typeof labels>;
   busy: boolean;
-  expanded: boolean;
   onCancel: () => void;
   onCopy: () => void;
-  onToggleTimeline: () => void;
+  onOpenTimeline: () => void;
   onOpenCandidates?: () => void;
   onOpenReports?: (sessionId?: string) => void;
 }) {
@@ -626,17 +605,16 @@ function JobRow({
           </p>
         )}
 
-        {expanded && <JobProcessTimeline job={job} text={text} />}
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:self-start">
         <button
           type="button"
-          onClick={onToggleTimeline}
+          onClick={onOpenTimeline}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
         >
-          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          {expanded ? text.hideTimeline : text.showTimeline}
+          <Terminal size={14} />
+          {text.showTimeline}
         </button>
         {canOpenCandidates && (
           <button
@@ -677,9 +655,13 @@ function JobRow({
 function JobProcessTimeline({
   job,
   text,
+  open,
+  onClose,
 }: {
   job: DaemonJobRecord;
   text: ReturnType<typeof labels>;
+  open: boolean;
+  onClose: () => void;
 }) {
   const isActive = job.status === 'queued' || job.status === 'running';
   const {
@@ -693,26 +675,100 @@ function JobProcessTimeline({
     expandedContentEventIds,
     refresh,
     setContentExpanded,
-  } = useJobProcessEvents(job.id, { enabled: true, active: isActive, limit: 120 });
+  } = useJobProcessEvents(job.id, { enabled: open, active: isActive, limit: 120 });
 
   const visibleEvents = useMemo(() => events, [events]);
   const timelineListRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!timelineListRef.current) {
+  const scrollTimelineToBottom = useCallback((node: HTMLDivElement | null) => {
+    if (!node) {
       return;
     }
-    timelineListRef.current.scrollTop = timelineListRef.current.scrollHeight;
-  }, [visibleEvents.length, refreshing]);
+    node.scrollTop = node.scrollHeight;
+  }, []);
+
+  useEffect(() => {
+    scrollTimelineToBottom(timelineListRef.current);
+  }, [refreshing, scrollTimelineToBottom, visibleEvents.length]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose, open]);
+
+  const renderTimelineContent = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center gap-2 px-1 py-4 text-xs text-[#64748b] dark:text-[#94a3b8]">
+          <Loader2 size={14} className="animate-spin" />
+          {text.timelineLoading}
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div className="flex items-start gap-2 px-1 py-4 text-xs text-red-600 dark:text-red-300">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{text.timelineError}: {error}</span>
+        </div>
+      );
+    }
+    if (visibleEvents.length === 0) {
+      return (
+        <div className="flex items-start gap-2 px-1 py-4 text-xs text-[#64748b] dark:text-[#94a3b8]">
+          <CircleDashed size={14} className="mt-0.5 shrink-0" />
+          <span>{text.timelineEmpty}</span>
+        </div>
+      );
+    }
+    return (
+      <div className="min-w-0 space-y-0 overflow-x-hidden">
+        {visibleEvents.map((event) => {
+          const eventKey = processEventStableKey(event);
+          return (
+            <ProcessEventItem
+              key={eventKey}
+              event={event}
+              text={text}
+              contentExpanded={expandedContentEventIds.has(eventKey)}
+              onContentExpandedChange={(expanded) => setContentExpanded(eventKey, expanded)}
+            />
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <div className="mt-3 max-w-full overflow-x-hidden">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--fg-primary)]">
-            <Terminal size={13} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />
-            {text.processTimeline}
-          </span>
+    <Drawer open={open} onClose={onClose} size="full">
+      <Drawer.Header
+        leading={<Terminal size={16} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />}
+        title={text.processTimeline}
+        subtitle={`${visibleEvents.length} ${text.timelineCount}${retainedCount > 0 ? ` · ${text.retainedEvents}: ${retainedCount}` : ''}`}
+      >
+        <Drawer.HeaderActions>
+          <button
+            type="button"
+            onClick={() => refresh()}
+            className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+            title={text.timelineRefresh}
+          >
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+            {text.timelineRefresh}
+          </button>
+          <Drawer.CloseButton onClose={onClose} />
+        </Drawer.HeaderActions>
+      </Drawer.Header>
+      <Drawer.Body padded={false} className="flex min-h-0 flex-col overflow-hidden p-3 sm:p-4">
+        <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
           {isActive && (
             <span className="inline-flex items-center gap-1 rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[11px] text-blue-600 dark:text-blue-300">
               <Loader2 size={11} className="animate-spin" />
@@ -738,55 +794,18 @@ function JobProcessTimeline({
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => refresh()}
-          className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
-          title={text.timelineRefresh}
-        >
-          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-          {text.timelineRefresh}
-        </button>
-      </div>
-
-      <div
-        ref={timelineListRef}
-        className="h-[36rem] overflow-y-auto overflow-x-hidden rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-slate-100 shadow-inner overscroll-contain"
-        aria-label={text.timelineTerminal}
-      >
-        {loading ? (
-          <div className="flex items-center gap-2 px-1 py-4 text-xs text-slate-400">
-            <Loader2 size={14} className="animate-spin" />
-            {text.timelineLoading}
+        <div className="min-h-0 flex-1">
+          {/* 过程终端使用显式 light/dark 色值，避免 legacy dark-mode 覆盖重写 slate-900。 */}
+          <div
+            ref={timelineListRef}
+            className="h-full overflow-y-auto overflow-x-hidden rounded-lg border border-[#d8e0ec] bg-[#f8fafc] px-3 py-2 text-[#0f172a] shadow-inner overscroll-contain dark:border-[#1e293b] dark:bg-[#020617] dark:text-[#e2e8f0]"
+            aria-label={text.timelineTerminal}
+          >
+            {renderTimelineContent()}
           </div>
-        ) : error ? (
-          <div className="flex items-start gap-2 px-1 py-4 text-xs text-red-300">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span>{text.timelineError}: {error}</span>
-          </div>
-        ) : visibleEvents.length === 0 ? (
-          <div className="flex items-start gap-2 px-1 py-4 text-xs text-slate-400">
-            <CircleDashed size={14} className="mt-0.5 shrink-0" />
-            <span>{text.timelineEmpty}</span>
-          </div>
-        ) : (
-          <div className="min-w-0 space-y-0 overflow-x-hidden">
-            {visibleEvents.map((event) => {
-              const eventKey = processEventStableKey(event);
-              return (
-                <ProcessEventItem
-                  key={eventKey}
-                  event={event}
-                  text={text}
-                  contentExpanded={expandedContentEventIds.has(eventKey)}
-                  onContentExpandedChange={(expanded) => setContentExpanded(eventKey, expanded)}
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+        </div>
+      </Drawer.Body>
+    </Drawer>
   );
 }
 
@@ -826,31 +845,31 @@ function ProcessEventItem({
   return (
     <div
       data-process-event-sequence={event.sequence}
-      className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-slate-700 py-3 pl-4 text-xs first:pt-1 last:pb-1"
+      className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-[#cbd5e1] py-3 pl-4 text-xs first:pt-1 last:pb-1 dark:border-[#334155]"
     >
-      <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-slate-950', tone.dot)} />
+      <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-[#f8fafc] dark:bg-[#020617]', tone.dot)} />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
           {icon}
           {semanticLabel}
         </span>
-        <span className="min-w-0 break-all font-semibold text-slate-50">{event.title}</span>
+        <span className="min-w-0 break-all font-semibold text-[#0f172a] dark:text-[#f8fafc]">{event.title}</span>
         {event.timestamp && (
-          <span className="text-slate-300">{formatEventTimestamp(event.timestamp)}</span>
+          <span className="text-[#64748b] dark:text-[#94a3b8]">{formatEventTimestamp(event.timestamp)}</span>
         )}
       </div>
       {event.summary && (
-        <p className="whitespace-pre-wrap break-all leading-relaxed text-slate-200">{event.summary}</p>
+        <p className="whitespace-pre-wrap break-all leading-relaxed text-[#1e293b] dark:text-[#e2e8f0]">{event.summary}</p>
       )}
       {event.content && (
-        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-slate-700 bg-slate-900 p-3 text-slate-100">
+        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-[#cbd5e1] bg-white p-3 text-[#0f172a] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{text.content}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#475569] dark:text-[#cbd5e1]">{text.content}</div>
             {contentShouldCollapse && (
               <button
                 type="button"
                 onClick={() => onContentExpandedChange(!contentExpanded)}
-                className="inline-flex h-6 items-center gap-1 rounded-md border border-slate-600 px-2 text-[11px] font-medium text-slate-200 transition-colors hover:bg-slate-800 hover:text-white"
+                className="inline-flex h-6 items-center gap-1 rounded-md border border-[#cbd5e1] px-2 text-[11px] font-medium text-[#334155] transition-colors hover:bg-[#e2e8f0] hover:text-[#0f172a] dark:border-[#475569] dark:text-[#e2e8f0] dark:hover:bg-[#1e293b] dark:hover:text-white"
               >
                 {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                 {contentExpanded ? text.collapseContent : text.expandContent}
@@ -858,9 +877,9 @@ function ProcessEventItem({
             )}
           </div>
           {effectiveContentExpanded ? (
-            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-slate-50">{event.content}</pre>
+            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-[#0f172a] dark:text-[#f8fafc]">{event.content}</pre>
           ) : (
-            <div className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-300">
+            <div className="rounded-md border border-[#cbd5e1] bg-[#f8fafc] px-2 py-1 text-[11px] text-[#475569] dark:border-[#334155] dark:bg-[#020617] dark:text-[#cbd5e1]">
               {text.contentCollapsed}
             </div>
           )}
@@ -868,11 +887,11 @@ function ProcessEventItem({
       )}
       {event.artifactRefs && event.artifactRefs.length > 0 && (
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="text-slate-300">{text.artifacts}</span>
+          <span className="text-[#64748b] dark:text-[#94a3b8]">{text.artifacts}</span>
           {event.artifactRefs.map((artifact) => (
             <span
               key={`${artifact.kind}:${artifact.ref}`}
-              className="max-w-full break-all rounded-md border border-violet-300/40 bg-violet-300/10 px-2 py-0.5 text-violet-100"
+              className="max-w-full break-all rounded-md border border-violet-500/25 bg-violet-50 px-2 py-0.5 text-violet-700 dark:border-violet-300/40 dark:bg-violet-300/10 dark:text-violet-100"
               title={artifact.ref}
             >
               {artifact.label || artifact.kind}: {artifact.ref}
@@ -881,11 +900,11 @@ function ProcessEventItem({
         </div>
       )}
       {metaItems.length > 0 && (
-        <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-slate-300">
+        <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[#64748b] dark:text-[#94a3b8]">
           {metaItems.map((item) => (
-            <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5">
-              <span className="text-slate-300">{item.label}</span>
-              <span className="ml-1 text-slate-50">{item.value}</span>
+            <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-[#cbd5e1] bg-[#f8fafc] px-1.5 py-0.5 dark:border-[#334155] dark:bg-[#111827]">
+              <span className="text-[#64748b] dark:text-[#94a3b8]">{item.label}</span>
+              <span className="ml-1 text-[#0f172a] dark:text-[#f8fafc]">{item.value}</span>
             </span>
           ))}
         </div>
@@ -940,43 +959,43 @@ function getProcessEventTone(event: JobProcessDeveloperView): { badge: string; d
   switch (getProcessEventSemanticCategory(event)) {
     case 'error':
       return {
-        badge: 'border-red-400/30 bg-red-400/10 text-red-300',
+        badge: 'border-red-500/25 bg-red-50 text-red-700 dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-300',
         dot: 'border-red-500 bg-red-500',
       };
     case 'findings':
       return {
-        badge: 'border-amber-300/40 bg-amber-300/10 text-amber-200',
+        badge: 'border-amber-500/30 bg-amber-50 text-amber-700 dark:border-amber-300/40 dark:bg-amber-300/10 dark:text-amber-200',
         dot: 'border-amber-400 bg-amber-400',
       };
     case 'transition':
       return {
-        badge: 'border-cyan-300/40 bg-cyan-300/10 text-cyan-200',
+        badge: 'border-cyan-500/25 bg-cyan-50 text-cyan-700 dark:border-cyan-300/40 dark:bg-cyan-300/10 dark:text-cyan-200',
         dot: 'border-cyan-400 bg-cyan-400',
       };
     case 'nudge':
     case 'reflection':
       return {
-        badge: 'border-violet-400/30 bg-violet-400/10 text-violet-300',
+        badge: 'border-violet-500/25 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300',
         dot: 'border-violet-500 bg-violet-500',
       };
     case 'llm':
       return {
-        badge: 'border-blue-400/30 bg-blue-400/10 text-blue-300',
+        badge: 'border-blue-500/25 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-300',
         dot: 'border-blue-500 bg-blue-500',
       };
     case 'tool':
       return {
-        badge: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300',
+        badge: 'border-emerald-500/25 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
         dot: 'border-emerald-500 bg-emerald-500',
       };
     case 'artifact':
       return {
-        badge: 'border-fuchsia-400/30 bg-fuchsia-400/10 text-fuchsia-200',
+        badge: 'border-fuchsia-500/25 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-400/30 dark:bg-fuchsia-400/10 dark:text-fuchsia-200',
         dot: 'border-fuchsia-500 bg-fuchsia-500',
       };
     case 'summary':
       return {
-        badge: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200',
+        badge: 'border-emerald-500/25 bg-emerald-50 text-emerald-700 dark:border-emerald-300/30 dark:bg-emerald-300/10 dark:text-emerald-200',
         dot: 'border-emerald-500 bg-emerald-500',
       };
     case 'checkpoint':
@@ -984,8 +1003,8 @@ function getProcessEventTone(event: JobProcessDeveloperView): { badge: string; d
       break;
   }
   return {
-    badge: 'border-slate-700 bg-slate-900 text-slate-200',
-    dot: 'border-slate-700 bg-slate-400',
+    badge: 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] dark:border-[#334155] dark:bg-[#111827] dark:text-[#e2e8f0]',
+    dot: 'border-[#334155] bg-[#94a3b8]',
   };
 }
 

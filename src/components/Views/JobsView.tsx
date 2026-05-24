@@ -159,7 +159,7 @@ function labels(lang: string) {
     content: zh ? '内容' : 'Content',
     expandContent: zh ? '展开内容' : 'Expand content',
     collapseContent: zh ? '收起内容' : 'Collapse content',
-    llmContentCollapsed: zh ? 'LLM 内容已收起' : 'LLM content collapsed',
+    contentCollapsed: zh ? '内容已收起' : 'Content collapsed',
     artifacts: zh ? '产物' : 'Artifacts',
     sequence: zh ? '序号' : 'Sequence',
     dimension: zh ? '维度' : 'Dimension',
@@ -739,7 +739,7 @@ function JobProcessTimeline({
 
       <div
         ref={timelineListRef}
-        className="h-96 overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[#080b10] px-3 py-2 shadow-inner overscroll-contain"
+        className="h-[36rem] overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--border-default)] bg-[#080b10] px-3 py-2 shadow-inner overscroll-contain"
         aria-label={text.timelineTerminal}
       >
         {loading ? (
@@ -758,7 +758,7 @@ function JobProcessTimeline({
             <span>{text.timelineEmpty}</span>
           </div>
         ) : (
-          <div className="space-y-0">
+          <div className="min-w-0 space-y-0 overflow-x-hidden">
             {visibleEvents.map((event) => {
               const eventKey = processEventStableKey(event);
               return (
@@ -791,8 +791,6 @@ function ProcessEventItem({
 }) {
   const tone = getProcessEventTone(event);
   const icon = getProcessEventIcon(event);
-  const isLlmEvent = isLlmProcessEvent(event);
-  const showContent = !isLlmEvent || contentExpanded;
   const metaItems = [
     { label: text.sequence, value: `#${event.sequence}` },
     { label: 'kind', value: event.kind },
@@ -805,41 +803,39 @@ function ProcessEventItem({
   );
 
   return (
-    <div className="relative grid gap-3 border-l border-[var(--border-default)] py-3 pl-4 text-xs first:pt-1 last:pb-1">
+    <div className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-[var(--border-default)] py-3 pl-4 text-xs first:pt-1 last:pb-1">
       <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-[var(--bg-surface)]', tone.dot)} />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
           {icon}
           {event.kind}
         </span>
-        <span className="min-w-0 font-semibold text-[var(--fg-primary)]">{event.title}</span>
+        <span className="min-w-0 break-all font-semibold text-[var(--fg-primary)]">{event.title}</span>
         {event.timestamp && (
           <span className="text-[var(--fg-muted)]">{formatEventTimestamp(event.timestamp)}</span>
         )}
       </div>
       {event.summary && (
-        <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--fg-secondary)]">{event.summary}</p>
+        <p className="whitespace-pre-wrap break-all leading-relaxed text-[var(--fg-secondary)]">{event.summary}</p>
       )}
       {event.content && (
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] p-3">
+        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] p-3">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-muted)]">{text.content}</div>
-            {isLlmEvent && (
-              <button
-                type="button"
-                onClick={() => onContentExpandedChange(!contentExpanded)}
-                className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-default)] px-2 text-[11px] font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-surface)] hover:text-[var(--fg-primary)]"
-              >
-                {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                {contentExpanded ? text.collapseContent : text.expandContent}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onContentExpandedChange(!contentExpanded)}
+              className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-default)] px-2 text-[11px] font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-surface)] hover:text-[var(--fg-primary)]"
+            >
+              {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              {contentExpanded ? text.collapseContent : text.expandContent}
+            </button>
           </div>
-          {showContent ? (
-            <pre className="whitespace-pre-wrap break-words font-sans leading-relaxed text-[var(--fg-primary)]">{event.content}</pre>
+          {contentExpanded ? (
+            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-[var(--fg-primary)]">{event.content}</pre>
           ) : (
             <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--fg-muted)]">
-              {text.llmContentCollapsed}
+              {text.contentCollapsed}
             </div>
           )}
         </div>
@@ -850,7 +846,7 @@ function ProcessEventItem({
           {event.artifactRefs.map((artifact) => (
             <span
               key={`${artifact.kind}:${artifact.ref}`}
-              className="max-w-full break-words rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-300"
+              className="max-w-full break-all rounded-md border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:text-violet-300"
               title={artifact.ref}
             >
               {artifact.label || artifact.kind}: {artifact.ref}
@@ -861,7 +857,7 @@ function ProcessEventItem({
       {metaItems.length > 0 && (
         <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[var(--fg-muted)]">
           {metaItems.map((item) => (
-            <span key={`${item.label}:${item.value}`} className="max-w-full break-words rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
+            <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5">
               <span className="text-[var(--fg-secondary)]">{item.label}</span>
               <span className="ml-1">{item.value}</span>
             </span>

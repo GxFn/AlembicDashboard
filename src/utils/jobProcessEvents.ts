@@ -61,4 +61,3 @@ export function processEventSearchText(event: JobProcessDeveloperView): string {
     .filter((value): value is string => typeof value === 'string' && value.length > 0)
     .join(' ');
 }
-

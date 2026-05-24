@@ -154,4 +154,3 @@ export function useJobProcessEvents(
     refresh: () => fetchEvents('manual'),
   };
 }
-

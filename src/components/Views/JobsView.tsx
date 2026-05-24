@@ -116,7 +116,6 @@ function labels(lang: string) {
     activeTaskUpdated: zh ? '任务更新' : 'Task update',
     events: zh ? '事件' : 'Events',
     progressUpdated: zh ? '进度更新' : 'Progress update',
-    lastEvent: zh ? '最后事件' : 'Last event',
     processingState: zh ? '处理状态' : 'Processing state',
     queuedWait: zh ? '排队等待' : 'Queued',
     processing: zh ? '任务处理中' : 'Task processing',
@@ -525,7 +524,7 @@ function JobRow({
   const issue = getJobEvidenceIssue(job);
   const visualStatus = getJobBucketStatus(job);
   const badgeIssue = isDuplicateStatusIssue(issue, visualStatus) ? null : issue;
-  const blockIssue = isCancelledStatusIssue(issue, job) ? null : issue;
+  const blockIssue = issue?.reason ? issue : (isCancelledStatusIssue(issue, job) ? null : issue);
   const jobErrorText = formatEvidenceIssueReason(job.error);
   const evidenceSessionId = job.progress?.sessionId || job.bootstrapSessionId;
   const canOpenCandidates =
@@ -556,14 +555,14 @@ function JobRow({
           </div>
         </div>
 
-        <div className="grid gap-x-4 gap-y-2 border-y border-[var(--border-muted)] py-2 text-xs text-[var(--fg-secondary)] sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-x-4 gap-y-2 border-y border-[var(--border-muted)] py-2 text-xs text-[var(--fg-secondary)] sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           <Meta label={text.source} value={job.source} />
           <Meta label={text.created} value={formatDate(job.createdAt)} />
           <Meta label={text.updated} value={formatDate(job.updatedAt)} />
           <Meta label={text.duration} value={formatJobDuration(job)} />
+          <Meta label={text.processingState} value={describeProcessingState(job, text, issue)} />
+          <Meta label={text.currentDimension} value={getCurrentDimensionLabel(job)} />
         </div>
-
-        <RuntimeStateBlock job={job} text={text} issue={issue} />
 
         {job.progress && <ProgressBlock progress={job.progress} text={text} />}
 
@@ -870,31 +869,6 @@ function formatEventTimestamp(value: string | number): string {
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-function RuntimeStateBlock({
-  job,
-  text,
-  issue,
-}: {
-  job: DaemonJobRecord;
-  text: ReturnType<typeof labels>;
-  issue: EvidenceIssue | null;
-}) {
-  const activeTask = job.progress?.activeTaskLabel || job.progress?.activeTaskId || '--';
-  const items = [
-    { label: text.lastEvent, value: formatRelativeTime(resolveJobActivityAt(job), text) },
-    { label: text.processingState, value: describeProcessingState(job, text, issue) },
-    { label: text.currentDimension, value: activeTask },
-  ];
-
-  return (
-    <div className="grid gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)]/40 p-2 text-xs text-[var(--fg-secondary)] md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.8fr)_minmax(0,0.8fr)]">
-      {items.map((item) => (
-        <Meta key={item.label} label={item.label} value={item.value} />
-      ))}
-    </div>
-  );
-}
-
 function IssueBadge({ issue, text }: { issue: EvidenceIssue; text: ReturnType<typeof labels> }) {
   const label = formatEvidenceIssueLabel(issue, text.lang);
   return (
@@ -1098,11 +1072,13 @@ function isCancelledStatusIssue(issue: EvidenceIssue | null, job: DaemonJobRecor
   return job.status === 'cancelled' && issue?.status === 'cancelled';
 }
 
+function getCurrentDimensionLabel(job: DaemonJobRecord): string {
+  return job.progress?.activeTaskLabel || job.progress?.activeTaskId || '--';
+}
+
 function describeProcessingState(job: DaemonJobRecord, text: ReturnType<typeof labels>, issue: EvidenceIssue | null): string {
   if (issue) {
-    return issue.reason
-      ? `${formatEvidenceIssueLabel(issue, text.lang)} · ${issue.reason}`
-      : formatEvidenceIssueLabel(issue, text.lang);
+    return formatEvidenceIssueLabel(issue, text.lang);
   }
   if (job.status === 'queued') {
     return text.queuedWait;
@@ -1346,10 +1322,6 @@ function formatRelativeTime(value: string | number | undefined, text: ReturnType
   if (hours < 24) return zh ? `${hours} 小时前` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return zh ? `${days} 天前` : `${days}d ago`;
-}
-
-function resolveJobActivityAt(job: DaemonJobRecord): string | number | undefined {
-  return job.progress?.activeTaskUpdatedAt ?? job.progress?.updatedAt ?? job.updatedAt;
 }
 
 function formatJobDuration(job: DaemonJobRecord): string {

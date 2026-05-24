@@ -121,7 +121,12 @@ test('jobs view lets the page scroll without inner list scrolling', () => {
   assert.match(jobs, /border-y border-\[var\(--border-muted\)\] py-2/);
   assert.match(jobs, /md:grid-cols-\[minmax\(0,0\.8fr\)_minmax\(0,1\.8fr\)_minmax\(0,0\.8fr\)\]/);
   assert.match(jobs, /block text-\[11px\] leading-4/);
+  assert.match(jobs, /badgeIssue && <IssueBadge issue=\{badgeIssue\} text=\{text\} \/>/);
+  assert.match(jobs, /blockIssue && <EvidenceIssueBlock issue=\{blockIssue\} text=\{text\} \/>/);
+  assert.match(jobs, /function isDuplicateStatusIssue/);
+  assert.match(jobs, /function isCancelledStatusIssue/);
   assert.match(jobs, /max-w-full break-words/);
+  assert.doesNotMatch(jobs, /key: 'progressUpdatedAt'/);
   assert.doesNotMatch(jobs, /hover:border-\[var\(--border-strong\)\] hover:bg-\[var\(--bg-subtle\)\]/);
   assert.doesNotMatch(jobs, /max-w-full overflow-x-hidden rounded-xl border border-\[var\(--border-default\)\] bg-\[var\(--bg-surface\)\] shadow-sm/);
   assert.doesNotMatch(jobs, /divide-y divide-\[var\(--border-muted\)\]/);

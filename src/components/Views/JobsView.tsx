@@ -524,6 +524,8 @@ function JobRow({
   const efficiency = getJobEfficiency(job.summary);
   const issue = getJobEvidenceIssue(job);
   const visualStatus = getJobBucketStatus(job);
+  const badgeIssue = isDuplicateStatusIssue(issue, visualStatus) ? null : issue;
+  const blockIssue = isCancelledStatusIssue(issue, job) ? null : issue;
   const jobErrorText = formatEvidenceIssueReason(job.error);
   const evidenceSessionId = job.progress?.sessionId || job.bootstrapSessionId;
   const canOpenCandidates =
@@ -536,7 +538,7 @@ function JobRow({
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <StatusBadge status={visualStatus} text={text} />
-            {issue && <IssueBadge issue={issue} text={text} />}
+            {badgeIssue && <IssueBadge issue={badgeIssue} text={text} />}
             <span className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-0.5 text-xs font-medium text-[var(--fg-secondary)]">
               {job.kind}
             </span>
@@ -565,7 +567,7 @@ function JobRow({
 
         {job.progress && <ProgressBlock progress={job.progress} text={text} />}
 
-        {issue && <EvidenceIssueBlock issue={issue} text={text} />}
+        {blockIssue && <EvidenceIssueBlock issue={blockIssue} text={text} />}
 
         {efficiency && <EfficiencyBlock efficiency={efficiency} text={text} />}
 
@@ -1085,14 +1087,15 @@ function buildProgressFreshnessChips(
       value: formatRelativeTime(progress.activeTaskUpdatedAt, text),
     });
   }
-  if (progress.updatedAt) {
-    chips.push({
-      key: 'progressUpdatedAt',
-      label: text.progressUpdated,
-      value: formatRelativeTime(progress.updatedAt, text),
-    });
-  }
   return chips;
+}
+
+function isDuplicateStatusIssue(issue: EvidenceIssue | null, status: JobBucketStatus): boolean {
+  return issue?.status === status;
+}
+
+function isCancelledStatusIssue(issue: EvidenceIssue | null, job: DaemonJobRecord): boolean {
+  return job.status === 'cancelled' && issue?.status === 'cancelled';
 }
 
 function describeProcessingState(job: DaemonJobRecord, text: ReturnType<typeof labels>, issue: EvidenceIssue | null): string {

@@ -385,7 +385,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
             <p className="text-sm">{jobs.length === 0 ? text.noJobs : text.noFilteredJobs}</p>
           </div>
         ) : (
-          <div className="divide-y divide-[var(--border-muted)]">
+          <div className="space-y-3 p-3">
             {filteredJobs.map((job) => (
               <JobRow
                 key={job.id}
@@ -464,7 +464,7 @@ function JobRow({
     !isEvidenceIssueFailure(issue) &&
     (job.status === 'completed' || job.status === 'running');
   return (
-    <div className="grid min-w-0 gap-4 p-4 transition-colors hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
+    <div className="grid min-w-0 gap-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-sm transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-subtle)] lg:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={visualStatus} text={text} />

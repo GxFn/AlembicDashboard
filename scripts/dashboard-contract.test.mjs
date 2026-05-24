@@ -295,3 +295,73 @@ test('socket process events share REST content normalization', () => {
   assert.match(hook, /setInterval\(\(\) => fetchEvents\('incremental'\), 5000\)/);
   assert.doesNotMatch(hook, /socketAppendQueue|SOCKET_APPEND|appendNextQueued|ensureSocketAppend/);
 });
+
+test('project scope panel consumes Alembic ProjectScope API without fake source folders', () => {
+  const api = read('src/api.ts');
+  const types = read('src/types.ts');
+  const header = read('src/components/Layout/Header.tsx');
+  const panel = read('src/components/Layout/ProjectScopePanel.tsx');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+
+  assert.match(types, /export interface ProjectScopeSummary/);
+  assert.match(types, /controlRootIncludedInFolders: boolean/);
+  assert.match(types, /export interface ProjectScopeFoldersResponse/);
+  assert.match(types, /export interface RuntimeProjectScopeCapability/);
+  assert.match(types, /projectScope\?: RuntimeProjectScopeCapability/);
+  assert.match(types, /projectScope\?: ProjectScopeSummary \| null/);
+  assert.match(types, /projectScopeId\?: string \| null/);
+
+  assert.match(api, /function normalizeProjectScopeCapability/);
+  assert.match(api, /function normalizeProjectScopeSummary/);
+  assert.match(api, /normalizeProjectScopeStorageKind\(firstString\(record\.storageKind/);
+  assert.match(api, /normalizeProjectScopeFolders\(record\.folders, controlRoot\)/);
+  assert.match(api, /capabilities\.projectScope/);
+  assert.match(api, /serviceProjectIdentity\?\.projectScopeId/);
+  assert.match(api, /normalizeProjectScopeSummary\(serviceProjectScope\)/);
+  assert.match(api, /async getProjectScope/);
+  assert.match(api, /http\.get\('\/project-scope'/);
+  assert.match(api, /async listProjectScopeFolders/);
+  assert.match(api, /http\.get\('\/project-scope\/folders'/);
+  assert.match(api, /async addProjectScopeFolder/);
+  assert.match(api, /http\.post\('\/project-scope\/folders'/);
+  assert.match(api, /async resolveProjectScopeFolder/);
+  assert.match(api, /http\.get\('\/project-scope\/resolve-folder'/);
+  assert.match(api, /http\.post\('\/project-scope\/resolve-folder'/);
+  assert.doesNotMatch(api, /deleteProjectScopeFolder|removeProjectScopeFolder|disableProjectScopeFolder/);
+
+  assert.match(header, /import \{ ProjectScopePanel \} from '\.\/ProjectScopePanel'/);
+  assert.match(header, /<ProjectScopePanel runtimeBoundary=\{runtimeBoundary\} \/>/);
+
+  assert.match(panel, /api\.getProjectScope\(\)/);
+  assert.match(panel, /api\.listProjectScopeFolders\(\)/);
+  assert.match(panel, /api\.addProjectScopeFolder/);
+  assert.match(panel, /api\.resolveProjectScopeFolder/);
+  assert.match(panel, /capability\?\.available === true/);
+  assert.match(panel, /projectScopeUnavailable/);
+  assert.match(panel, /sourceFoldersFor\(folders, summary\)/);
+  assert.match(panel, /pathKey\(folder\.path\) !== controlRootKey/);
+  assert.match(panel, /projectScopeControlRoot/);
+  assert.match(panel, /projectScopeDataRoot/);
+  assert.match(panel, /projectScopeStorageKind/);
+  assert.match(panel, /projectScopeId/);
+  assert.match(panel, /projectScopeFolders/);
+  assert.match(panel, /role: sourceFolders\.length === 0 \? 'primary-source' : 'source'/);
+  assert.doesNotMatch(panel, /removeProjectScope|deleteProjectScope|disableProjectScope/i);
+  assert.doesNotMatch(panel, /mock|fake/i);
+
+  for (const key of [
+    'projectScopeTitle',
+    'projectScopeUnavailable',
+    'projectScopeControlRoot',
+    'projectScopeDataRoot',
+    'projectScopeStorageKind',
+    'projectScopeId',
+    'projectScopeFolders',
+    'projectScopeAddFolder',
+    'projectScopeResolve',
+  ]) {
+    assert.match(zh, new RegExp(`${key}:`), `zh locale must define ${key}`);
+    assert.match(en, new RegExp(`${key}:`), `en locale must define ${key}`);
+  }
+});

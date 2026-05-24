@@ -99,6 +99,8 @@ export interface RuntimeProjectIdentity {
   projectRoot: string;
   dataRoot: string;
   projectId: string | null;
+  projectScope?: ProjectScopeSummary | null;
+  projectScopeId?: string | null;
   dataRootSource: RuntimeDataRootSource;
   runtimeDir?: string | null;
   databasePath?: string | null;
@@ -148,6 +150,13 @@ export interface RuntimeInternalAiCapability {
   runtimeOwner?: string | null;
 }
 
+export interface RuntimeProjectScopeCapability {
+  available: boolean | null;
+  endpoints?: Record<string, string>;
+  owner?: string | null;
+  source?: string | null;
+}
+
 export interface RuntimeHostAgentRoute {
   available?: boolean | null;
   owner?: string | null;
@@ -175,8 +184,67 @@ export interface RuntimeBoundary {
     fileMonitor?: RuntimeFileMonitorCapability;
     jobs?: RuntimeJobsCapability;
     internalAi?: RuntimeInternalAiCapability;
+    projectScope?: RuntimeProjectScopeCapability;
   };
   hostAgentRoute?: RuntimeHostAgentRoute;
+}
+
+export interface ProjectScopeFolderSummary {
+  displayName: string;
+  folderId: string;
+  path: string;
+  realpath: string | null;
+  repositoryId: string | null;
+  role: string;
+  state: string;
+}
+
+export interface ProjectScopeSummary {
+  contractVersion?: string | null;
+  controlRoot: string;
+  controlRootIncludedInFolders: boolean;
+  currentFolderId: string | null;
+  currentFolderPath: string | null;
+  dataRoot: string;
+  dataRootSource: string;
+  displayName: string;
+  folderCount: number;
+  folders: ProjectScopeFolderSummary[];
+  projectId: string | null;
+  projectRootWriteAllowed: boolean;
+  projectScopeId: string | null;
+  standardWriteAllowed: boolean;
+  storageKind: string;
+}
+
+export interface ProjectScopeResolution {
+  controlRoot: string | null;
+  currentFolder: ProjectScopeFolderSummary | null;
+  currentFolderId: string | null;
+  currentFolderPath: string | null;
+}
+
+export interface ProjectScopeResponse {
+  capability: RuntimeProjectScopeCapability | null;
+  projectScope: ProjectScopeSummary | null;
+  registryPath: string | null;
+  resolution: ProjectScopeResolution | null;
+  summary: ProjectScopeSummary | null;
+}
+
+export interface ProjectScopeFoldersResponse {
+  capability: RuntimeProjectScopeCapability | null;
+  folders: ProjectScopeFolderSummary[];
+  projectScopeId: string | null;
+  registryPath: string | null;
+}
+
+export interface ProjectScopeAddFolderInput {
+  controlRoot?: string;
+  displayName?: string;
+  folderPath: string;
+  projectScopeId?: string;
+  role?: 'primary-source' | 'source' | string;
 }
 
 // Source of truth: Alembic HTTP projects API backed by @alembic/core daemon project runtime contracts.

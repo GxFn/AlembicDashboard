@@ -32,7 +32,14 @@ import type {
   DashboardProjectRuntimeHandoff,
   DashboardProjectRuntimeScopeSummary,
   DashboardProjectsSnapshot,
+  ProjectScopeAddFolderInput,
+  ProjectScopeFolderSummary,
+  ProjectScopeFoldersResponse,
+  ProjectScopeResolution,
+  ProjectScopeResponse,
+  ProjectScopeSummary,
   RuntimeBoundary,
+  RuntimeProjectScopeCapability,
   WarningRecord,
 } from './types';
 
@@ -360,6 +367,135 @@ function normalizeProjectsSnapshot(value: unknown): DashboardProjectsSnapshot {
   };
 }
 
+function normalizeProjectScopePathKey(value: string | null | undefined): string {
+  return (value ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function normalizeProjectScopeStorageKind(value: string | null): string {
+  if (value === 'ghost-only' || value === 'ghost-registry') {
+    return 'ghost';
+  }
+  return value ?? 'ghost';
+}
+
+function normalizeProjectScopeCapability(value: unknown): RuntimeProjectScopeCapability | null {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return null;
+  }
+  return {
+    available: booleanOrNull(record.available),
+    endpoints: stringRecord(record.endpoints),
+    owner: firstString(record.owner),
+    source: firstString(record.source),
+  };
+}
+
+function normalizeProjectScopeFolder(value: unknown): ProjectScopeFolderSummary | null {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const path = firstString(record.path);
+  if (!path) {
+    return null;
+  }
+
+  return {
+    displayName: firstString(record.displayName, record.name) ?? fallbackDisplayName(path),
+    folderId: firstString(record.folderId, record.id, path) ?? path,
+    path,
+    realpath: firstString(record.realpath),
+    repositoryId: firstString(record.repositoryId),
+    role: firstString(record.role) ?? 'source',
+    state: firstString(record.state) ?? 'active',
+  };
+}
+
+function normalizeProjectScopeFolders(value: unknown, controlRoot?: string | null): ProjectScopeFolderSummary[] {
+  const controlRootKey = normalizeProjectScopePathKey(controlRoot);
+  return recordArray(value)
+    .map(normalizeProjectScopeFolder)
+    .filter((folder): folder is ProjectScopeFolderSummary => folder !== null)
+    .filter((folder) => normalizeProjectScopePathKey(folder.path) !== controlRootKey);
+}
+
+function normalizeProjectScopeSummary(value: unknown): ProjectScopeSummary | null {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const controlRootRecord = asRuntimeRecord(record.controlRoot);
+  const storageRecord = asRuntimeRecord(record.storage);
+  const metadataRecord = asRuntimeRecord(record.metadata);
+  const controlRoot = firstString(record.controlRoot, controlRootRecord?.path, record.projectRoot) ?? '';
+  const folders = normalizeProjectScopeFolders(record.folders, controlRoot);
+  const currentFolderRecord = asRuntimeRecord(record.currentFolder);
+  const currentFolderPath = firstString(record.currentFolderPath, currentFolderRecord?.path);
+
+  return {
+    contractVersion: firstString(record.contractVersion),
+    controlRoot,
+    controlRootIncludedInFolders: record.controlRootIncludedInFolders === true,
+    currentFolderId: firstString(record.currentFolderId, currentFolderRecord?.id, currentFolderRecord?.folderId),
+    currentFolderPath,
+    dataRoot: firstString(record.dataRoot, record.registryPath) ?? '',
+    dataRootSource: firstString(record.dataRootSource, metadataRecord?.dataRootSource) ?? 'ghost-registry',
+    displayName: firstString(record.displayName, record.name) ?? fallbackDisplayName(controlRoot),
+    folderCount: firstNumber(record.folderCount) ?? folders.length,
+    folders,
+    projectId: firstString(record.projectId),
+    projectRootWriteAllowed: record.projectRootWriteAllowed === true,
+    projectScopeId: firstString(record.projectScopeId, record.scopeId),
+    standardWriteAllowed: record.standardWriteAllowed === true,
+    storageKind: normalizeProjectScopeStorageKind(firstString(record.storageKind, storageRecord?.kind, metadataRecord?.storageKind, metadataRecord?.storagePolicy)),
+  };
+}
+
+function normalizeProjectScopeResolution(value: unknown): ProjectScopeResolution | null {
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return null;
+  }
+  const controlRootRecord = asRuntimeRecord(record.controlRoot);
+  const controlRoot = firstString(record.controlRoot, controlRootRecord?.path);
+  const currentFolder = normalizeProjectScopeFolder(record.currentFolder);
+  return {
+    controlRoot,
+    currentFolder,
+    currentFolderId: firstString(record.currentFolderId, currentFolder?.folderId),
+    currentFolderPath: firstString(record.currentFolderPath, currentFolder?.path),
+  };
+}
+
+function normalizeProjectScopeResponse(value: unknown): ProjectScopeResponse {
+  const record = asRuntimeRecord(value) ?? {};
+  const projectScope = normalizeProjectScopeSummary(record.projectScope);
+  const summary = normalizeProjectScopeSummary(record.summary) ?? projectScope;
+  return {
+    capability: normalizeProjectScopeCapability(record.capability),
+    projectScope,
+    registryPath: firstString(record.registryPath),
+    resolution: normalizeProjectScopeResolution(record.resolution),
+    summary,
+  };
+}
+
+function normalizeProjectScopeFoldersResponse(value: unknown): ProjectScopeFoldersResponse {
+  const record = asRuntimeRecord(value) ?? {};
+  const projectScope = normalizeProjectScopeSummary(record.projectScope);
+  const summary = normalizeProjectScopeSummary(record.summary) ?? projectScope;
+  const controlRoot = summary?.controlRoot ?? projectScope?.controlRoot ?? null;
+  return {
+    capability: normalizeProjectScopeCapability(record.capability),
+    folders: normalizeProjectScopeFolders(record.folders, controlRoot),
+    projectScopeId: firstString(record.projectScopeId, summary?.projectScopeId, projectScope?.projectScopeId),
+    registryPath: firstString(record.registryPath),
+  };
+}
+
 function normalizeProjectHandoff(value: unknown): DashboardProjectRuntimeHandoff | null {
   const record = asRuntimeRecord(value);
   if (!record) {
@@ -437,11 +573,16 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
   const runtimeFileMonitor = asRuntimeRecord(runtimeBoundary?.fileMonitor);
   const runtimeJobs = asRuntimeRecord(runtimeBoundary?.jobs);
   const runtimeInternalAi = asRuntimeRecord(runtimeBoundary?.internalAi);
+  const runtimeProjectScopeCapability = asRuntimeRecord(runtimeBoundary?.projectScope);
+  const serviceScope = asRuntimeRecord(daemon.serviceScope);
+  const serviceProjectIdentity = asRuntimeRecord(serviceScope?.projectIdentity);
+  const serviceProjectScope = serviceProjectIdentity?.projectScope;
   const apiCapability = asRuntimeRecord(capabilities.api);
   const dashboardCapability = asRuntimeRecord(capabilities.dashboard);
   const fileMonitorCapability = asRuntimeRecord(capabilities.fileMonitor);
   const jobsCapability = asRuntimeRecord(capabilities.jobs);
   const internalAiCapability = asRuntimeRecord(capabilities.internalAi);
+  const projectScopeCapability = asRuntimeRecord(capabilities.projectScope);
   const hostAgentRoute =
     asRuntimeRecord(daemon.hostAgentRoute) ??
     asRuntimeRecord(enhancement.hostAgentRoute) ??
@@ -478,6 +619,17 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
       projectRoot,
       dataRoot,
       projectId: firstString(daemon.projectId, runtimeWorkspace?.projectId, projectInfo.projectId),
+      projectScope: normalizeProjectScopeSummary(serviceProjectScope) ??
+        normalizeProjectScopeSummary(daemon.projectScope) ??
+        normalizeProjectScopeSummary(runtimeWorkspace?.projectScope) ??
+        normalizeProjectScopeSummary(projectInfo.projectScope),
+      projectScopeId: firstString(
+        daemon.projectScopeId,
+        serviceProjectIdentity?.projectScopeId,
+        asRuntimeRecord(serviceProjectScope)?.projectScopeId,
+        runtimeWorkspace?.projectScopeId,
+        projectInfo.projectScopeId
+      ),
       dataRootSource,
       runtimeDir: firstString(daemon.runtimeDir, runtimeWorkspace?.runtimeDir, projectInfo.runtimeDir),
       databasePath: firstString(daemon.databasePath, runtimeWorkspace?.databasePath, projectInfo.databasePath),
@@ -533,6 +685,14 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
             model: firstString(internalAiCapability?.model, runtimeInternalAi?.model),
             owner: firstString(runtimeInternalAi?.owner),
             runtimeOwner: firstString(runtimeInternalAi?.runtimeOwner),
+          }
+        : undefined,
+      projectScope: projectScopeCapability || runtimeProjectScopeCapability
+        ? {
+            available: firstBoolean(projectScopeCapability?.available, runtimeProjectScopeCapability?.available),
+            endpoints: stringRecord(projectScopeCapability?.endpoints) ?? stringRecord(runtimeProjectScopeCapability?.endpoints),
+            owner: firstString(projectScopeCapability?.owner, runtimeProjectScopeCapability?.owner),
+            source: firstString(projectScopeCapability?.source, runtimeProjectScopeCapability?.source),
           }
         : undefined,
     },
@@ -1472,6 +1632,41 @@ export const api = {
 
   async stopProject(projectId: string): Promise<DashboardProjectActionResult> {
     return postProjectAction(projectId, 'stop');
+  },
+
+  // ── ProjectScope configuration (Alembic-owned HTTP contract) ──────
+
+  async getProjectScope(params?: {
+    controlRoot?: string;
+    folderPath?: string;
+    projectScopeId?: string;
+  }): Promise<ProjectScopeResponse> {
+    const res = await http.get('/project-scope', { params });
+    return normalizeProjectScopeResponse(res.data?.data);
+  },
+
+  async listProjectScopeFolders(params?: {
+    controlRoot?: string;
+    folderPath?: string;
+    projectScopeId?: string;
+  }): Promise<ProjectScopeFoldersResponse> {
+    const res = await http.get('/project-scope/folders', { params });
+    return normalizeProjectScopeFoldersResponse(res.data?.data);
+  },
+
+  async addProjectScopeFolder(input: ProjectScopeAddFolderInput): Promise<ProjectScopeResponse> {
+    const res = await http.post('/project-scope/folders', input);
+    return normalizeProjectScopeResponse(res.data?.data);
+  },
+
+  async resolveProjectScopeFolder(
+    folderPath: string,
+    method: 'get' | 'post' = 'post',
+  ): Promise<ProjectScopeResponse> {
+    const res = method === 'get'
+      ? await http.get('/project-scope/resolve-folder', { params: { folderPath } })
+      : await http.post('/project-scope/resolve-folder', { folderPath });
+    return normalizeProjectScopeResponse(res.data?.data);
   },
 
   // ── Modules (多语言统一模块扫描) ───────

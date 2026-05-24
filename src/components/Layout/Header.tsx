@@ -8,6 +8,7 @@ import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
 import type { DashboardProjectActionResult, DashboardProjectRuntimeScopeSummary, DashboardProjectsSnapshot, RuntimeBoundary } from '../../types';
 import { Button } from '../ui/Button';
+import { ProjectScopePanel } from './ProjectScopePanel';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/Tooltip';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
@@ -524,6 +525,8 @@ const Header: React.FC<HeaderProps> = ({
                   </>
                 )}
               </div>
+              <DropdownMenuSeparator />
+              <ProjectScopePanel runtimeBoundary={runtimeBoundary} />
               <DropdownMenuSeparator />
               <div className="max-h-[420px] overflow-y-auto py-1">
                 {projects.length === 0 ? (

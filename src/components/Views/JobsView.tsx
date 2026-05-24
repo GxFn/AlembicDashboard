@@ -41,6 +41,7 @@ import {
   getProcessEventSemanticCategory,
   getProcessEventSemanticKind,
   processEventStableKey,
+  shouldCollapseProcessEventContentByDefault,
 } from '../../utils/jobProcessEvents';
 import {
   type EvidenceIssue,
@@ -805,6 +806,8 @@ function ProcessEventItem({
   const semanticLabel = formatProcessEventSemanticLabel(event, text.lang);
   const semanticKind = getProcessEventSemanticKind(event);
   const nudgeType = getProcessEventNudgeType(event);
+  const contentShouldCollapse = shouldCollapseProcessEventContentByDefault(event);
+  const effectiveContentExpanded = Boolean(event.content) && (!contentShouldCollapse || contentExpanded);
   const metaItems = [
     { label: text.sequence, value: `#${event.sequence}` },
     { label: 'kind', value: event.kind },
@@ -821,38 +824,43 @@ function ProcessEventItem({
   );
 
   return (
-    <div className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-slate-800 py-3 pl-4 text-xs first:pt-1 last:pb-1">
+    <div
+      data-process-event-sequence={event.sequence}
+      className="relative grid min-w-0 max-w-full gap-3 overflow-x-hidden border-l border-slate-700 py-3 pl-4 text-xs first:pt-1 last:pb-1"
+    >
       <div className={cn('absolute -left-[7px] top-3 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-slate-950', tone.dot)} />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', tone.badge)}>
           {icon}
           {semanticLabel}
         </span>
-        <span className="min-w-0 break-all font-semibold text-slate-100">{event.title}</span>
+        <span className="min-w-0 break-all font-semibold text-slate-50">{event.title}</span>
         {event.timestamp && (
-          <span className="text-slate-500">{formatEventTimestamp(event.timestamp)}</span>
+          <span className="text-slate-300">{formatEventTimestamp(event.timestamp)}</span>
         )}
       </div>
       {event.summary && (
-        <p className="whitespace-pre-wrap break-all leading-relaxed text-slate-300">{event.summary}</p>
+        <p className="whitespace-pre-wrap break-all leading-relaxed text-slate-200">{event.summary}</p>
       )}
       {event.content && (
-        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-slate-800 bg-slate-900/80 p-3">
+        <div className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-slate-700 bg-slate-900 p-3 text-slate-100">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{text.content}</div>
-            <button
-              type="button"
-              onClick={() => onContentExpandedChange(!contentExpanded)}
-              className="inline-flex h-6 items-center gap-1 rounded-md border border-slate-700 px-2 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100"
-            >
-              {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              {contentExpanded ? text.collapseContent : text.expandContent}
-            </button>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">{text.content}</div>
+            {contentShouldCollapse && (
+              <button
+                type="button"
+                onClick={() => onContentExpandedChange(!contentExpanded)}
+                className="inline-flex h-6 items-center gap-1 rounded-md border border-slate-600 px-2 text-[11px] font-medium text-slate-200 transition-colors hover:bg-slate-800 hover:text-white"
+              >
+                {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {contentExpanded ? text.collapseContent : text.expandContent}
+              </button>
+            )}
           </div>
-          {contentExpanded ? (
-            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-slate-100">{event.content}</pre>
+          {effectiveContentExpanded ? (
+            <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-slate-50">{event.content}</pre>
           ) : (
-            <div className="rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-400">
+            <div className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-300">
               {text.contentCollapsed}
             </div>
           )}
@@ -860,11 +868,11 @@ function ProcessEventItem({
       )}
       {event.artifactRefs && event.artifactRefs.length > 0 && (
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="text-slate-500">{text.artifacts}</span>
+          <span className="text-slate-300">{text.artifacts}</span>
           {event.artifactRefs.map((artifact) => (
             <span
               key={`${artifact.kind}:${artifact.ref}`}
-              className="max-w-full break-all rounded-md border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-violet-200"
+              className="max-w-full break-all rounded-md border border-violet-300/40 bg-violet-300/10 px-2 py-0.5 text-violet-100"
               title={artifact.ref}
             >
               {artifact.label || artifact.kind}: {artifact.ref}
@@ -873,11 +881,11 @@ function ProcessEventItem({
         </div>
       )}
       {metaItems.length > 0 && (
-        <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-slate-400">
+        <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-slate-300">
           {metaItems.map((item) => (
-            <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-slate-800 bg-slate-900/80 px-1.5 py-0.5">
-              <span className="text-slate-500">{item.label}</span>
-              <span className="ml-1 text-slate-300">{item.value}</span>
+            <span key={`${item.label}:${item.value}`} className="max-w-full break-all rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5">
+              <span className="text-slate-300">{item.label}</span>
+              <span className="ml-1 text-slate-50">{item.value}</span>
             </span>
           ))}
         </div>

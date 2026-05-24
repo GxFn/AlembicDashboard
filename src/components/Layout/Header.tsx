@@ -76,6 +76,51 @@ function availabilityLabelKey(value: boolean | null | undefined): string {
   return 'header.runtimeUnknown';
 }
 
+function sandboxLabelKey(sandbox: { mode: string; available: boolean }): string {
+  if (!sandbox.available && sandbox.mode !== 'disabled') {
+    return 'sandbox.unavailable';
+  }
+  switch (sandbox.mode) {
+    case 'enforce':
+      return 'sandbox.enforce';
+    case 'audit':
+      return 'sandbox.audit';
+    case 'disabled':
+      return 'sandbox.disabled';
+    default:
+      return 'sandbox.unavailable';
+  }
+}
+
+function sandboxHintKey(sandbox: { mode: string; available: boolean }): string {
+  if (!sandbox.available && sandbox.mode !== 'disabled') {
+    return 'sandbox.unavailableHint';
+  }
+  switch (sandbox.mode) {
+    case 'enforce':
+      return 'sandbox.enforceHint';
+    case 'audit':
+      return 'sandbox.auditHint';
+    case 'disabled':
+      return 'sandbox.disabledHint';
+    default:
+      return 'sandbox.unavailableHint';
+  }
+}
+
+function SandboxStatusIcon({ sandbox }: { sandbox: { mode: string; available: boolean } }) {
+  if (!sandbox.available && sandbox.mode !== 'disabled') {
+    return <ShieldAlert size={11} className="text-[var(--fg-muted)]" />;
+  }
+  if (sandbox.mode === 'enforce') {
+    return <ShieldCheck size={11} className="text-emerald-500" />;
+  }
+  if (sandbox.mode === 'audit') {
+    return <Eye size={11} className="text-blue-500" />;
+  }
+  return <ShieldAlert size={11} className="text-red-500" />;
+}
+
 function projectStatusLabelKey(status: string): string {
   switch (status) {
     case 'ready':
@@ -423,6 +468,9 @@ const Header: React.FC<HeaderProps> = ({
     ? t(availabilityLabelKey(runtimeBoundary.capabilities.internalAi?.available))
     : '';
   const dashboardHandoff = runtimeBoundary?.capabilities.dashboard?.handoff;
+  const terminalCapability = testMode?.terminal.enabled ? testMode.terminal : null;
+  const sandboxStatus = testMode?.sandbox ?? null;
+  const hasNestedRuntimeDetails = Boolean(terminalCapability || sandboxStatus);
 
   return (
     <TooltipProvider>
@@ -631,91 +679,43 @@ const Header: React.FC<HeaderProps> = ({
                 {runtimeBoundary.hostAgentRoute?.source && (
                   <p>{t('header.runtimeHostAgent')}: {runtimeBoundary.hostAgentRoute.source}</p>
                 )}
+                {hasNestedRuntimeDetails && (
+                  <div className="mt-2 space-y-1 border-t border-[var(--border-muted)] pt-2">
+                    {terminalCapability && (
+                      <p className="flex items-center gap-1.5">
+                        <TerminalSquare size={11} className="text-sky-500" />
+                        <span>{t('bootstrap.terminalCapability')}: {terminalCapability.toolset}</span>
+                      </p>
+                    )}
+                    {sandboxStatus && (
+                      <div className="space-y-0.5">
+                        <p className="flex items-center gap-1.5">
+                          <SandboxStatusIcon sandbox={sandboxStatus} />
+                          <span>{t(sandboxLabelKey(sandboxStatus))}</span>
+                        </p>
+                        <p className="pl-[18px] text-[var(--fg-muted)]">{t(sandboxHintKey(sandboxStatus))}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </TooltipContent>
             </Tooltip>
           )}
-          {testMode && (
+          {testMode?.enabled && (
             <div className="flex items-center gap-1.5 ml-2 shrink-0">
-              {testMode.enabled && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-300/40 cursor-default">
-                      <FlaskRound size={10} />
-                      {t('bootstrap.testMode')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs text-xs">
-                    <p className="font-medium mb-1">{t('bootstrap.testMode')}</p>
-                    <p>Bootstrap: {testMode.bootstrapDims.length > 0 ? testMode.bootstrapDims.join(', ') : t('bootstrap.testModeAll')}</p>
-                    <p>Rescan: {testMode.rescanDims.length > 0 ? testMode.rescanDims.join(', ') : t('bootstrap.testModeAll')}</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {testMode.terminal.enabled && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 border border-sky-300/40 cursor-default">
-                      <TerminalSquare size={10} />
-                      {t('bootstrap.terminalCapability')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    Toolset: {testMode.terminal.toolset}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {testMode.sandbox && !testMode.sandbox.available && testMode.sandbox.mode !== 'disabled' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-500/10 text-gray-500 border border-gray-300/40 cursor-default">
-                      <ShieldAlert size={10} />
-                      {t('sandbox.unavailable')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    {t('sandbox.unavailableHint')}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {testMode.sandbox && testMode.sandbox.available && testMode.sandbox.mode === 'enforce' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-300/40 cursor-default">
-                      <ShieldCheck size={10} />
-                      {t('sandbox.enforce')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    {t('sandbox.enforceHint')}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {testMode.sandbox && testMode.sandbox.available && testMode.sandbox.mode === 'audit' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 border border-blue-300/40 cursor-default">
-                      <Eye size={10} />
-                      {t('sandbox.audit')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    {t('sandbox.auditHint')}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {testMode.sandbox && testMode.sandbox.mode === 'disabled' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-600 border border-red-300/40 cursor-default">
-                      <ShieldAlert size={10} />
-                      {t('sandbox.disabled')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    {t('sandbox.disabledHint')}
-                  </TooltipContent>
-                </Tooltip>
-              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-300/40 cursor-default">
+                    <FlaskRound size={10} />
+                    {t('bootstrap.testMode')}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  <p className="font-medium mb-1">{t('bootstrap.testMode')}</p>
+                  <p>Bootstrap: {testMode.bootstrapDims.length > 0 ? testMode.bootstrapDims.join(', ') : t('bootstrap.testModeAll')}</p>
+                  <p>Rescan: {testMode.rescanDims.length > 0 ? testMode.rescanDims.join(', ') : t('bootstrap.testModeAll')}</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           )}
         </div>

@@ -4,6 +4,7 @@ export const JOB_PROCESS_EVENTS_CACHE_PREFIX = 'alembic.dashboard.jobProcessEven
 export const JOB_PROCESS_EVENTS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 export const JOB_PROCESS_EVENTS_CACHE_JOB_LIMIT = 40;
 export const JOB_PROCESS_EVENTS_CACHE_EVENT_LIMIT = 120;
+export const JOB_PROCESS_EVENT_CONTENT_COLLAPSE_LINE_LIMIT = 10;
 
 const KEY_EVENT_KINDS = new Set([
   'llm.input',
@@ -336,6 +337,23 @@ export function getProcessEventPreviewText(event: JobProcessDeveloperView, maxLe
     return collapsed;
   }
   return `${collapsed.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+export function getProcessEventContentLineCount(content: string | undefined): number {
+  if (!content) {
+    return 0;
+  }
+  return content.split(/\r\n|\r|\n/).length;
+}
+
+export function shouldCollapseProcessEventContentByDefault(event: JobProcessDeveloperView): boolean {
+  if (!event.content) {
+    return false;
+  }
+  if (getProcessEventSemanticCategory(event) === 'transition') {
+    return false;
+  }
+  return getProcessEventContentLineCount(event.content) > JOB_PROCESS_EVENT_CONTENT_COLLAPSE_LINE_LIMIT;
 }
 
 export function pickKeyProcessEvents(events: JobProcessDeveloperView[], limit: number): JobProcessDeveloperView[] {

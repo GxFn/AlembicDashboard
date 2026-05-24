@@ -45,6 +45,31 @@ test('mock cleanup path reports success and failure through notifications', () =
   }
 });
 
+test('header nests terminal and sandbox details under runtime route badge', () => {
+  const header = read('src/components/Layout/Header.tsx');
+  const runtimeStart = header.indexOf('{runtimeBoundary && (');
+  const testModeStart = header.indexOf('{testMode?.enabled && (');
+  const searchStart = header.indexOf('{/* ── 中间：⌘K 搜索触发 ── */}');
+  assert.ok(runtimeStart >= 0 && testModeStart > runtimeStart, 'runtime badge should render before test mode badge');
+  assert.ok(searchStart > testModeStart, 'search block should follow the left status badges');
+
+  const runtimeBlock = header.slice(runtimeStart, testModeStart);
+  const testModeBlock = header.slice(testModeStart, searchStart);
+
+  assert.match(header, /const terminalCapability = testMode\?\.terminal\.enabled \? testMode\.terminal : null/);
+  assert.match(header, /const sandboxStatus = testMode\?\.sandbox \?\? null/);
+  assert.match(runtimeBlock, /hasNestedRuntimeDetails/);
+  assert.match(runtimeBlock, /t\('bootstrap\.terminalCapability'\)/);
+  assert.match(runtimeBlock, /terminalCapability\.toolset/);
+  assert.match(runtimeBlock, /SandboxStatusIcon sandbox=\{sandboxStatus\}/);
+  assert.match(runtimeBlock, /t\(sandboxLabelKey\(sandboxStatus\)\)/);
+  assert.match(runtimeBlock, /t\(sandboxHintKey\(sandboxStatus\)\)/);
+
+  assert.match(testModeBlock, /t\('bootstrap\.testMode'\)/);
+  assert.doesNotMatch(testModeBlock, /terminalCapability/);
+  assert.doesNotMatch(testModeBlock, /sandbox\./);
+});
+
 test('markdown renderer is typed and heavy renderers are lazy-loaded', () => {
   const markdown = read('src/components/Shared/MarkdownWithHighlight.tsx');
   const segment = read('src/components/Shared/MarkdownSegment.tsx');
@@ -109,6 +134,8 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(eventUtils, /transition-nudge/);
   assert.match(eventUtils, /findingSources/);
   assert.match(eventUtils, /getProcessEventSemanticPriority/);
+  assert.match(eventUtils, /JOB_PROCESS_EVENT_CONTENT_COLLAPSE_LINE_LIMIT = 10/);
+  assert.match(eventUtils, /shouldCollapseProcessEventContentByDefault/);
 
   assert.match(jobs, /JobProcessTimeline/);
   assert.match(jobs, /artifactRefs/);
@@ -119,7 +146,7 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /getProcessEventMetadataText\(event, 'findingCount'\)/);
   assert.match(jobs, /h-\[36rem\] overflow-y-auto overflow-x-hidden/);
   assert.match(jobs, /border-slate-800 bg-slate-950/);
-  assert.match(jobs, /border-slate-800 bg-slate-900\/80/);
+  assert.match(jobs, /border-slate-700 bg-slate-900 p-3 text-slate-100/);
   assert.match(jobs, /text-slate-100/);
   assert.match(jobs, /timelineListRef\.current\.scrollTop = timelineListRef\.current\.scrollHeight/);
   assert.match(jobs, /isLlmProcessEvent/);
@@ -136,6 +163,26 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(bootstrap, /getProcessEventPreviewText\(event, 180\)/);
   assert.match(bootstrap, /getBootstrapProcessEventTone/);
   assert.match(bootstrap, /formatProcessEventSemanticLabel\(event, lang\)/);
+});
+
+test('jobs process terminal readability rules are enforced in the DOM contract', () => {
+  const eventUtils = read('src/utils/jobProcessEvents.ts');
+  const jobs = read('src/components/Views/JobsView.tsx');
+
+  assert.match(eventUtils, /JOB_PROCESS_EVENT_CONTENT_COLLAPSE_LINE_LIMIT = 10/);
+  assert.match(eventUtils, /getProcessEventContentLineCount\(event\.content\) > JOB_PROCESS_EVENT_CONTENT_COLLAPSE_LINE_LIMIT/);
+  assert.match(eventUtils, /getProcessEventSemanticCategory\(event\) === 'transition'/);
+  assert.match(eventUtils, /return false;[\s\S]*getProcessEventContentLineCount/);
+
+  assert.match(jobs, /shouldCollapseProcessEventContentByDefault\(event\)/);
+  assert.match(jobs, /const effectiveContentExpanded = Boolean\(event\.content\) && \(!contentShouldCollapse \|\| contentExpanded\)/);
+  assert.match(jobs, /contentShouldCollapse && \(/);
+  assert.match(jobs, /data-process-event-sequence=\{event\.sequence\}/);
+  assert.match(jobs, /text-slate-50/);
+  assert.match(jobs, /text-slate-200/);
+  assert.match(jobs, /text-slate-300/);
+  assert.doesNotMatch(jobs, /text-slate-500">\{formatEventTimestamp/);
+  assert.doesNotMatch(jobs, /border-slate-800 bg-slate-900\/80/);
 });
 
 test('jobs view lets the page scroll without inner list scrolling', () => {
@@ -190,4 +237,10 @@ test('socket process events share REST content normalization', () => {
   assert.doesNotMatch(hook, /\.\.\.payload\.event,\s*\n\s*jobId:/);
   assert.match(hook, /event\?: unknown/);
   assert.match(hook, /normalizeProcessDeveloperView\(eventRecord, payload\.jobId\)/);
+  assert.match(hook, /socket\.on\('job:process-event', onProcessEvent\)/);
+  assert.match(hook, /mergeProcessEvents\(prev, \[event\]\)/);
+  assert.match(hook, /writeJobProcessEventsDisplayCache\(jobId, merged/);
+  assert.match(hook, /socket\.io\.on\('reconnect', recover\)/);
+  assert.match(hook, /setInterval\(\(\) => fetchEvents\('incremental'\), 5000\)/);
+  assert.doesNotMatch(hook, /socketAppendQueue|SOCKET_APPEND|appendNextQueued|ensureSocketAppend/);
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -23,6 +23,7 @@ import {
   RefreshCw,
   RotateCw,
   StopCircle,
+  Terminal,
   Wrench,
   XCircle,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
 import { getJobEfficiency } from '../../utils/efficiency';
 import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
+import { processEventStableKey } from '../../utils/jobProcessEvents';
 import {
   type EvidenceIssue,
   extractEvidenceIssue,
@@ -148,10 +150,16 @@ function labels(lang: string) {
     timelineEmpty: zh ? '暂无过程事件；旧任务或后端重启后可能只保留基础进度' : 'No process events yet; old jobs or daemon restarts may only keep basic progress.',
     timelineError: zh ? '过程事件读取失败' : 'Failed to load process events',
     timelineRefresh: zh ? '刷新过程' : 'Refresh process',
+    timelineRefreshing: zh ? '同步中' : 'Syncing',
+    timelineWaiting: zh ? '等待新事件' : 'Waiting',
+    timelineTerminal: zh ? '过程终端' : 'Process terminal',
     timelineCount: zh ? '事件' : 'events',
     hiddenEvents: zh ? '隐藏事件' : 'hidden',
     retainedEvents: zh ? '保留事件' : 'retained',
     content: zh ? '内容' : 'Content',
+    expandContent: zh ? '展开内容' : 'Expand content',
+    collapseContent: zh ? '收起内容' : 'Collapse content',
+    llmContentCollapsed: zh ? 'LLM 内容已收起' : 'LLM content collapsed',
     artifacts: zh ? '产物' : 'Artifacts',
     sequence: zh ? '序号' : 'Sequence',
     dimension: zh ? '维度' : 'Dimension',
@@ -670,19 +678,35 @@ function JobProcessTimeline({
     hiddenCount,
     retainedCount,
     endpointCapability,
+    expandedContentEventIds,
     refresh,
+    setContentExpanded,
   } = useJobProcessEvents(job.id, { enabled: true, active: isActive, limit: 120 });
 
   const visibleEvents = useMemo(() => events, [events]);
+  const timelineListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!timelineListRef.current) {
+      return;
+    }
+    timelineListRef.current.scrollTop = timelineListRef.current.scrollHeight;
+  }, [visibleEvents.length, refreshing]);
 
   return (
-    <div className="mt-3 max-w-full overflow-x-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-muted)] px-3 py-2">
+    <div className="mt-3 max-w-full overflow-x-hidden">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--fg-primary)]">
-            <Activity size={13} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />
+            <Terminal size={13} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />
             {text.processTimeline}
           </span>
+          {isActive && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[11px] text-blue-600 dark:text-blue-300">
+              <Loader2 size={11} className="animate-spin" />
+              {refreshing ? text.timelineRefreshing : text.timelineWaiting}
+            </span>
+          )}
           <span className="rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--fg-muted)]">
             {visibleEvents.length} {text.timelineCount}
           </span>
@@ -713,28 +737,43 @@ function JobProcessTimeline({
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center gap-2 px-3 py-4 text-xs text-[var(--fg-muted)]">
-          <Loader2 size={14} className="animate-spin" />
-          {text.timelineLoading}
-        </div>
-      ) : error ? (
-        <div className="flex items-start gap-2 px-3 py-4 text-xs text-red-600">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>{text.timelineError}: {error}</span>
-        </div>
-      ) : visibleEvents.length === 0 ? (
-        <div className="flex items-start gap-2 px-3 py-4 text-xs text-[var(--fg-muted)]">
-          <CircleDashed size={14} className="mt-0.5 shrink-0" />
-          <span>{text.timelineEmpty}</span>
-        </div>
-      ) : (
-        <div className="space-y-0 px-3 py-2">
-          {visibleEvents.map((event) => (
-            <ProcessEventItem key={event.eventId || `${event.jobId}:${event.sequence}:${event.kind}`} event={event} text={text} />
-          ))}
-        </div>
-      )}
+      <div
+        ref={timelineListRef}
+        className="h-96 overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[#080b10] px-3 py-2 shadow-inner overscroll-contain"
+        aria-label={text.timelineTerminal}
+      >
+        {loading ? (
+          <div className="flex items-center gap-2 px-1 py-4 text-xs text-[var(--fg-muted)]">
+            <Loader2 size={14} className="animate-spin" />
+            {text.timelineLoading}
+          </div>
+        ) : error ? (
+          <div className="flex items-start gap-2 px-1 py-4 text-xs text-red-600">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>{text.timelineError}: {error}</span>
+          </div>
+        ) : visibleEvents.length === 0 ? (
+          <div className="flex items-start gap-2 px-1 py-4 text-xs text-[var(--fg-muted)]">
+            <CircleDashed size={14} className="mt-0.5 shrink-0" />
+            <span>{text.timelineEmpty}</span>
+          </div>
+        ) : (
+          <div className="space-y-0">
+            {visibleEvents.map((event) => {
+              const eventKey = processEventStableKey(event);
+              return (
+                <ProcessEventItem
+                  key={eventKey}
+                  event={event}
+                  text={text}
+                  contentExpanded={expandedContentEventIds.has(eventKey)}
+                  onContentExpandedChange={(expanded) => setContentExpanded(eventKey, expanded)}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -742,12 +781,18 @@ function JobProcessTimeline({
 function ProcessEventItem({
   event,
   text,
+  contentExpanded,
+  onContentExpandedChange,
 }: {
   event: JobProcessDeveloperView;
   text: ReturnType<typeof labels>;
+  contentExpanded: boolean;
+  onContentExpandedChange: (expanded: boolean) => void;
 }) {
   const tone = getProcessEventTone(event);
   const icon = getProcessEventIcon(event);
+  const isLlmEvent = isLlmProcessEvent(event);
+  const showContent = !isLlmEvent || contentExpanded;
   const metaItems = [
     { label: text.sequence, value: `#${event.sequence}` },
     { label: 'kind', value: event.kind },
@@ -777,8 +822,26 @@ function ProcessEventItem({
       )}
       {event.content && (
         <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] p-3">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-muted)]">{text.content}</div>
-          <pre className="whitespace-pre-wrap break-words font-sans leading-relaxed text-[var(--fg-primary)]">{event.content}</pre>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-muted)]">{text.content}</div>
+            {isLlmEvent && (
+              <button
+                type="button"
+                onClick={() => onContentExpandedChange(!contentExpanded)}
+                className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-default)] px-2 text-[11px] font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-surface)] hover:text-[var(--fg-primary)]"
+              >
+                {contentExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {contentExpanded ? text.collapseContent : text.expandContent}
+              </button>
+            )}
+          </div>
+          {showContent ? (
+            <pre className="whitespace-pre-wrap break-words font-sans leading-relaxed text-[var(--fg-primary)]">{event.content}</pre>
+          ) : (
+            <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--fg-muted)]">
+              {text.llmContentCollapsed}
+            </div>
+          )}
         </div>
       )}
       {event.artifactRefs && event.artifactRefs.length > 0 && (
@@ -810,7 +873,7 @@ function ProcessEventItem({
 }
 
 function getProcessEventIcon(event: JobProcessDeveloperView): React.ReactNode {
-  if (event.kind === 'llm.input' || event.kind === 'llm.output' || event.kind === 'llm.reflection') {
+  if (isLlmProcessEvent(event)) {
     return <Bot size={12} />;
   }
   if (event.kind === 'tool') {
@@ -832,6 +895,10 @@ function getProcessEventIcon(event: JobProcessDeveloperView): React.ReactNode {
     return <Braces size={12} />;
   }
   return <FileCode2 size={12} />;
+}
+
+function isLlmProcessEvent(event: JobProcessDeveloperView): boolean {
+  return event.kind === 'llm.input' || event.kind === 'llm.output' || event.kind === 'llm.reflection';
 }
 
 function getProcessEventTone(event: JobProcessDeveloperView): { badge: string; dot: string } {

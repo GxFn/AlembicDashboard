@@ -76,6 +76,7 @@ test('object errors keep a readable fallback instead of rendering object identit
 test('jobs process timeline consumes typed events contract', () => {
   const api = read('src/api.ts');
   const hook = read('src/hooks/useJobProcessEvents.ts');
+  const eventUtils = read('src/utils/jobProcessEvents.ts');
   const jobs = read('src/components/Views/JobsView.tsx');
   const bootstrap = read('src/components/Views/BootstrapProgressView.tsx');
 
@@ -91,10 +92,25 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(hook, /mergeProcessEvents/);
   assert.match(hook, /socket\.io\.on\('reconnect'/);
   assert.match(hook, /normalizeProcessDeveloperView\(eventRecord, payload\.jobId\)/);
+  assert.match(hook, /readJobProcessEventsDisplayCache\(jobId\)/);
+  assert.match(hook, /writeJobProcessEventsDisplayCache\(jobId, merged/);
+  assert.match(hook, /setContentExpanded/);
+
+  assert.match(eventUtils, /JOB_PROCESS_EVENTS_CACHE_PREFIX = 'alembic\.dashboard\.jobProcessEvents\.v1'/);
+  assert.match(eventUtils, /JOB_PROCESS_EVENTS_CACHE_TTL_MS = 6 \* 60 \* 60 \* 1000/);
+  assert.match(eventUtils, /JOB_PROCESS_EVENTS_CACHE_JOB_LIMIT = 40/);
+  assert.match(eventUtils, /JOB_PROCESS_EVENTS_CACHE_EVENT_LIMIT = 120/);
+  assert.match(eventUtils, /cleanupJobProcessEventsDisplayCache/);
+  assert.match(eventUtils, /expandedContentEventIds/);
 
   assert.match(jobs, /JobProcessTimeline/);
   assert.match(jobs, /artifactRefs/);
   assert.match(jobs, /ProcessEventItem/);
+  assert.match(jobs, /h-96 overflow-y-auto/);
+  assert.match(jobs, /timelineListRef\.current\.scrollTop = timelineListRef\.current\.scrollHeight/);
+  assert.match(jobs, /isLlmProcessEvent/);
+  assert.match(jobs, /llmContentCollapsed/);
+  assert.match(jobs, /onContentExpandedChange\(!contentExpanded\)/);
   assert.doesNotMatch(jobs, /raw\s*log/i);
 
   assert.match(bootstrap, /BootstrapProcessSummary/);
@@ -140,7 +156,6 @@ test('jobs view lets the page scroll without inner list scrolling', () => {
   assert.doesNotMatch(jobs, /max-w-full overflow-x-hidden rounded-xl border border-\[var\(--border-default\)\] bg-\[var\(--bg-surface\)\] shadow-sm/);
   assert.doesNotMatch(jobs, /divide-y divide-\[var\(--border-muted\)\]/);
   assert.doesNotMatch(jobs, /min-h-0 flex-1 overflow-y-auto/);
-  assert.doesNotMatch(jobs, /overscroll-contain/);
 });
 
 test('socket process events share REST content normalization', () => {

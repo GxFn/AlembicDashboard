@@ -5,7 +5,12 @@ import api, {
   type JobProcessEndpointCapability,
 } from '../api';
 import { getSocket } from '../lib/socket';
-import { getLastProcessSequence, mergeProcessEvents } from '../utils/jobProcessEvents';
+import {
+  getLastProcessSequence,
+  mergeProcessEvents,
+  readJobProcessEventsDisplayCache,
+  writeJobProcessEventsDisplayCache,
+} from '../utils/jobProcessEvents';
 import { getErrorMessage } from '../utils/error';
 
 interface JobProcessSocketPayload {
@@ -31,7 +36,9 @@ interface UseJobProcessEventsResult {
   hiddenCount: number;
   retainedCount: number;
   endpointCapability?: JobProcessEndpointCapability;
+  expandedContentEventIds: Set<string>;
   refresh: () => Promise<void>;
+  setContentExpanded: (eventId: string, expanded: boolean) => void;
 }
 
 function normalizeSocketEvent(payload: JobProcessSocketPayload): JobProcessDeveloperView | null {
@@ -64,15 +71,22 @@ export function useJobProcessEvents(
   const [hiddenCount, setHiddenCount] = useState(0);
   const [retainedCount, setRetainedCount] = useState(0);
   const [endpointCapability, setEndpointCapability] = useState<JobProcessEndpointCapability | undefined>();
+  const [expandedContentEventIds, setExpandedContentEventIds] = useState<Set<string>>(() => new Set());
   const eventsRef = useRef<JobProcessDeveloperView[]>([]);
+  const expandedContentEventIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     eventsRef.current = events;
   }, [events]);
 
   useEffect(() => {
-    setEvents([]);
-    eventsRef.current = [];
+    const cache = jobId ? readJobProcessEventsDisplayCache(jobId) : null;
+    const cachedEvents = cache?.events ?? [];
+    const cachedExpandedIds = new Set(cache?.expandedContentEventIds ?? []);
+    setEvents(cachedEvents);
+    eventsRef.current = cachedEvents;
+    setExpandedContentEventIds(cachedExpandedIds);
+    expandedContentEventIdsRef.current = cachedExpandedIds;
     setError(null);
     setHiddenCount(0);
     setRetainedCount(0);
@@ -94,6 +108,7 @@ export function useJobProcessEvents(
       setEvents((prev) => {
         const merged = mergeProcessEvents(prev, response.developerViews);
         eventsRef.current = merged;
+        writeJobProcessEventsDisplayCache(jobId, merged, Array.from(expandedContentEventIdsRef.current));
         return merged;
       });
       setHiddenCount(response.hiddenCount);
@@ -128,6 +143,7 @@ export function useJobProcessEvents(
       setEvents((prev) => {
         const merged = mergeProcessEvents(prev, [event]);
         eventsRef.current = merged;
+        writeJobProcessEventsDisplayCache(jobId, merged, Array.from(expandedContentEventIdsRef.current));
         return merged;
       });
       setError(null);
@@ -152,6 +168,23 @@ export function useJobProcessEvents(
     return () => clearInterval(timer);
   }, [active, enabled, fetchEvents, jobId]);
 
+  const setContentExpanded = useCallback((eventId: string, expanded: boolean) => {
+    if (!jobId) {
+      return;
+    }
+    setExpandedContentEventIds((prev) => {
+      const next = new Set(prev);
+      if (expanded) {
+        next.add(eventId);
+      } else {
+        next.delete(eventId);
+      }
+      expandedContentEventIdsRef.current = next;
+      writeJobProcessEventsDisplayCache(jobId, eventsRef.current, Array.from(next));
+      return next;
+    });
+  }, [jobId]);
+
   return {
     events,
     loading,
@@ -160,6 +193,8 @@ export function useJobProcessEvents(
     hiddenCount,
     retainedCount,
     endpointCapability,
+    expandedContentEventIds,
     refresh: () => fetchEvents('manual'),
+    setContentExpanded,
   };
 }

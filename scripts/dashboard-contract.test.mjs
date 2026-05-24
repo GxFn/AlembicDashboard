@@ -83,11 +83,14 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(api, /developerViews: JobProcessDeveloperView\[\]/);
   assert.match(api, /getJobProcessEvents\(jobId: string/);
   assert.match(api, /`\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/events`/);
+  assert.match(api, /export function normalizeProcessDeveloperView/);
+  assert.match(api, /contentTextOrUndefined\(record\.content\)/);
 
   assert.match(hook, /job:process-event/);
   assert.match(hook, /afterSequence/);
   assert.match(hook, /mergeProcessEvents/);
   assert.match(hook, /socket\.io\.on\('reconnect'/);
+  assert.match(hook, /normalizeProcessDeveloperView\(eventRecord, payload\.jobId\)/);
 
   assert.match(jobs, /JobProcessTimeline/);
   assert.match(jobs, /artifactRefs/);
@@ -109,4 +112,18 @@ test('jobs view keeps long process details scrollable', () => {
   assert.match(jobs, /min-h-0 flex-1 overflow-y-auto/);
   assert.match(jobs, /overscroll-contain/);
   assert.match(jobs, /max-w-full break-words/);
+});
+
+test('socket process events share REST content normalization', () => {
+  const api = read('src/api.ts');
+  const hook = read('src/hooks/useJobProcessEvents.ts');
+
+  assert.match(api, /function contentTextOrUndefined\(value: unknown\)/);
+  assert.match(api, /stringOrUndefined\(record\.text\)/);
+  assert.match(api, /JSON\.stringify\(value, null, 2\)/);
+  assert.match(api, /content: contentTextOrUndefined\(record\.content\)/);
+
+  assert.doesNotMatch(hook, /\.\.\.payload\.event,\s*\n\s*jobId:/);
+  assert.match(hook, /event\?: unknown/);
+  assert.match(hook, /normalizeProcessDeveloperView\(eventRecord, payload\.jobId\)/);
 });

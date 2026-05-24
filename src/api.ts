@@ -147,6 +147,30 @@ function stringOrUndefined(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function contentTextOrUndefined(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return value.length > 0 ? value : undefined;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  const record = asRuntimeRecord(value);
+  const structuredText = record ? stringOrUndefined(record.text) : undefined;
+  if (structuredText) {
+    return structuredText;
+  }
+
+  if (Array.isArray(value) || record) {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
@@ -176,7 +200,7 @@ function processArtifactRefs(value: unknown): JobProcessArtifactRef[] {
     .filter((item): item is JobProcessArtifactRef => item !== null);
 }
 
-function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: string): JobProcessDeveloperView | null {
+export function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: string): JobProcessDeveloperView | null {
   const record = asRuntimeRecord(value);
   if (!record) {
     return null;
@@ -200,7 +224,7 @@ function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: string): 
     phase: stringOrUndefined(record.phase),
     title,
     summary: stringOrUndefined(record.summary),
-    content: stringOrUndefined(record.content),
+    content: contentTextOrUndefined(record.content),
     severity: stringOrUndefined(record.severity),
     sourceClass: stringOrUndefined(record.sourceClass),
     displayPolicy: stringOrUndefined(record.displayPolicy),

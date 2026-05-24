@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import api, { type JobProcessDeveloperView, type JobProcessEndpointCapability } from '../api';
+import api, {
+  normalizeProcessDeveloperView,
+  type JobProcessDeveloperView,
+  type JobProcessEndpointCapability,
+} from '../api';
 import { getSocket } from '../lib/socket';
 import { getLastProcessSequence, mergeProcessEvents } from '../utils/jobProcessEvents';
 import { getErrorMessage } from '../utils/error';
@@ -9,7 +13,7 @@ interface JobProcessSocketPayload {
   jobId?: string;
   eventId?: string;
   sequence?: number;
-  event?: JobProcessDeveloperView;
+  event?: unknown;
   timestamp?: number;
 }
 
@@ -34,13 +38,18 @@ function normalizeSocketEvent(payload: JobProcessSocketPayload): JobProcessDevel
   if (!payload.event) {
     return null;
   }
-  return {
-    ...payload.event,
-    jobId: payload.event.jobId || payload.jobId || '',
-    eventId: payload.event.eventId || payload.eventId || '',
-    sequence: typeof payload.event.sequence === 'number' ? payload.event.sequence : payload.sequence ?? 0,
-    timestamp: payload.event.timestamp ?? payload.timestamp,
+  if (typeof payload.event !== 'object' || payload.event === null) {
+    return normalizeProcessDeveloperView(payload.event, payload.jobId);
+  }
+  const event = payload.event as Record<string, unknown>;
+  const eventRecord = {
+    ...event,
+    eventId: event.eventId ?? payload.eventId,
+    jobId: event.jobId ?? payload.jobId,
+    sequence: event.sequence ?? payload.sequence,
+    timestamp: event.timestamp ?? payload.timestamp,
   };
+  return normalizeProcessDeveloperView(eventRecord, payload.jobId);
 }
 
 export function useJobProcessEvents(

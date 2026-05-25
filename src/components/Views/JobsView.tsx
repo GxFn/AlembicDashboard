@@ -61,6 +61,7 @@ import {
 } from '../../utils/evidenceStatus';
 import Select from '../ui/Select';
 import { Drawer } from '../Layout/Drawer';
+import PageOverlay from '../Shared/PageOverlay';
 
 type JobKindFilter = 'all' | DaemonJobRecord['kind'];
 type JobStatusFilter = 'all' | DaemonJobRecord['status'];
@@ -188,6 +189,7 @@ function labels(lang: string) {
     artifactDetails: zh ? '产物详情' : 'Artifact details',
     openArtifact: zh ? '打开产物' : 'Open artifact',
     closeDetails: zh ? '关闭详情' : 'Close details',
+    backToTimeline: zh ? '返回 Timeline' : 'Back to timeline',
     timelineProjection: zh ? 'Timeline 摘要投影' : 'Timeline projection',
     projectionHint: zh ? '这里是事件流摘要，不代表完整 prompt / output。完整内容请查看下方 artifact。' : 'This is the event-stream projection, not the complete prompt/output. Use the artifact below for the full retained content.',
     fullArtifact: zh ? '完整 redacted artifact' : 'Full redacted artifact',
@@ -742,12 +744,16 @@ function JobProcessTimeline({
     }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        if (selectedTimelineDetail) {
+          setSelectedTimelineDetail(null);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose, open]);
+  }, [onClose, open, selectedTimelineDetail]);
 
   useEffect(() => {
     setSelectedTimelineDetail(null);
@@ -799,56 +805,75 @@ function JobProcessTimeline({
     );
   };
 
+  if (!open) {
+    return null;
+  }
+
+  const closeTimelineDetail = () => setSelectedTimelineDetail(null);
+
   return (
-    <Drawer open={open} onClose={onClose} size="full">
-      <Drawer.Header
-        leading={<Terminal size={16} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />}
-        title={text.processTimeline}
-        subtitle={timelineSubtitleParts.join(' · ')}
+    <PageOverlay className="z-30 flex justify-end overflow-hidden" onClick={onClose}>
+      <PageOverlay.Backdrop className="bg-black/20 backdrop-blur-sm dark:bg-black/40" />
+      {selectedDetailEvent && (
+        <Drawer.Panel
+          width="w-full lg:w-[min(34vw,460px)]"
+          className="absolute inset-y-0 right-0 z-20 lg:static lg:z-auto lg:!border-l-0 lg:!shadow-none lg:border-r lg:border-r-[var(--border-default)]"
+        >
+          <JobProcessEventDetailPanel
+            event={selectedDetailEvent}
+            initialArtifactRef={selectedTimelineDetail?.artifactRef}
+            text={text}
+            onClose={closeTimelineDetail}
+          />
+        </Drawer.Panel>
+      )}
+      <Drawer.Panel
+        width={selectedDetailEvent ? 'w-[min(96vw,1280px)] lg:w-[min(62vw,960px)]' : 'w-[min(96vw,1280px)]'}
       >
-        <Drawer.HeaderActions>
-          <div
-            className="inline-flex h-8 items-center rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] p-0.5"
-            role="group"
-            aria-label={text.timelineModeTitle}
-          >
-            {([
-              ['default', text.timelineDefaultMode],
-              ['compact', text.timelineCompactMode],
-            ] as const).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setTimelineDisplayMode(mode)}
-                aria-pressed={timelineDisplayMode === mode}
-                className={cn(
-                  'h-6 rounded px-2 text-[11px] font-medium transition-colors',
-                  timelineDisplayMode === mode
-                    ? 'bg-[var(--bg-surface)] text-[var(--fg-primary)] shadow-sm'
-                    : 'text-[var(--fg-muted)] hover:text-[var(--fg-primary)]'
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => refresh()}
-            className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
-            title={text.timelineRefresh}
-          >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            {text.timelineRefresh}
-          </button>
-          <Drawer.CloseButton onClose={onClose} />
-        </Drawer.HeaderActions>
-      </Drawer.Header>
-      <Drawer.Body padded={false} className="min-h-0 overflow-hidden">
-        <div className={cn(
-          'grid h-full min-h-0 overflow-hidden',
-          selectedDetailEvent ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(340px,460px)]' : 'grid-cols-1'
-        )}>
+        <Drawer.Header
+          leading={<Terminal size={16} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />}
+          title={text.processTimeline}
+          subtitle={timelineSubtitleParts.join(' · ')}
+        >
+          <Drawer.HeaderActions>
+            <div
+              className="inline-flex h-8 items-center rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] p-0.5"
+              role="group"
+              aria-label={text.timelineModeTitle}
+            >
+              {([
+                ['default', text.timelineDefaultMode],
+                ['compact', text.timelineCompactMode],
+              ] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setTimelineDisplayMode(mode)}
+                  aria-pressed={timelineDisplayMode === mode}
+                  className={cn(
+                    'h-6 rounded px-2 text-[11px] font-medium transition-colors',
+                    timelineDisplayMode === mode
+                      ? 'bg-[var(--bg-surface)] text-[var(--fg-primary)] shadow-sm'
+                      : 'text-[var(--fg-muted)] hover:text-[var(--fg-primary)]'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => refresh()}
+              className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+              title={text.timelineRefresh}
+            >
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+              {text.timelineRefresh}
+            </button>
+            <Drawer.CloseButton onClose={onClose} />
+          </Drawer.HeaderActions>
+        </Drawer.Header>
+        <Drawer.Body padded={false} className="min-h-0 overflow-hidden">
           {/* 过程 Timeline 直接贴合侧边栏；显式 light/dark 色值避免 legacy dark-mode 覆盖。 */}
           <div
             ref={timelineListRef}
@@ -857,17 +882,9 @@ function JobProcessTimeline({
           >
             {renderTimelineContent()}
           </div>
-          {selectedDetailEvent && (
-            <JobProcessEventDetailPanel
-              event={selectedDetailEvent}
-              initialArtifactRef={selectedTimelineDetail?.artifactRef}
-              text={text}
-              onClose={() => setSelectedTimelineDetail(null)}
-            />
-          )}
-        </div>
-      </Drawer.Body>
-    </Drawer>
+        </Drawer.Body>
+      </Drawer.Panel>
+    </PageOverlay>
   );
 }
 
@@ -1083,103 +1100,106 @@ function JobProcessEventDetailPanel({
   const projectionText = event.content || event.summary || text.metadataNotProvided;
 
   return (
-    <aside className="flex min-h-0 flex-col border-t border-[var(--border-default)] bg-[#f8fafc] text-[#0f172a] dark:bg-[#020617] dark:text-[#e2e8f0] lg:border-l lg:border-t-0">
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-default)] px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#64748b] dark:text-[#94a3b8]">
-            {text.artifactDetails}
-          </p>
-          <h4 className="mt-1 break-words text-sm font-semibold text-[#0f172a] dark:text-[#f8fafc]">
-            {event.title}
-          </h4>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#64748b] transition-colors hover:bg-[#e2e8f0] hover:text-[#0f172a] dark:text-[#94a3b8] dark:hover:bg-[#1e293b] dark:hover:text-white"
-          aria-label={text.closeDetails}
-          title={text.closeDetails}
-        >
-          <XCircle size={15} />
-        </button>
-      </div>
+    <>
+      <Drawer.Header
+        leading={
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-surface)] hover:text-[var(--fg-primary)]"
+            aria-label={text.backToTimeline}
+            title={text.backToTimeline}
+          >
+            <ChevronLeft size={14} />
+            {text.backToTimeline}
+          </button>
+        }
+        title={text.artifactDetails}
+        subtitle={event.title}
+      >
+        <Drawer.HeaderActions>
+          <Drawer.CloseButton onClose={onClose} />
+        </Drawer.HeaderActions>
+      </Drawer.Header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        <DetailSection title={text.timelineProjection} hint={text.projectionHint}>
-          <pre className="whitespace-pre-wrap break-all rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 font-sans text-xs leading-relaxed text-[#1e293b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
-            {projectionText}
-          </pre>
-        </DetailSection>
+      <Drawer.Body padded={false} className="min-h-0 bg-[#f8fafc] text-[#0f172a] dark:bg-[#020617] dark:text-[#e2e8f0]">
+        <div className="space-y-4 px-4 py-4">
+          <DetailSection title={text.timelineProjection} hint={text.projectionHint}>
+            <pre className="whitespace-pre-wrap break-all rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 font-sans text-xs leading-relaxed text-[#1e293b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
+              {projectionText}
+            </pre>
+          </DetailSection>
 
-        <DetailSection title={text.artifacts}>
-          {artifactRefs.length > 0 ? (
-            <div className="flex min-w-0 flex-wrap gap-1.5">
-              {artifactRefs.map((artifact) => (
-                <button
-                  type="button"
-                  key={`${artifact.kind}:${artifact.ref}`}
-                  onClick={() => setSelectedArtifactRef(artifact)}
-                  className={cn(
-                    'max-w-full break-all rounded-md border px-2 py-1 text-left text-xs font-medium transition-colors',
-                    selectedArtifactRef?.ref === artifact.ref
-                      ? 'border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-300/50 dark:bg-violet-300/20 dark:text-violet-100'
-                      : 'border-[#cbd5e1] bg-white text-[#334155] hover:bg-[#f1f5f9] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#cbd5e1] dark:hover:bg-[#1e293b]'
-                  )}
-                  title={artifact.ref}
-                >
-                  {artifact.label || artifact.kind}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <EmptyDetailValue text={text.noArtifact} />
-          )}
-        </DetailSection>
-
-        <DetailSection title={text.fullArtifact}>
-          {artifactState.status === 'empty' && <EmptyDetailValue text={text.artifactUnavailable} />}
-          {artifactState.status === 'loading' && (
-            <div className="flex items-center gap-2 rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 text-xs text-[#64748b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#94a3b8]">
-              <Loader2 size={14} className="animate-spin" />
-              {text.artifactLoading}
-            </div>
-          )}
-          {artifactState.status === 'error' && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-50 p-3 text-xs text-red-700 dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-200">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-              <span>{artifactState.error || text.artifactFetchFailed}</span>
-            </div>
-          )}
-          {artifactState.status === 'success' && artifactState.artifact && (
-            <div className="space-y-2">
-              <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[#64748b] dark:text-[#94a3b8]">
-                <span className="max-w-full break-all rounded-md border border-[#cbd5e1] bg-white px-1.5 py-0.5 dark:border-[#334155] dark:bg-[#0f172a]">
-                  <span>{text.mimeType}</span>
-                  <span className="ml-1 text-[#0f172a] dark:text-[#f8fafc]">
-                    {artifactState.artifact.mimeType || selectedArtifactRef?.mimeType || text.metadataNotProvided}
-                  </span>
-                </span>
+          <DetailSection title={text.artifacts}>
+            {artifactRefs.length > 0 ? (
+              <div className="flex min-w-0 flex-wrap gap-1.5">
+                {artifactRefs.map((artifact) => (
+                  <button
+                    type="button"
+                    key={`${artifact.kind}:${artifact.ref}`}
+                    onClick={() => setSelectedArtifactRef(artifact)}
+                    className={cn(
+                      'max-w-full break-all rounded-md border px-2 py-1 text-left text-xs font-medium transition-colors',
+                      selectedArtifactRef?.ref === artifact.ref
+                        ? 'border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-300/50 dark:bg-violet-300/20 dark:text-violet-100'
+                        : 'border-[#cbd5e1] bg-white text-[#334155] hover:bg-[#f1f5f9] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#cbd5e1] dark:hover:bg-[#1e293b]'
+                    )}
+                    title={artifact.ref}
+                  >
+                    {artifact.label || artifact.kind}
+                  </button>
+                ))}
               </div>
-              <pre className="overflow-x-hidden whitespace-pre-wrap break-all rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 font-mono text-[11px] leading-relaxed text-[#1e293b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
-                {artifactState.artifact.content}
-              </pre>
-            </div>
-          )}
-        </DetailSection>
+            ) : (
+              <EmptyDetailValue text={text.noArtifact} />
+            )}
+          </DetailSection>
 
-        <DetailSection title={text.metrics}>
-          <DetailKeyValueGrid items={metricsItems} emptyText={text.metadataNotProvided} />
-        </DetailSection>
+          <DetailSection title={text.fullArtifact}>
+            {artifactState.status === 'empty' && <EmptyDetailValue text={text.artifactUnavailable} />}
+            {artifactState.status === 'loading' && (
+              <div className="flex items-center gap-2 rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 text-xs text-[#64748b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#94a3b8]">
+                <Loader2 size={14} className="animate-spin" />
+                {text.artifactLoading}
+              </div>
+            )}
+            {artifactState.status === 'error' && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-50 p-3 text-xs text-red-700 dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-200">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <span>{artifactState.error || text.artifactFetchFailed}</span>
+              </div>
+            )}
+            {artifactState.status === 'success' && artifactState.artifact && (
+              <div className="space-y-2">
+                <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[#64748b] dark:text-[#94a3b8]">
+                  <span className="max-w-full break-all rounded-md border border-[#cbd5e1] bg-white px-1.5 py-0.5 dark:border-[#334155] dark:bg-[#0f172a]">
+                    <span>{text.mimeType}</span>
+                    <span className="ml-1 text-[#0f172a] dark:text-[#f8fafc]">
+                      {artifactState.artifact.mimeType || selectedArtifactRef?.mimeType || text.metadataNotProvided}
+                    </span>
+                  </span>
+                </div>
+                <pre className="overflow-x-hidden whitespace-pre-wrap break-all rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 font-mono text-[11px] leading-relaxed text-[#1e293b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
+                  {artifactState.artifact.content}
+                </pre>
+              </div>
+            )}
+          </DetailSection>
 
-        <DetailSection title={text.trace}>
-          <DetailKeyValueGrid items={traceItems} emptyText={text.metadataNotProvided} />
-        </DetailSection>
+          <DetailSection title={text.metrics}>
+            <DetailKeyValueGrid items={metricsItems} emptyText={text.metadataNotProvided} />
+          </DetailSection>
 
-        <DetailSection title={text.artifactMetadata}>
-          <DetailKeyValueGrid items={artifactMetadataItems} emptyText={text.metadataNotProvided} />
-        </DetailSection>
-      </div>
-    </aside>
+          <DetailSection title={text.trace}>
+            <DetailKeyValueGrid items={traceItems} emptyText={text.metadataNotProvided} />
+          </DetailSection>
+
+          <DetailSection title={text.artifactMetadata}>
+            <DetailKeyValueGrid items={artifactMetadataItems} emptyText={text.metadataNotProvided} />
+          </DetailSection>
+        </div>
+      </Drawer.Body>
+    </>
   );
 }
 

@@ -165,6 +165,7 @@ test('jobs process timeline consumes typed events contract', () => {
 
   assert.match(jobs, /JobProcessTimeline/);
   assert.match(jobs, /import \{ Drawer \} from '\.\.\/Layout\/Drawer'/);
+  assert.match(jobs, /import PageOverlay from '\.\.\/Shared\/PageOverlay'/);
   assert.match(jobs, /artifactRefs/);
   assert.match(jobs, /ProcessEventItem/);
   assert.match(jobs, /formatProcessEventSemanticLabel\(event, text\.lang\)/);
@@ -184,7 +185,15 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /displayMode=\{timelineDisplayMode\}/);
   assert.match(jobs, /const timelineSubtitleParts = \[/);
   assert.match(jobs, /subtitle=\{timelineSubtitleParts\.join\(' · '\)\}/);
-  assert.match(jobs, /<Drawer open=\{open\} onClose=\{onClose\} size="full">/);
+  assert.match(jobs, /<PageOverlay className="z-30 flex justify-end overflow-hidden" onClick=\{onClose\}>/);
+  assert.match(jobs, /<PageOverlay\.Backdrop className="bg-black\/20 backdrop-blur-sm dark:bg-black\/40" \/>/);
+  assert.match(jobs, /const closeTimelineDetail = \(\) => setSelectedTimelineDetail\(null\)/);
+  assert.match(jobs, /selectedTimelineDetail[\s\S]*setSelectedTimelineDetail\(null\)[\s\S]*onClose\(\)/);
+  assert.match(jobs, /width="w-full lg:w-\[min\(34vw,460px\)\]"/);
+  assert.match(jobs, /className="absolute inset-y-0 right-0 z-20 lg:static lg:z-auto lg:!border-l-0 lg:!shadow-none lg:border-r lg:border-r-\[var\(--border-default\)\]"/);
+  assert.match(jobs, /width=\{selectedDetailEvent \? 'w-\[min\(96vw,1280px\)\] lg:w-\[min\(62vw,960px\)\]' : 'w-\[min\(96vw,1280px\)\]'\}/);
+  assert.match(jobs, /<JobProcessEventDetailPanel[\s\S]*onClose=\{closeTimelineDetail\}/);
+  assert.match(jobs, /aria-label=\{text\.backToTimeline\}/);
   assert.match(jobs, /<Drawer\.Body padded=\{false\} className="min-h-0 overflow-hidden">/);
   assert.match(jobs, /ref=\{timelineListRef\}/);
   assert.match(jobs, /scrollTimelineToBottom\(timelineListRef\.current\)/);
@@ -217,6 +226,8 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.doesNotMatch(jobs, /\{visibleEvents\.length\} \{text\.timelineCount\}/);
   assert.doesNotMatch(jobs, /contentCollapsed/);
   assert.doesNotMatch(jobs, /border-\[#cbd5e1\] bg-white p-3/);
+  assert.doesNotMatch(jobs, /<Drawer open=\{open\} onClose=\{onClose\} size="full">/);
+  assert.doesNotMatch(jobs, /lg:grid-cols-\[minmax\(0,1fr\)_minmax\(340px,460px\)\]/);
   assert.doesNotMatch(jobs, /line-clamp|max-h-\[/);
   assert.doesNotMatch(jobs, /bg-\[#080b10\]/);
   assert.doesNotMatch(jobs, /isLlmEvent &&/);

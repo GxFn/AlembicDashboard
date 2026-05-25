@@ -117,9 +117,15 @@ test('jobs process timeline consumes typed events contract', () => {
   const bootstrap = read('src/components/Views/BootstrapProgressView.tsx');
 
   assert.match(api, /interface JobProcessDeveloperView/);
+  assert.match(api, /interface JobProcessArtifactContent/);
   assert.match(api, /developerViews: JobProcessDeveloperView\[\]/);
   assert.match(api, /getJobProcessEvents\(jobId: string/);
   assert.match(api, /`\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/events`/);
+  assert.match(api, /normalizeJobProcessArtifactRequestPath\(jobId: string, ref: string\)/);
+  assert.match(api, /Artifact ref points to a different job/);
+  assert.match(api, /getJobProcessArtifact\(jobId: string, artifactRef: JobProcessArtifactRef\)/);
+  assert.match(api, /responseType: 'text'/);
+  assert.match(api, /transformResponse: \[\(data\) => data\]/);
   assert.match(api, /export function normalizeProcessDeveloperView/);
   assert.match(api, /contentTextOrUndefined\(record\.content\)/);
 
@@ -167,6 +173,8 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /getProcessEventNudgeType\(event\)/);
   assert.match(jobs, /getProcessEventMetadataText\(event, 'findingCount'\)/);
   assert.match(jobs, /selectedTimelineJobId/);
+  assert.match(jobs, /selectedTimelineDetail/);
+  assert.match(jobs, /JobProcessEventDetailPanel/);
   assert.match(jobs, /selectedTimelineJob && \(/);
   assert.match(jobs, /onOpenTimeline=\{\(\) => setSelectedTimelineJobId\(job\.id\)\}/);
   assert.match(jobs, /type TimelineDisplayMode = 'default' \| 'compact'/);
@@ -182,8 +190,22 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /scrollTimelineToBottom\(timelineListRef\.current\)/);
   assert.match(jobs, /className="h-full overflow-y-auto overflow-x-hidden px-5 py-4 text-\[#0f172a\] overscroll-contain dark:text-\[#e2e8f0\]"/);
   assert.match(jobs, /const contentToggle = event\.content && contentShouldCollapse \? \(/);
+  assert.match(jobs, /const detailButton = hasDetail \? \(/);
+  assert.match(jobs, /onOpenDetails\(artifactRefs\[0\]\)/);
   assert.match(jobs, /items-start justify-between/);
   assert.match(jobs, /event\.content && effectiveContentExpanded && \(/);
+  assert.match(jobs, /text\.timelineProjection/);
+  assert.match(jobs, /text\.projectionHint/);
+  assert.match(jobs, /text\.fullArtifact/);
+  assert.match(jobs, /api\.getJobProcessArtifact\(event\.jobId, selectedArtifactRef\)/);
+  assert.match(jobs, /artifactState\.status === 'empty'/);
+  assert.match(jobs, /artifactState\.status === 'loading'/);
+  assert.match(jobs, /artifactState\.status === 'error'/);
+  assert.match(jobs, /artifactState\.status === 'success'/);
+  assert.match(jobs, /getProcessEventRecordMetadata\(event, 'llmMetrics'\)/);
+  assert.match(jobs, /getProcessEventRecordMetadata\(event, 'traceEnvelope'\)/);
+  assert.match(jobs, /getArtifactMetadataItems\(event\)/);
+  assert.match(jobs, /hasProcessEventDetail\(event\)/);
   assert.match(jobs, /displayMode === 'default' \? getLlmOutputCompletenessHints\(event, text\.lang\) : \[\]/);
   assert.match(jobs, /aria-label=\{text\.outputCompleteness\}/);
   assert.match(jobs, /getLlmOutputCompletenessToneClass\(hint\.tone\)/);

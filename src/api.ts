@@ -843,6 +843,13 @@ export interface JobProcessArtifactRef {
   mimeType?: string;
 }
 
+export interface JobProcessArtifactContent {
+  jobId: string;
+  ref: string;
+  content: string;
+  mimeType?: string;
+}
+
 export interface JobProcessDeveloperView {
   eventId: string;
   jobId: string;
@@ -880,6 +887,39 @@ export interface JobProcessEventsResponse {
   hiddenCount: number;
   developerViews: JobProcessDeveloperView[];
   endpointCapability?: JobProcessEndpointCapability;
+}
+
+export function normalizeJobProcessArtifactRequestPath(jobId: string, ref: string): string {
+  const trimmed = ref.trim();
+  let path = trimmed;
+  try {
+    const parsed = new URL(trimmed, 'http://alembic.local');
+    path = parsed.pathname;
+  } catch {
+    path = trimmed;
+  }
+
+  const apiPrefix = '/api/v1';
+  if (path === apiPrefix) {
+    path = '/';
+  } else if (path.startsWith(`${apiPrefix}/`)) {
+    path = path.slice(apiPrefix.length);
+  }
+
+  const routeMatch = path.match(/^\/jobs\/([^/]+)\/artifacts\/([^/?#]+)$/);
+  if (routeMatch) {
+    const routeJobId = decodeURIComponent(routeMatch[1]);
+    if (routeJobId !== jobId) {
+      throw new Error('Artifact ref points to a different job.');
+    }
+    return `/jobs/${encodeURIComponent(routeJobId)}/artifacts/${routeMatch[2]}`;
+  }
+
+  if (/^[a-zA-Z0-9._-]{1,180}$/.test(trimmed)) {
+    return `/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(trimmed)}`;
+  }
+
+  throw new Error('Unsupported job artifact ref.');
 }
 
 export interface AgentGateFailure {
@@ -1939,6 +1979,21 @@ export const api = {
   }): Promise<JobProcessEventsResponse> {
     const res = await http.get(`/jobs/${encodeURIComponent(jobId)}/events`, { params: opts || {} });
     return normalizeJobProcessEventsResponse(res.data?.data, jobId);
+  },
+
+  async getJobProcessArtifact(jobId: string, artifactRef: JobProcessArtifactRef): Promise<JobProcessArtifactContent> {
+    const requestPath = normalizeJobProcessArtifactRequestPath(jobId, artifactRef.ref);
+    const res = await http.get<string>(requestPath, {
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    });
+    const contentType = res.headers['content-type'];
+    return {
+      jobId,
+      ref: artifactRef.ref,
+      content: typeof res.data === 'string' ? res.data : String(res.data ?? ''),
+      mimeType: typeof contentType === 'string' ? contentType : artifactRef.mimeType,
+    };
   },
 
   async cancelJob(jobId: string, reason?: string): Promise<DaemonJobRecord | null> {

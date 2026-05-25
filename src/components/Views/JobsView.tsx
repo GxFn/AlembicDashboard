@@ -27,7 +27,12 @@ import {
   Wrench,
   XCircle,
 } from 'lucide-react';
-import api, { type DaemonJobRecord, type JobProcessDeveloperView } from '../../api';
+import api, {
+  type DaemonJobRecord,
+  type JobProcessArtifactContent,
+  type JobProcessArtifactRef,
+  type JobProcessDeveloperView,
+} from '../../api';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
@@ -61,6 +66,11 @@ type JobKindFilter = 'all' | DaemonJobRecord['kind'];
 type JobStatusFilter = 'all' | DaemonJobRecord['status'];
 type JobBucketStatus = DaemonJobRecord['status'];
 type TimelineDisplayMode = 'default' | 'compact';
+
+interface TimelineDetailSelection {
+  eventKey: string;
+  artifactRef?: JobProcessArtifactRef;
+}
 
 interface JobsViewProps {
   onOpenCandidates?: () => void;
@@ -175,6 +185,21 @@ function labels(lang: string) {
     expandContent: zh ? '展开内容' : 'Expand content',
     collapseContent: zh ? '收起内容' : 'Collapse content',
     artifacts: zh ? '产物' : 'Artifacts',
+    artifactDetails: zh ? '产物详情' : 'Artifact details',
+    openArtifact: zh ? '打开产物' : 'Open artifact',
+    closeDetails: zh ? '关闭详情' : 'Close details',
+    timelineProjection: zh ? 'Timeline 摘要投影' : 'Timeline projection',
+    projectionHint: zh ? '这里是事件流摘要，不代表完整 prompt / output。完整内容请查看下方 artifact。' : 'This is the event-stream projection, not the complete prompt/output. Use the artifact below for the full retained content.',
+    fullArtifact: zh ? '完整 redacted artifact' : 'Full redacted artifact',
+    artifactLoading: zh ? '正在读取 artifact' : 'Loading artifact',
+    artifactFetchFailed: zh ? 'artifact 读取失败' : 'Artifact fetch failed',
+    artifactUnavailable: zh ? '此事件没有 artifactRef' : 'No artifactRef on this event',
+    noArtifact: zh ? '无 artifact' : 'No artifact',
+    metrics: zh ? 'Metrics' : 'Metrics',
+    trace: zh ? 'Trace envelope' : 'Trace envelope',
+    artifactMetadata: zh ? 'Artifact metadata' : 'Artifact metadata',
+    metadataNotProvided: zh ? '未提供' : 'Not provided',
+    mimeType: zh ? 'MIME 类型' : 'MIME type',
     sequence: zh ? '序号' : 'Sequence',
     dimension: zh ? '维度' : 'Dimension',
     target: zh ? '目标' : 'Target',
@@ -669,6 +694,7 @@ function JobProcessTimeline({
   onClose: () => void;
 }) {
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('default');
+  const [selectedTimelineDetail, setSelectedTimelineDetail] = useState<TimelineDetailSelection | null>(null);
   const isActive = job.status === 'queued' || job.status === 'running';
   const {
     events,
@@ -684,6 +710,12 @@ function JobProcessTimeline({
   } = useJobProcessEvents(job.id, { enabled: open, active: isActive, limit: 120 });
 
   const visibleEvents = useMemo(() => events, [events]);
+  const selectedDetailEvent = useMemo(() => {
+    if (!selectedTimelineDetail) {
+      return null;
+    }
+    return visibleEvents.find((event) => processEventStableKey(event) === selectedTimelineDetail.eventKey) ?? null;
+  }, [selectedTimelineDetail, visibleEvents]);
   const timelineListRef = useRef<HTMLDivElement>(null);
   const timelineSubtitleParts = [
     `${visibleEvents.length} ${text.timelineCount}`,
@@ -716,6 +748,10 @@ function JobProcessTimeline({
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [onClose, open]);
+
+  useEffect(() => {
+    setSelectedTimelineDetail(null);
+  }, [job.id, open]);
 
   const renderTimelineContent = () => {
     if (loading) {
@@ -752,8 +788,10 @@ function JobProcessTimeline({
               event={event}
               text={text}
               displayMode={timelineDisplayMode}
+              detailOpen={selectedTimelineDetail?.eventKey === eventKey}
               contentExpanded={expandedContentEventIds.has(eventKey)}
               onContentExpandedChange={(expanded) => setContentExpanded(eventKey, expanded)}
+              onOpenDetails={(artifactRef) => setSelectedTimelineDetail({ eventKey, artifactRef })}
             />
           );
         })}
@@ -807,13 +845,26 @@ function JobProcessTimeline({
         </Drawer.HeaderActions>
       </Drawer.Header>
       <Drawer.Body padded={false} className="min-h-0 overflow-hidden">
-        {/* 过程 Timeline 直接贴合侧边栏；显式 light/dark 色值避免 legacy dark-mode 覆盖。 */}
-        <div
-          ref={timelineListRef}
-          className="h-full overflow-y-auto overflow-x-hidden px-5 py-4 text-[#0f172a] overscroll-contain dark:text-[#e2e8f0]"
-          aria-label={text.timelineTerminal}
-        >
-          {renderTimelineContent()}
+        <div className={cn(
+          'grid h-full min-h-0 overflow-hidden',
+          selectedDetailEvent ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(340px,460px)]' : 'grid-cols-1'
+        )}>
+          {/* 过程 Timeline 直接贴合侧边栏；显式 light/dark 色值避免 legacy dark-mode 覆盖。 */}
+          <div
+            ref={timelineListRef}
+            className="h-full overflow-y-auto overflow-x-hidden px-5 py-4 text-[#0f172a] overscroll-contain dark:text-[#e2e8f0]"
+            aria-label={text.timelineTerminal}
+          >
+            {renderTimelineContent()}
+          </div>
+          {selectedDetailEvent && (
+            <JobProcessEventDetailPanel
+              event={selectedDetailEvent}
+              initialArtifactRef={selectedTimelineDetail?.artifactRef}
+              text={text}
+              onClose={() => setSelectedTimelineDetail(null)}
+            />
+          )}
         </div>
       </Drawer.Body>
     </Drawer>
@@ -838,20 +889,26 @@ function ProcessEventItem({
   event,
   text,
   displayMode,
+  detailOpen,
   contentExpanded,
   onContentExpandedChange,
+  onOpenDetails,
 }: {
   event: JobProcessDeveloperView;
   text: ReturnType<typeof labels>;
   displayMode: TimelineDisplayMode;
+  detailOpen: boolean;
   contentExpanded: boolean;
   onContentExpandedChange: (expanded: boolean) => void;
+  onOpenDetails: (artifactRef?: JobProcessArtifactRef) => void;
 }) {
   const tone = getProcessEventTone(event);
   const icon = getProcessEventIcon(event);
   const semanticLabel = formatProcessEventSemanticLabel(event, text.lang);
   const semanticKind = getProcessEventSemanticKind(event);
   const nudgeType = getProcessEventNudgeType(event);
+  const artifactRefs = event.artifactRefs ?? [];
+  const hasDetail = hasProcessEventDetail(event);
   const contentShouldCollapse = shouldCollapseProcessEventContentByDefault(event);
   const effectiveContentExpanded = Boolean(event.content) && (!contentShouldCollapse || contentExpanded);
   const llmOutputHints = displayMode === 'default' ? getLlmOutputCompletenessHints(event, text.lang) : [];
@@ -879,6 +936,21 @@ function ProcessEventItem({
       {contentExpanded ? text.collapseContent : text.expandContent}
     </button>
   ) : null;
+  const detailButton = hasDetail ? (
+    <button
+      type="button"
+      onClick={() => onOpenDetails(artifactRefs[0])}
+      className={cn(
+        'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors',
+        detailOpen
+          ? 'bg-blue-100 text-blue-700 dark:bg-blue-400/15 dark:text-blue-200'
+          : 'text-[#475569] hover:bg-[#e2e8f0] hover:text-[#0f172a] dark:text-[#cbd5e1] dark:hover:bg-[#1e293b] dark:hover:text-white'
+      )}
+    >
+      <ExternalLink size={12} />
+      {text.artifactDetails}
+    </button>
+  ) : null;
 
   return (
     <div
@@ -897,7 +969,12 @@ function ProcessEventItem({
             <span className="text-[#64748b] dark:text-[#94a3b8]">{formatEventTimestamp(event.timestamp)}</span>
           )}
         </div>
-        {contentToggle}
+        {(detailButton || contentToggle) && (
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+            {detailButton}
+            {contentToggle}
+          </div>
+        )}
       </div>
       {event.summary && (
         <p className="whitespace-pre-wrap break-all leading-relaxed text-[#1e293b] dark:text-[#e2e8f0]">{event.summary}</p>
@@ -919,17 +996,20 @@ function ProcessEventItem({
       {event.content && effectiveContentExpanded && (
         <pre className="max-w-full whitespace-pre-wrap break-all font-sans leading-relaxed text-[#1e293b] dark:text-[#e2e8f0]">{event.content}</pre>
       )}
-      {event.artifactRefs && event.artifactRefs.length > 0 && (
+      {artifactRefs.length > 0 && (
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="text-[#64748b] dark:text-[#94a3b8]">{text.artifacts}</span>
-          {event.artifactRefs.map((artifact) => (
-            <span
+          {artifactRefs.map((artifact) => (
+            <button
+              type="button"
               key={`${artifact.kind}:${artifact.ref}`}
-              className="max-w-full break-all rounded-md border border-violet-500/25 bg-violet-50 px-2 py-0.5 text-violet-700 dark:border-violet-300/40 dark:bg-violet-300/10 dark:text-violet-100"
+              onClick={() => onOpenDetails(artifact)}
+              className="inline-flex max-w-full items-center gap-1 break-all rounded-md border border-violet-500/25 bg-violet-50 px-2 py-0.5 text-left text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-300/40 dark:bg-violet-300/10 dark:text-violet-100 dark:hover:bg-violet-300/20"
               title={artifact.ref}
             >
+              <ExternalLink size={11} className="shrink-0" />
               {artifact.label || artifact.kind}: {artifact.ref}
-            </span>
+            </button>
           ))}
         </div>
       )}
@@ -945,6 +1025,290 @@ function ProcessEventItem({
       )}
     </div>
   );
+}
+
+function JobProcessEventDetailPanel({
+  event,
+  initialArtifactRef,
+  text,
+  onClose,
+}: {
+  event: JobProcessDeveloperView;
+  initialArtifactRef?: JobProcessArtifactRef;
+  text: ReturnType<typeof labels>;
+  onClose: () => void;
+}) {
+  const artifactRefs = event.artifactRefs ?? [];
+  const [selectedArtifactRef, setSelectedArtifactRef] = useState<JobProcessArtifactRef | undefined>(
+    initialArtifactRef ?? artifactRefs[0]
+  );
+  const [artifactState, setArtifactState] = useState<{
+    artifact?: JobProcessArtifactContent;
+    error?: string;
+    status: 'empty' | 'loading' | 'success' | 'error';
+  }>({ status: selectedArtifactRef ? 'loading' : 'empty' });
+
+  useEffect(() => {
+    setSelectedArtifactRef(initialArtifactRef ?? artifactRefs[0]);
+  }, [event.eventId, initialArtifactRef?.ref, artifactRefs[0]?.ref]);
+
+  useEffect(() => {
+    if (!selectedArtifactRef) {
+      setArtifactState({ status: 'empty' });
+      return;
+    }
+
+    let cancelled = false;
+    setArtifactState({ status: 'loading' });
+    api.getJobProcessArtifact(event.jobId, selectedArtifactRef)
+      .then((artifact) => {
+        if (!cancelled) {
+          setArtifactState({ artifact, status: 'success' });
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setArtifactState({ error: getErrorMessage(err, text.artifactFetchFailed), status: 'error' });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [event.jobId, selectedArtifactRef, text.artifactFetchFailed]);
+
+  const metricsItems = recordToDisplayItems(getProcessEventRecordMetadata(event, 'llmMetrics'));
+  const traceItems = recordToDisplayItems(getProcessEventRecordMetadata(event, 'traceEnvelope'));
+  const artifactMetadataItems = getArtifactMetadataItems(event);
+  const projectionText = event.content || event.summary || text.metadataNotProvided;
+
+  return (
+    <aside className="flex min-h-0 flex-col border-t border-[var(--border-default)] bg-[#f8fafc] text-[#0f172a] dark:bg-[#020617] dark:text-[#e2e8f0] lg:border-l lg:border-t-0">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-default)] px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#64748b] dark:text-[#94a3b8]">
+            {text.artifactDetails}
+          </p>
+          <h4 className="mt-1 break-words text-sm font-semibold text-[#0f172a] dark:text-[#f8fafc]">
+            {event.title}
+          </h4>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#64748b] transition-colors hover:bg-[#e2e8f0] hover:text-[#0f172a] dark:text-[#94a3b8] dark:hover:bg-[#1e293b] dark:hover:text-white"
+          aria-label={text.closeDetails}
+          title={text.closeDetails}
+        >
+          <XCircle size={15} />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <DetailSection title={text.timelineProjection} hint={text.projectionHint}>
+          <pre className="whitespace-pre-wrap break-all rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 font-sans text-xs leading-relaxed text-[#1e293b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
+            {projectionText}
+          </pre>
+        </DetailSection>
+
+        <DetailSection title={text.artifacts}>
+          {artifactRefs.length > 0 ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {artifactRefs.map((artifact) => (
+                <button
+                  type="button"
+                  key={`${artifact.kind}:${artifact.ref}`}
+                  onClick={() => setSelectedArtifactRef(artifact)}
+                  className={cn(
+                    'max-w-full break-all rounded-md border px-2 py-1 text-left text-xs font-medium transition-colors',
+                    selectedArtifactRef?.ref === artifact.ref
+                      ? 'border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-300/50 dark:bg-violet-300/20 dark:text-violet-100'
+                      : 'border-[#cbd5e1] bg-white text-[#334155] hover:bg-[#f1f5f9] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#cbd5e1] dark:hover:bg-[#1e293b]'
+                  )}
+                  title={artifact.ref}
+                >
+                  {artifact.label || artifact.kind}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <EmptyDetailValue text={text.noArtifact} />
+          )}
+        </DetailSection>
+
+        <DetailSection title={text.fullArtifact}>
+          {artifactState.status === 'empty' && <EmptyDetailValue text={text.artifactUnavailable} />}
+          {artifactState.status === 'loading' && (
+            <div className="flex items-center gap-2 rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 text-xs text-[#64748b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#94a3b8]">
+              <Loader2 size={14} className="animate-spin" />
+              {text.artifactLoading}
+            </div>
+          )}
+          {artifactState.status === 'error' && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-50 p-3 text-xs text-red-700 dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-200">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span>{artifactState.error || text.artifactFetchFailed}</span>
+            </div>
+          )}
+          {artifactState.status === 'success' && artifactState.artifact && (
+            <div className="space-y-2">
+              <div className="flex min-w-0 flex-wrap gap-1.5 text-[11px] text-[#64748b] dark:text-[#94a3b8]">
+                <span className="max-w-full break-all rounded-md border border-[#cbd5e1] bg-white px-1.5 py-0.5 dark:border-[#334155] dark:bg-[#0f172a]">
+                  <span>{text.mimeType}</span>
+                  <span className="ml-1 text-[#0f172a] dark:text-[#f8fafc]">
+                    {artifactState.artifact.mimeType || selectedArtifactRef?.mimeType || text.metadataNotProvided}
+                  </span>
+                </span>
+              </div>
+              <pre className="overflow-x-hidden whitespace-pre-wrap break-all rounded-lg border border-[#d7e0ea] bg-[#ffffff] px-3 py-2.5 font-mono text-[11px] leading-relaxed text-[#1e293b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#e2e8f0]">
+                {artifactState.artifact.content}
+              </pre>
+            </div>
+          )}
+        </DetailSection>
+
+        <DetailSection title={text.metrics}>
+          <DetailKeyValueGrid items={metricsItems} emptyText={text.metadataNotProvided} />
+        </DetailSection>
+
+        <DetailSection title={text.trace}>
+          <DetailKeyValueGrid items={traceItems} emptyText={text.metadataNotProvided} />
+        </DetailSection>
+
+        <DetailSection title={text.artifactMetadata}>
+          <DetailKeyValueGrid items={artifactMetadataItems} emptyText={text.metadataNotProvided} />
+        </DetailSection>
+      </div>
+    </aside>
+  );
+}
+
+function DetailSection({
+  children,
+  hint,
+  title,
+}: {
+  children: React.ReactNode;
+  hint?: string;
+  title: string;
+}) {
+  return (
+    <section className="space-y-2">
+      <div>
+        <h5 className="text-xs font-semibold text-[#0f172a] dark:text-[#f8fafc]">{title}</h5>
+        {hint && <p className="mt-0.5 text-[11px] leading-relaxed text-[#64748b] dark:text-[#94a3b8]">{hint}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function DetailKeyValueGrid({
+  emptyText,
+  items,
+}: {
+  emptyText: string;
+  items: Array<{ key: string; value: string }>;
+}) {
+  if (items.length === 0) {
+    return <EmptyDetailValue text={emptyText} />;
+  }
+  return (
+    <div className="grid gap-1.5 text-xs">
+      {items.map((item) => (
+        <div
+          key={item.key}
+          className="grid min-w-0 gap-1 rounded-lg border border-[#cbd5e1] bg-white px-2 py-1.5 dark:border-[#334155] dark:bg-[#0f172a] sm:grid-cols-[120px_minmax(0,1fr)]"
+        >
+          <span className="break-all font-medium text-[#64748b] dark:text-[#94a3b8]">{item.key}</span>
+          <span className="break-all text-[#0f172a] dark:text-[#f8fafc]">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyDetailValue({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-3 py-2 text-xs text-[#64748b] dark:border-[#334155] dark:bg-[#0f172a] dark:text-[#94a3b8]">
+      {text}
+    </div>
+  );
+}
+
+function hasProcessEventDetail(event: JobProcessDeveloperView): boolean {
+  return (
+    (event.artifactRefs?.length ?? 0) > 0 ||
+    isRecord(event.metadata?.llmMetrics) ||
+    isRecord(event.metadata?.traceEnvelope) ||
+    typeof event.metadata?.artifactRetained === 'boolean' ||
+    typeof event.metadata?.artifactRef === 'string'
+  );
+}
+
+function getProcessEventRecordMetadata(event: JobProcessDeveloperView, key: string): Record<string, unknown> | null {
+  const value = event.metadata?.[key];
+  return isRecord(value) ? value : null;
+}
+
+function recordToDisplayItems(record: Record<string, unknown> | null): Array<{ key: string; value: string }> {
+  if (!record) {
+    return [];
+  }
+  return Object.entries(record)
+    .map(([key, value]) => ({ key, value: formatDetailValue(value) }))
+    .filter((item) => item.value.length > 0);
+}
+
+function getArtifactMetadataItems(event: JobProcessDeveloperView): Array<{ key: string; value: string }> {
+  const metadata = event.metadata ?? {};
+  const keys = [
+    'artifactRetained',
+    'artifactRef',
+    'artifactKind',
+    'artifactOriginalChars',
+    'artifactRetainedChars',
+    'artifactRedactionState',
+    'artifactStorage',
+    'artifactDataRootScoped',
+    'artifactPath',
+    'contentOriginalChars',
+    'contentRetainedChars',
+    'contentTruncated',
+    'contentTruncatedChars',
+    'contentTruncationLimit',
+    'retention',
+  ];
+  return keys
+    .filter((key) => metadata[key] !== undefined)
+    .map((key) => ({ key, value: formatDetailValue(metadata[key]) }))
+    .filter((item) => item.value.length > 0);
+}
+
+function formatDetailValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value === null) {
+    return 'null';
+  }
+  if (Array.isArray(value)) {
+    return value.map(formatDetailValue).filter(Boolean).join(', ');
+  }
+  if (isRecord(value)) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  }
+  return '';
 }
 
 function getProcessEventIcon(event: JobProcessDeveloperView): React.ReactNode {

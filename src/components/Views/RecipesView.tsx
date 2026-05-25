@@ -439,6 +439,19 @@ const RecipesView: React.FC<RecipesViewProps> = ({
     fetchPageEvolutionCounts(paginatedRecipes);
   }, [paginatedRecipes, fetchPageEvolutionCounts]);
 
+  useEffect(() => {
+    if (!selectedRecipe || !showEvolution) {
+      return;
+    }
+    const closeEvolutionOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowEvolution(false);
+      }
+    };
+    window.addEventListener('keydown', closeEvolutionOnEscape);
+    return () => window.removeEventListener('keydown', closeEvolutionOnEscape);
+  }, [selectedRecipe, showEvolution]);
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -624,17 +637,26 @@ const RecipesView: React.FC<RecipesViewProps> = ({
 
         const evoCount = (recipe.id ? evolutionCounts[recipe.id] : undefined) || { proposals: 0, warnings: 0 };
         const hasEvolution = evoCount.proposals > 0 || evoCount.warnings > 0;
+        const closeEvolutionPanel = () => setShowEvolution(false);
+        const stackedPanelWidth = drawerWide ? 'w-[min(92vw,960px)]' : 'w-[min(92vw,700px)]';
+        const recipePanelWidth = showEvolution
+          ? `${stackedPanelWidth} lg:w-[min(62vw,960px)]`
+          : undefined;
+        const evolutionPanelWidth = `${stackedPanelWidth} lg:w-[min(34vw,560px)]`;
 
         return (
-          <PageOverlay className="z-30 flex justify-end" onClick={closeDrawer}>
+          <PageOverlay className="z-30 flex justify-end overflow-hidden" onClick={closeDrawer}>
             <PageOverlay.Backdrop className="bg-black/20 dark:bg-black/40 backdrop-blur-sm" />
 
             {/* ── Evolution side panel ── */}
             {showEvolution && (
-              <Drawer.Panel size="sm" className="!border-l-0 !shadow-none border-r border-r-[var(--border-default)]">
+              <Drawer.Panel
+                width={evolutionPanelWidth}
+                className="absolute inset-y-0 right-0 z-20 lg:static lg:z-auto lg:!border-l-0 lg:!shadow-none lg:border-r lg:border-r-[var(--border-default)]"
+              >
                 <Drawer.Header title={t('evolution.title')}>
                   <Drawer.HeaderActions>
-                    <Drawer.CloseButton onClose={() => setShowEvolution(false)} />
+                    <Drawer.CloseButton onClose={closeEvolutionPanel} />
                   </Drawer.HeaderActions>
                 </Drawer.Header>
                 <Drawer.Body padded>
@@ -649,7 +671,7 @@ const RecipesView: React.FC<RecipesViewProps> = ({
             )}
 
             {/* ── Main recipe panel ── */}
-            <Drawer.Panel size={drawerWide ? 'lg' : 'md'}>
+            <Drawer.Panel size={drawerWide ? 'lg' : 'md'} width={recipePanelWidth}>
               {/* ── Header ── */}
               <Drawer.Header
                 title={displayName}

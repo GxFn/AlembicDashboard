@@ -39,6 +39,7 @@ import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
 import { getJobEfficiency } from '../../utils/efficiency';
 import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
+import { useDrawerWide } from '../../hooks/useDrawerWide';
 import {
   formatProcessEventSemanticLabel,
   getLlmOutputCompletenessHints,
@@ -189,7 +190,6 @@ function labels(lang: string) {
     artifactDetails: zh ? '产物详情' : 'Artifact details',
     openArtifact: zh ? '打开产物' : 'Open artifact',
     closeDetails: zh ? '关闭详情' : 'Close details',
-    backToTimeline: zh ? '返回 Timeline' : 'Back to timeline',
     timelineProjection: zh ? 'Timeline 摘要投影' : 'Timeline projection',
     projectionHint: zh ? '这里是事件流摘要，不代表完整 prompt / output。完整内容请查看下方 artifact。' : 'This is the event-stream projection, not the complete prompt/output. Use the artifact below for the full retained content.',
     fullArtifact: zh ? '完整 redacted artifact' : 'Full redacted artifact',
@@ -695,6 +695,7 @@ function JobProcessTimeline({
   open: boolean;
   onClose: () => void;
 }) {
+  const { isWide: drawerWide, toggle: toggleDrawerWide } = useDrawerWide();
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('default');
   const [selectedTimelineDetail, setSelectedTimelineDetail] = useState<TimelineDetailSelection | null>(null);
   const isActive = job.status === 'queued' || job.status === 'running';
@@ -810,13 +811,16 @@ function JobProcessTimeline({
   }
 
   const closeTimelineDetail = () => setSelectedTimelineDetail(null);
+  const stackedPanelWidth = drawerWide ? 'w-[min(92vw,960px)]' : 'w-[min(92vw,700px)]';
+  const timelinePanelWidth = selectedDetailEvent ? `${stackedPanelWidth} lg:w-[min(62vw,960px)]` : undefined;
+  const timelineDetailPanelWidth = `${stackedPanelWidth} lg:w-[min(34vw,560px)]`;
 
   return (
     <PageOverlay className="z-30 flex justify-end overflow-hidden" onClick={onClose}>
       <PageOverlay.Backdrop className="bg-black/20 backdrop-blur-sm dark:bg-black/40" />
       {selectedDetailEvent && (
         <Drawer.Panel
-          width="w-full lg:w-[min(34vw,460px)]"
+          width={timelineDetailPanelWidth}
           className="absolute inset-y-0 right-0 z-20 lg:static lg:z-auto lg:!border-l-0 lg:!shadow-none lg:border-r lg:border-r-[var(--border-default)]"
         >
           <JobProcessEventDetailPanel
@@ -828,7 +832,8 @@ function JobProcessTimeline({
         </Drawer.Panel>
       )}
       <Drawer.Panel
-        width={selectedDetailEvent ? 'w-[min(96vw,1280px)] lg:w-[min(62vw,960px)]' : 'w-[min(96vw,1280px)]'}
+        size={drawerWide ? 'lg' : 'md'}
+        width={timelinePanelWidth}
       >
         <Drawer.Header
           leading={<Terminal size={16} className={isActive ? 'text-blue-500' : 'text-[var(--fg-muted)]'} />}
@@ -870,6 +875,7 @@ function JobProcessTimeline({
               <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
               {text.timelineRefresh}
             </button>
+            <Drawer.WidthToggle isWide={drawerWide} onToggle={toggleDrawerWide} />
             <Drawer.CloseButton onClose={onClose} />
           </Drawer.HeaderActions>
         </Drawer.Header>
@@ -1102,18 +1108,6 @@ function JobProcessEventDetailPanel({
   return (
     <>
       <Drawer.Header
-        leading={
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-surface)] hover:text-[var(--fg-primary)]"
-            aria-label={text.backToTimeline}
-            title={text.backToTimeline}
-          >
-            <ChevronLeft size={14} />
-            {text.backToTimeline}
-          </button>
-        }
         title={text.artifactDetails}
         subtitle={event.title}
       >

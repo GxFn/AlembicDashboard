@@ -166,6 +166,7 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /JobProcessTimeline/);
   assert.match(jobs, /import \{ Drawer \} from '\.\.\/Layout\/Drawer'/);
   assert.match(jobs, /import PageOverlay from '\.\.\/Shared\/PageOverlay'/);
+  assert.match(jobs, /import \{ useDrawerWide \} from '\.\.\/\.\.\/hooks\/useDrawerWide'/);
   assert.match(jobs, /artifactRefs/);
   assert.match(jobs, /ProcessEventItem/);
   assert.match(jobs, /formatProcessEventSemanticLabel\(event, text\.lang\)/);
@@ -187,13 +188,18 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.match(jobs, /subtitle=\{timelineSubtitleParts\.join\(' · '\)\}/);
   assert.match(jobs, /<PageOverlay className="z-30 flex justify-end overflow-hidden" onClick=\{onClose\}>/);
   assert.match(jobs, /<PageOverlay\.Backdrop className="bg-black\/20 backdrop-blur-sm dark:bg-black\/40" \/>/);
+  assert.match(jobs, /const \{ isWide: drawerWide, toggle: toggleDrawerWide \} = useDrawerWide\(\)/);
   assert.match(jobs, /const closeTimelineDetail = \(\) => setSelectedTimelineDetail\(null\)/);
   assert.match(jobs, /selectedTimelineDetail[\s\S]*setSelectedTimelineDetail\(null\)[\s\S]*onClose\(\)/);
-  assert.match(jobs, /width="w-full lg:w-\[min\(34vw,460px\)\]"/);
+  assert.match(jobs, /const stackedPanelWidth = drawerWide \? 'w-\[min\(92vw,960px\)\]' : 'w-\[min\(92vw,700px\)\]'/);
+  assert.match(jobs, /const timelinePanelWidth = selectedDetailEvent \? `\$\{stackedPanelWidth\} lg:w-\[min\(62vw,960px\)\]` : undefined/);
+  assert.match(jobs, /const timelineDetailPanelWidth = `\$\{stackedPanelWidth\} lg:w-\[min\(34vw,560px\)\]`/);
+  assert.match(jobs, /width=\{timelineDetailPanelWidth\}/);
   assert.match(jobs, /className="absolute inset-y-0 right-0 z-20 lg:static lg:z-auto lg:!border-l-0 lg:!shadow-none lg:border-r lg:border-r-\[var\(--border-default\)\]"/);
-  assert.match(jobs, /width=\{selectedDetailEvent \? 'w-\[min\(96vw,1280px\)\] lg:w-\[min\(62vw,960px\)\]' : 'w-\[min\(96vw,1280px\)\]'\}/);
+  assert.match(jobs, /<Drawer\.Panel[\s\S]*size=\{drawerWide \? 'lg' : 'md'\}[\s\S]*width=\{timelinePanelWidth\}/);
+  assert.match(jobs, /<Drawer\.WidthToggle isWide=\{drawerWide\} onToggle=\{toggleDrawerWide\} \/>/);
   assert.match(jobs, /<JobProcessEventDetailPanel[\s\S]*onClose=\{closeTimelineDetail\}/);
-  assert.match(jobs, /aria-label=\{text\.backToTimeline\}/);
+  assert.match(jobs, /<Drawer\.CloseButton onClose=\{onClose\} \/>/);
   assert.match(jobs, /<Drawer\.Body padded=\{false\} className="min-h-0 overflow-hidden">/);
   assert.match(jobs, /ref=\{timelineListRef\}/);
   assert.match(jobs, /scrollTimelineToBottom\(timelineListRef\.current\)/);
@@ -228,6 +234,9 @@ test('jobs process timeline consumes typed events contract', () => {
   assert.doesNotMatch(jobs, /border-\[#cbd5e1\] bg-white p-3/);
   assert.doesNotMatch(jobs, /<Drawer open=\{open\} onClose=\{onClose\} size="full">/);
   assert.doesNotMatch(jobs, /lg:grid-cols-\[minmax\(0,1fr\)_minmax\(340px,460px\)\]/);
+  assert.doesNotMatch(jobs, /backToTimeline/);
+  assert.doesNotMatch(jobs, /w-full lg:w-\[min\(34vw,460px\)\]/);
+  assert.doesNotMatch(jobs, /w-\[min\(96vw,1280px\)\]/);
   assert.doesNotMatch(jobs, /line-clamp|max-h-\[/);
   assert.doesNotMatch(jobs, /bg-\[#080b10\]/);
   assert.doesNotMatch(jobs, /isLlmEvent &&/);
@@ -267,6 +276,25 @@ test('jobs process terminal readability rules are enforced in the DOM contract',
   assert.doesNotMatch(jobs, /border-slate-800 bg-slate-900\/80/);
   assert.doesNotMatch(jobs, /bg-slate-900/);
   assert.doesNotMatch(jobs, /text-slate-100/);
+});
+
+test('recipe evolution drawer uses the same responsive stack pattern as timeline details', () => {
+  const recipes = read('src/components/Views/RecipesView.tsx');
+  assert.match(recipes, /<PageOverlay className="z-30 flex justify-end overflow-hidden" onClick=\{closeDrawer\}>/);
+  assert.match(recipes, /const closeEvolutionPanel = \(\) => setShowEvolution\(false\)/);
+  assert.match(recipes, /const stackedPanelWidth = drawerWide \? 'w-\[min\(92vw,960px\)\]' : 'w-\[min\(92vw,700px\)\]'/);
+  assert.match(recipes, /const recipePanelWidth = showEvolution[\s\S]*\$\{stackedPanelWidth\} lg:w-\[min\(62vw,960px\)\][\s\S]*undefined/);
+  assert.match(recipes, /const evolutionPanelWidth = `\$\{stackedPanelWidth\} lg:w-\[min\(34vw,560px\)\]`/);
+  assert.match(recipes, /closeEvolutionOnEscape[\s\S]*setShowEvolution\(false\)/);
+  assert.match(recipes, /width=\{evolutionPanelWidth\}/);
+  assert.match(recipes, /className="absolute inset-y-0 right-0 z-20 lg:static lg:z-auto lg:!border-l-0 lg:!shadow-none lg:border-r lg:border-r-\[var\(--border-default\)\]"/);
+  assert.match(recipes, /<Drawer\.CloseButton onClose=\{closeEvolutionPanel\} \/>/);
+  assert.match(recipes, /<Drawer\.Panel size=\{drawerWide \? 'lg' : 'md'\} width=\{recipePanelWidth\}>/);
+
+  assert.doesNotMatch(recipes, /backToRecipe/);
+  assert.doesNotMatch(recipes, /ChevronLeft/);
+  assert.doesNotMatch(recipes, /<Drawer\.Panel size="sm" className="!border-l-0 !shadow-none border-r border-r-\[var\(--border-default\)\]">/);
+  assert.doesNotMatch(recipes, /<PageOverlay className="z-30 flex justify-end" onClick=\{closeDrawer\}>/);
 });
 
 test('jobs view lets the page scroll without inner list scrolling', () => {

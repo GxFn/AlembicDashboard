@@ -1,28 +1,61 @@
 # AlembicDashboard Agent Instructions
 
-**重要**：本项目是 Alembic 的独立 Dashboard 前端仓库，不是用户项目环境，也不是 Core、Agent 或插件仓库。
+<!-- codex-control-workspace:scope:start -->
+## Workspace 接入卡
 
-Agent 可以制定目标和计划，但目标和计划必须服务于用户提出的真实任务，不能被 Agent 自己偏好的“干净”“薄”“轻量”“空壳”“先搭框架”等路线替换。
+本节由 control workspace 安装脚本维护，只记录本窗口接入坐标和自动化最小门禁。硬规则以父级 AGENTS 与本文件的“本窗口最高停止卡”为准；不要在这里重复仓库专属规则。
 
-Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳接口，不得把迁移、整理、重构、优化或拆仓解释成削减功能。
+### 坐标
 
-当 Agent 的计划涉及删减、替换、降级、延期、只做部分、只搭框架、只保留接口、暂不接入或改变完整范围时，必须先向用户确认。
+- Control workspace: `../codex-control-workspace`
+- Window name: `AlembicDashboard`
+- Parent workspace AGENTS: `../AGENTS.md`
+- Active workspace index: `../codex-control-workspace/.workspace-active/workspace/index.md`
+- Active workspace status: `../codex-control-workspace/.workspace-active/workspace/current/workspace-current-status.md`
+- Current plan directory: `../codex-control-workspace/.workspace-active/workspace/current`
+- Window ledger: `../workspace-ledger/AlembicDashboard`
 
-不要在旧工作区或旧克隆路径下工作；当前统一以本 workspace 内的 Alembic 系列仓库为准。
+### 领取 workspace 任务时
 
-## Visible Automation Dispatch
+1. 先读本文件。
+2. 再读父级 `../AGENTS.md`。
+3. 再读 `../codex-control-workspace/.workspace-active/workspace/index.md` 和 `../codex-control-workspace/.workspace-active/workspace/current/workspace-current-status.md`。
+4. 如果有当前计划、任务包或 VAD heartbeat，只按 `../codex-control-workspace/.workspace-active/workspace/current` 中明确分配给 `AlembicDashboard` 的内容执行。
 
-- 如果本窗口通过 AlembicWorkspace 的 Visible Automation Dispatch heartbeat 唤醒，先读取 workspace `AGENTS.md`、当前总控文档、`skills/dev/visible-automation-dispatch-target/SKILL.md` 和本文件。
-- 只允许 claim / finish `AlembicDashboard` 目标任务；不得代领、处理、验证或总结其它窗口任务。
-- 下一跳 heartbeat 只是投递信封；只有 finish JSON 明确 `handoffPolicy=target-courier` 且 `courierAllowed=true` 时，才可按 payload 创建下一条 automation 并 record-arm。不得 claim / finish 下一窗口任务。
-- `AlembicTest` 下一跳默认由总控调起；本窗口不得处理 `AlembicTest` 任务或把非测试 smoke 误写成真实测试结论。
+### VAD 最小门禁
 
-## 文档存储提示
+- Automation 只是唤醒信封，不改变本窗口职责，也不扩大任务范围；具体任务仍以 claim 结果和当前计划为准。
+- VAD 模式下只允许 claim / finish `AlembicDashboard` 对应任务；`claim --json` 没有返回本窗口任务时必须停止。
+- 只有 finish JSON 同时明确允许下一跳时，才可创建下一条 heartbeat；否则停止并回报总控。
+- 非 TestWindow 不得创建、处理或验证 TestWindow heartbeat，除非当前计划和 finish JSON 同时显式授权。
+- Thread id 只能写入 control workspace 的本地 runtime；不得写入 tracked 文档、回填正文或 GitHub。
 
-- 新建长期迁移、计划、验收、扫描、边界和跨仓库任务文档时，统一写到 workspace 根目录的 `docs/AlembicDashboard/`，不要散落到各子仓库或 workspace `docs/` 根层级。
-- AlembicCore 迁移手册、公开 API 边界、阶段验收、外层接入和删除任务统一写到 `docs/AlembicCore/`；本仓库只执行其中分配给 `AlembicDashboard` 窗口的任务。
-- 仓库内 `docs/` 只放随源码长期维护的产品文档、发布文档或用户文档；不要放跨仓库协作临时文档。
-- 长期文档不得写入用户本机绝对路径、API key、token 或其它私密信息。
+### 文档落点
+
+- 长期跨仓库协作文档、计划、验收、扫描和边界记录写入 `../workspace-ledger/AlembicDashboard`；本仓库 `docs/` 只放随源码维护的产品、发布或用户文档。
+<!-- codex-control-workspace:scope:end -->
+
+## 本窗口最高停止卡
+
+本仓库是 Alembic Dashboard 前端仓库，不是用户项目环境，也不是 Core、Agent、Plugin、CLI 或 daemon 仓库。本节是仓库级执行前停止卡。
+
+### 先停下
+
+- 如果当前任务没有明确分配给 `AlembicDashboard`，或当前目录不是本仓库，停止并回报总控。
+- 如果准备把用户可见 UI 改成静态 mock、营销页、空壳预览或无后端契约的数据假象，停止。
+- 如果要把后端持久化、SQLite/Drizzle migration、AST/grammar、AI provider、tool execution 或 Agent 决策放进前端仓库，停止。
+- 如果前端 API contract 无法追溯到后端真实接口，或 mock 被当成真实连通性验证，停止。
+- 如果 UI 改动没有覆盖 loading、empty、error、partial data、long-running task 和失败路径，停止补齐判断。
+- 如果复杂交互、布局或可视化改动没有浏览器验证和截图检查，不能回填为完成。
+- 如果要修改相邻仓库，当前计划没有明确授权时停止。
+- 如果没有提交 hash 或明确 no-commit 理由、验证命令、验证结果、遗留风险和下一步建议，不能回填为完成。
+
+### 正确顺序
+
+1. 先确认真实用户工作流、后端 API contract 和现有视觉 / 交互模式。
+2. 再实现页面、组件、状态和 API client。
+3. 验证类型、构建、关键交互和必要截图。
+4. 最后回填证据、风险和后端依赖。
 
 ## 操作范围
 
@@ -46,7 +79,7 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 - 与 `AlembicCore` 相关的能力只作为共享类型、契约或后端能力结果展示；不得把 Core 运行时逻辑复制到 Dashboard。
 - 与 `AlembicAgent` 相关的能力只作为 Agent 任务、工具调用、执行计划、诊断结果和状态展示；不得在 Dashboard 中直接实现 Agent 决策或 tool execution。
 
-## 抽取后契约
+## 职责边界
 
 - `AlembicDashboard` 是 Dashboard 前端源码唯一维护点；外层仓库只能消费本仓库源码构建出的前端产物，不再维护自己的 `dashboard/src`、`dashboard/public` 或 Vite 配置副本。
 - 当前前端基线来自 `Alembic/dashboard`，并作为权威实现保留；`AlembicPlugin/dashboard` 只能作为兼容审计材料，不能反向覆盖或降级本仓库实现。
@@ -54,9 +87,6 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 - `package.json` 保持可复现的前端构建入口；`npm run build` 必须执行 TypeScript 检查和 Vite production build。
 - `package-lock.json` 是依赖复现契约，依赖变更必须连同 lockfile 一起提交。
 - `dist/`、`node_modules/`、`.vite/` 等生成物只用于本地验证，必须保持 ignored，不提交。
-
-## 本仓库必须保留的边界
-
 - Dashboard 页面、布局、组件、交互、图表、状态管理和数据获取。
 - 前端 API client、错误归一化、loading/empty/error 状态。
 - 本地开发体验、前端测试、Story/fixture、可访问性和响应式布局。
@@ -64,15 +94,16 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 
 这些能力不能因为 Core、Agent 或外层主仓库存在而被空壳化或删除。
 
-## 需要测试时
+## 验证与回填
 
 - 新建项目后，应在 `package.json` 中提供清晰脚本，例如 `npm run build`、`npm run lint`、`npm run test`、`npm run typecheck`。
 - UI 改动至少运行类型检查和前端构建。
 - 数据模型、API client 或状态管理改动需要补充单元测试。
 - 复杂交互、布局和可视化改动需要浏览器验证和截图检查。
 - 不要把静态 mock 预览当作真实后端连通性验证。
+- 回填必须写清完成范围、提交 hash、验证命令、验证结果、浏览器 / 截图证据或不需要截图的理由、遗留风险和下一步建议。
 
-## 文件存放约定
+## 文件地图
 
 - 正式源码优先放在 `src/`。
 - 页面和路由放在 `src/pages/` 或本项目约定的路由目录。
@@ -81,9 +112,9 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 - 状态管理放在 `src/state/`、`src/store/` 或本项目约定目录。
 - 测试放在 `test/` 或与源码同目录的 `*.test.ts(x)`。
 - 构建产物如 `dist/` 必须保持 ignored，不提交。
-- workspace 级长期协作文档按上方 `文档存储提示` 归档。
+- workspace 级长期协作文档按 Workspace 接入卡中的 `Window ledger` 归档。
 
-## 技术栈与编码约定
+## 技术与代码规则
 
 - 默认前端技术栈：TypeScript、React、Vite；如果项目初始化时选择其他技术栈，必须在本文档同步更新。
 - 模块系统优先使用 ESM。
@@ -92,9 +123,6 @@ Agent 不得把完整实现改成薄实现，不得把成熟能力改成空壳�
 - 前端设计要服务 Alembic 的工作流：信息密度适中、状态清晰、可扫描、可比较、可恢复。
 - 必须尽量多地在代码旁补充简体中文说明，优先解释复杂状态机、迁移边界、API 兼容、UI 状态分叉、降级展示、兼容字段和后续校验方式。
 - 任何运行时分叉、fallback、降级、兼容转译、跳过、短路、重试、取消或错误归类，都必须打印足够明确的日志、诊断事件或可观测前端状态，日志要能看出触发条件、选择路径、关键输入、结果状态和后续校验依据。
-
-## 类型安全与代码规则
-
 - API 输入先归一化再进入 UI 状态。
 - `catch` 块使用 `catch (err: unknown)` + 类型守卫，禁止 `catch (err: any)`。
 - 避免 `as any`；不得已时在附近说明真实边界原因。

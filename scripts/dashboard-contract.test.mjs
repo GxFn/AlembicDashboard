@@ -20,29 +20,27 @@ test('package exposes real local quality gates', () => {
   assert.match(pkg.scripts.test, /dashboard-contract\.test\.mjs/);
 });
 
-test('mock cleanup path reports success and failure through notifications', () => {
+test('dashboard does not expose product AI mock UI or cleanup API', () => {
   const header = read('src/components/Layout/Header.tsx');
+  const api = read('src/api.ts');
+  const llmConfig = read('src/components/Modals/LlmConfigModal.tsx');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
   const start = header.indexOf('const handleSelectAi');
   const end = header.indexOf('const loadProviders');
   assert.ok(start >= 0 && end > start, 'AI provider switch handler should be present');
 
   const block = header.slice(start, end);
-  assert.match(block, /api\.cleanupMockData\(\)/);
-  assert.match(block, /notify\(t\('header\.mockCleanupSuccessBody'/);
-  assert.match(block, /notify\(getErrorMessage\(err, t\('header\.mockCleanupFailedBody'\)\)/);
-  assert.doesNotMatch(block, /console\.(log|error)\([^)]*cleanup/i);
-
-  const zh = read('src/i18n/locales/zh.ts');
-  const en = read('src/i18n/locales/en.ts');
-  for (const key of [
-    'mockCleanupSuccessTitle',
-    'mockCleanupSuccessBody',
-    'mockCleanupFailedTitle',
-    'mockCleanupFailedBody',
-  ]) {
-    assert.match(zh, new RegExp(`${key}:`), `zh locale must define ${key}`);
-    assert.match(en, new RegExp(`${key}:`), `en locale must define ${key}`);
-  }
+  assert.match(block, /api\.saveLlmEnvConfig/);
+  assert.doesNotMatch(block, /cleanupMockData/);
+  assert.doesNotMatch(block, /mockSwitch/);
+  assert.doesNotMatch(block, /provider === ['"]mock['"]/);
+  assert.doesNotMatch(header, /FlaskConical/);
+  assert.doesNotMatch(header, /mockModeHint/);
+  assert.doesNotMatch(api, /cleanupMockData|ai\/mock\/cleanup/);
+  assert.doesNotMatch(llmConfig, /providers\.mock|p => p\.id !== ['"]mock['"]/);
+  assert.doesNotMatch(zh, /mockModeHint|mockSwitch|mockCleanup|Mock \(测试\)/);
+  assert.doesNotMatch(en, /mockModeHint|mockSwitch|mockCleanup|Mock \(Test\)/);
 });
 
 test('header nests terminal and sandbox details under runtime route badge', () => {

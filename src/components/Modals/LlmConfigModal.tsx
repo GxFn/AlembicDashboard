@@ -20,7 +20,6 @@ const PROVIDER_LABEL_KEYS: Record<string, string> = {
   deepseek: 'llmConfig.providers.deepseek',
   claude: 'llmConfig.providers.claude',
   ollama: 'llmConfig.providers.ollama',
-  mock: 'llmConfig.providers.mock',
 };
 
 const PROVIDER_KEY_ENVS: Record<string, string> = {
@@ -80,14 +79,21 @@ const LlmConfigModal: React.FC<LlmConfigModalProps> = ({ onClose, onSaved }) => 
         api.getLlmEnvConfig(),
         api.getAiProviders().catch(() => [] as AiProviderInfo[]),
       ]);
-      const filtered = providerList.filter(p => p.id !== 'mock');
-      if (filtered.length > 0) setProviders(filtered);
+      if (providerList.length > 0) setProviders(providerList);
 
       setHasWorkspaceConfig(Boolean(data.hasSettingsFile || data.hasSecretsFile));
       const vars = data.vars || {};
-      const currentProvider = vars.ALEMBIC_AI_PROVIDER || 'google';
+      const configuredProvider = vars.ALEMBIC_AI_PROVIDER || 'google';
+      const currentProvider = providerList.some(p => p.id === configuredProvider)
+        ? configuredProvider
+        : providerList[0]?.id || 'google';
       setProvider(currentProvider);
-      if (vars.ALEMBIC_AI_MODEL) setModel(vars.ALEMBIC_AI_MODEL);
+      const currentProviderInfo = providerList.find(p => p.id === currentProvider);
+      if (vars.ALEMBIC_AI_MODEL && configuredProvider === currentProvider) {
+        setModel(vars.ALEMBIC_AI_MODEL);
+      } else if (currentProviderInfo?.defaultModel) {
+        setModel(currentProviderInfo.defaultModel);
+      }
       if (vars.ALEMBIC_AI_PROXY) setProxy(vars.ALEMBIC_AI_PROXY);
       if (vars.ALEMBIC_AI_REASONING_EFFORT) setReasoningEffort(vars.ALEMBIC_AI_REASONING_EFFORT);
       if (vars.ALEMBIC_EMBED_PROVIDER) {
@@ -99,7 +105,7 @@ const LlmConfigModal: React.FC<LlmConfigModalProps> = ({ onClose, onSaved }) => 
       setActiveTab(currentProvider);
 
       const states: Record<string, ProviderState> = {};
-      for (const p of filtered) {
+      for (const p of providerList) {
         states[p.id] = { apiKey: '', probeStatus: 'idle' };
       }
       setProviderStates(states);

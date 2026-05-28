@@ -2384,11 +2384,6 @@ export const api = {
     return res.data?.data || { provider, model };
   },
 
-  async cleanupMockData(): Promise<{ deleted: number }> {
-    const res = await http.post('/ai/mock/cleanup');
-    return res.data?.data || { deleted: 0 };
-  },
-
   async chat(
     prompt: string,
     history: Array<{ role: string; content: string }>,

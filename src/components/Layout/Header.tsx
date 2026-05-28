@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowRightLeft, Cpu, ChevronDown, ChevronRight, Settings, Search, Zap, FlaskConical, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server, FolderGit2, ExternalLink, RefreshCw, Power, CheckCircle2, AlertTriangle, CircleOff, Loader2 } from 'lucide-react';
+import { ArrowRightLeft, Cpu, ChevronDown, ChevronRight, Settings, Search, Zap, FlaskRound, TerminalSquare, ShieldCheck, ShieldAlert, Eye, Server, FolderGit2, ExternalLink, RefreshCw, Power, CheckCircle2, AlertTriangle, CircleOff, Loader2 } from 'lucide-react';
 import api from '../../api';
 import { getSocket } from '../../lib/socket';
 import { useI18n } from '../../i18n';
@@ -396,35 +396,6 @@ const Header: React.FC<HeaderProps> = ({
 
   /* ── AI 提供商切换 ── */
   const handleSelectAi = async (provider: AiProvider) => {
-    const isSwitchingFromMock = aiConfig?.provider === 'mock' && provider.id !== 'mock';
-    const isSwitchingToMock = aiConfig?.provider !== 'mock' && provider.id === 'mock';
-
-    // 切换到 Mock 模式时，提醒用户
-    if (isSwitchingToMock) {
-      if (!window.confirm(t('header.mockSwitchToConfirm'))) {
-        return;
-      }
-    }
-
-    // 从 Mock 切出时，询问是否清理伪造数据
-    if (isSwitchingFromMock) {
-      const shouldClean = window.confirm(t('header.mockSwitchFromConfirm'));
-      if (shouldClean) {
-        try {
-          const result = await api.cleanupMockData();
-          notify(t('header.mockCleanupSuccessBody', { count: result.deleted }), {
-            title: t('header.mockCleanupSuccessTitle'),
-            type: 'success',
-          });
-        } catch (err: unknown) {
-          notify(getErrorMessage(err, t('header.mockCleanupFailedBody')), {
-            title: t('header.mockCleanupFailedTitle'),
-            type: 'error',
-          });
-        }
-      }
-    }
-
     setAiSwitching(true);
     try {
       onBeforeAiSwitch?.();
@@ -763,28 +734,17 @@ const Header: React.FC<HeaderProps> = ({
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-1.5 focus-visible:ring-0 focus-visible:ring-offset-0">
                   <span className="relative shrink-0">
-                    {aiConfig.provider === 'mock' ? (
-                      <FlaskConical size={14} className="text-amber-500" />
-                    ) : (
-                      <Cpu size={14} />
-                    )}
+                    <Cpu size={14} />
                     <span
                       className={cn(
                         "absolute -top-0.5 -right-0.5 w-[6px] h-[6px] rounded-full ring-1 ring-[var(--bg-root)]",
-                        aiConfig.provider === 'mock'
-                          ? "bg-amber-500"
-                          : currentProviderHasKey === false
-                            ? "bg-red-400"
-                            : "bg-emerald-500"
+                        currentProviderHasKey === false
+                          ? "bg-red-400"
+                          : "bg-emerald-500"
                       )}
                     />
                   </span>
                   <span className="text-xs" title={`${aiConfig.provider}/${aiConfig.model}`}>{midEllipsis(aiConfig.model, 28)}</span>
-                  {aiConfig.provider === 'mock' && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-medium shrink-0">
-                      Mock
-                    </span>
-                  )}
                   {tokenSummary && tokenSummary.total_tokens > 0 && (
                     <span className="flex items-center gap-0.5 ml-0.5 text-[10px] text-[var(--fg-subtle)] tabular-nums shrink-0">
                       <Zap size={9} className="text-amber-500/70" />{fmtTokens(tokenSummary.total_tokens)}
@@ -795,11 +755,6 @@ const Header: React.FC<HeaderProps> = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>{t('header.switchAi')}</DropdownMenuLabel>
-                {aiConfig.provider === 'mock' && (
-                  <div className="px-2 py-1.5 text-[11px] text-amber-500/80 bg-amber-500/5 rounded mx-1 mb-1">
-                    🧪 {t('header.mockModeHint')}
-                  </div>
-                )}
                 <DropdownMenuSeparator />
                 {aiProviders.length === 0 ? (
                   <DropdownMenuItem disabled>{t('common.loading')}</DropdownMenuItem>

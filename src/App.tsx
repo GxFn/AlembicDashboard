@@ -731,7 +731,7 @@ const App: React.FC = () => {
   }
   };
 
-  /** 增量扫描：保留已有 Recipe，重新分析并补齐缺失知识（内部 AI 自动补齐） */
+  /** 增量扫描：保留已有 Recipe，重新分析并补齐缺失知识（API AI 自动补齐） */
   const handleRescan = async () => {
   if (isScanning) return;
   if (abortControllerRef.current) abortControllerRef.current.abort();

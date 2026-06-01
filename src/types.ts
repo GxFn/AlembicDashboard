@@ -141,7 +141,7 @@ export interface RuntimeJobsCapability {
   store?: string | null;
 }
 
-export interface RuntimeInternalAiCapability {
+export interface RuntimeApiAiCapability {
   available: boolean | null;
   configSource: RuntimeAiConfigSource;
   provider: string | null;
@@ -183,7 +183,7 @@ export interface RuntimeBoundary {
     dashboard?: RuntimeDashboardCapability;
     fileMonitor?: RuntimeFileMonitorCapability;
     jobs?: RuntimeJobsCapability;
-    internalAi?: RuntimeInternalAiCapability;
+    apiAi?: RuntimeApiAiCapability;
     projectScope?: RuntimeProjectScopeCapability;
   };
   hostAgentRoute?: RuntimeHostAgentRoute;

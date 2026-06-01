@@ -572,7 +572,7 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
   const runtimeDashboard = asRuntimeRecord(runtimeBoundary?.dashboard);
   const runtimeFileMonitor = asRuntimeRecord(runtimeBoundary?.fileMonitor);
   const runtimeJobs = asRuntimeRecord(runtimeBoundary?.jobs);
-  const runtimeInternalAi = asRuntimeRecord(runtimeBoundary?.internalAi);
+  const runtimeApiAi = asRuntimeRecord(runtimeBoundary?.apiAi);
   const runtimeProjectScopeCapability = asRuntimeRecord(runtimeBoundary?.projectScope);
   const serviceScope = asRuntimeRecord(daemon.serviceScope);
   const serviceProjectIdentity = asRuntimeRecord(serviceScope?.projectIdentity);
@@ -581,7 +581,7 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
   const dashboardCapability = asRuntimeRecord(capabilities.dashboard);
   const fileMonitorCapability = asRuntimeRecord(capabilities.fileMonitor);
   const jobsCapability = asRuntimeRecord(capabilities.jobs);
-  const internalAiCapability = asRuntimeRecord(capabilities.internalAi);
+  const apiAiCapability = asRuntimeRecord(capabilities.apiAi);
   const projectScopeCapability = asRuntimeRecord(capabilities.projectScope);
   const hostAgentRoute =
     asRuntimeRecord(daemon.hostAgentRoute) ??
@@ -677,14 +677,14 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
             store: firstString(runtimeJobs?.store),
           }
         : undefined,
-      internalAi: internalAiCapability || runtimeInternalAi
+      apiAi: apiAiCapability || runtimeApiAi
         ? {
-            available: firstBoolean(internalAiCapability?.available, runtimeInternalAi?.available),
-            configSource: firstString(internalAiCapability?.configSource, runtimeInternalAi?.configSource) ?? 'unknown',
-            provider: firstString(internalAiCapability?.provider, runtimeInternalAi?.provider),
-            model: firstString(internalAiCapability?.model, runtimeInternalAi?.model),
-            owner: firstString(runtimeInternalAi?.owner),
-            runtimeOwner: firstString(runtimeInternalAi?.runtimeOwner),
+            available: firstBoolean(apiAiCapability?.available, runtimeApiAi?.available),
+            configSource: firstString(apiAiCapability?.configSource, runtimeApiAi?.configSource) ?? 'unknown',
+            provider: firstString(apiAiCapability?.provider, runtimeApiAi?.provider),
+            model: firstString(apiAiCapability?.model, runtimeApiAi?.model),
+            owner: firstString(runtimeApiAi?.owner),
+            runtimeOwner: firstString(runtimeApiAi?.runtimeOwner),
           }
         : undefined,
       projectScope: projectScopeCapability || runtimeProjectScopeCapability
@@ -2042,7 +2042,7 @@ export const api = {
     return res.data || { success: true };
   },
 
-  /** 增量扫描：保留已有 Recipe，重新分析项目，内部 AI 补齐缺失知识 */
+  /** 增量扫描：保留已有 Recipe，重新分析项目，API AI 补齐缺失知识 */
   async rescan(opts?: { reason?: string; dimensions?: string[] }, signal?: AbortSignal) {
     const res = await http.post('/modules/rescan', opts || {}, { signal, timeout: 300000 });
     const data = res.data?.data || {};

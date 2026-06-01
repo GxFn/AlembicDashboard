@@ -436,8 +436,8 @@ const Header: React.FC<HeaderProps> = ({
   const fileMonitorLabel = runtimeBoundary
     ? t(availabilityLabelKey(runtimeBoundary.capabilities.fileMonitor?.available))
     : '';
-  const internalAiLabel = runtimeBoundary
-    ? t(availabilityLabelKey(runtimeBoundary.capabilities.internalAi?.available))
+  const apiAiLabel = runtimeBoundary
+    ? t(availabilityLabelKey(runtimeBoundary.capabilities.apiAi?.available))
     : '';
   const dashboardHandoff = runtimeBoundary?.capabilities.dashboard?.handoff;
   const terminalCapability = testMode?.terminal.enabled ? testMode.terminal : null;
@@ -646,7 +646,7 @@ const Header: React.FC<HeaderProps> = ({
                   <p>{t('header.runtimeWorkspaceMode')}: {runtimeBoundary.project.workspaceMode}</p>
                 )}
                 <p>{t('header.runtimeFileMonitor')}: {fileMonitorLabel}</p>
-                <p>{t('header.runtimeInternalAi')}: {internalAiLabel}</p>
+                <p>{t('header.runtimeApiAi')}: {apiAiLabel}</p>
                 {dashboardHandoff && (
                   <p>{t('header.runtimeDashboardHandoff')}: {dashboardHandoff}</p>
                 )}

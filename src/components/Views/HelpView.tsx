@@ -174,7 +174,7 @@ const HelpView: React.FC = () => {
                   <li dangerouslySetInnerHTML={{ __html: t('help.recipeBullet3') }} />
                 </ul>
               </div>
-              {/* 5. Alembic internal AI */}
+              {/* 5. Alembic API AI */}
               <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
                 <h4 className="font-semibold text-indigo-900 mb-2 flex items-center gap-2">
                   <ArrowRightLeft size={ICON_SIZES.lg} />
@@ -226,7 +226,7 @@ const HelpView: React.FC = () => {
                   <li dangerouslySetInnerHTML={{ __html: t('help.guardCompBullet3') }} />
                 </ul>
               </div>
-              {/* 8. Codex host agent + internal AI */}
+              {/* 8. Codex host agent + API AI */}
               <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
                 <h4 className="font-semibold text-teal-900 mb-2 flex items-center gap-2">
                   <MonitorSmartphone size={ICON_SIZES.lg} />
@@ -648,35 +648,35 @@ const HelpView: React.FC = () => {
             </div>
           </div>
 
-          {/* Internal AI jobs */}
+          {/* API AI jobs */}
           <div className="mt-5">
             <h3 className="font-semibold text-[var(--fg-primary)] mb-3 flex items-center gap-2">
               <MonitorSmartphone size={ICON_SIZES.lg} className="text-blue-600" />
-              {t('help.internalAiWorkflows')}
+              {t('help.apiAiWorkflows')}
             </h3>
-            <p className="text-[var(--fg-secondary)] text-sm mb-3">{t('help.internalAiWorkflowsDesc')}</p>
+            <p className="text-[var(--fg-secondary)] text-sm mb-3">{t('help.apiAiWorkflowsDesc')}</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
               <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
-                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.internalAiTaskJobs')}</h4>
-                <p className="text-[var(--fg-secondary)] text-xs">{t('help.internalAiTaskJobsDesc')}</p>
+                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.apiAiTaskJobs')}</h4>
+                <p className="text-[var(--fg-secondary)] text-xs">{t('help.apiAiTaskJobsDesc')}</p>
               </div>
               <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
-                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.internalAiGuardReview')}</h4>
-                <p className="text-[var(--fg-secondary)] text-xs">{t('help.internalAiGuardReviewDesc')}</p>
+                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.apiAiGuardReview')}</h4>
+                <p className="text-[var(--fg-secondary)] text-xs">{t('help.apiAiGuardReviewDesc')}</p>
               </div>
               <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
-                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.internalAiKnowledgeFlow')}</h4>
-                <p className="text-[var(--fg-secondary)] text-xs">{t('help.internalAiKnowledgeFlowDesc')}</p>
+                <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-1">{t('help.apiAiKnowledgeFlow')}</h4>
+                <p className="text-[var(--fg-secondary)] text-xs">{t('help.apiAiKnowledgeFlowDesc')}</p>
               </div>
             </div>
             <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg p-3">
               <h4 className="font-semibold text-[var(--fg-primary)] text-sm mb-2">Commands</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs text-[var(--fg-secondary)]">
-                <p>{t('help.internalAiCmd1')}</p>
-                <p>{t('help.internalAiCmd2')}</p>
-                <p>{t('help.internalAiCmd3')}</p>
-                <p>{t('help.internalAiCmd4')}</p>
-                <p>{t('help.internalAiCmd5')}</p>
+                <p>{t('help.apiAiCmd1')}</p>
+                <p>{t('help.apiAiCmd2')}</p>
+                <p>{t('help.apiAiCmd3')}</p>
+                <p>{t('help.apiAiCmd4')}</p>
+                <p>{t('help.apiAiCmd5')}</p>
               </div>
             </div>
           </div>

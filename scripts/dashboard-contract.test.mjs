@@ -12,7 +12,7 @@ function read(relativePath) {
 
 test('package exposes real local quality gates', () => {
   const pkg = JSON.parse(read('package.json'));
-  for (const scriptName of ['lint', 'test', 'typecheck', 'build', 'check']) {
+  for (const scriptName of ['lint', 'test', 'typecheck', 'build', 'build:check', 'check']) {
     assert.equal(typeof pkg.scripts?.[scriptName], 'string', `${scriptName} script is required`);
     assert.doesNotMatch(pkg.scripts[scriptName], /echo|exit\s+0|true/, `${scriptName} must not be a placeholder`);
   }
@@ -66,6 +66,40 @@ test('header nests terminal and sandbox details under runtime route badge', () =
   assert.match(testModeBlock, /t\('bootstrap\.testMode'\)/);
   assert.doesNotMatch(testModeBlock, /terminalCapability/);
   assert.doesNotMatch(testModeBlock, /sandbox\./);
+});
+
+test('dashboard consumes API AI runtime contract naming', () => {
+  const types = read('src/types.ts');
+  const api = read('src/api.ts');
+  const header = read('src/components/Layout/Header.tsx');
+  const help = read('src/components/Views/HelpView.tsx');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+  const activeRuntimeText = [types, api, header, help, zh, en].join('\n');
+  const blockedRuntimeTokens = [
+    ['internal', 'Ai'].join(''),
+    ['internal', '-ai'].join(''),
+    ['Internal', 'Ai'].join(''),
+    ['Internal', ' AI'].join(''),
+    ['jobs.', 'internal', '-ai'].join(''),
+    ['Alembic', 'Internal', 'Ai'].join(''),
+    ['ProjectRuntime', 'Internal', 'Ai'].join(''),
+  ];
+  const blockedRuntimePattern = new RegExp(
+    blockedRuntimeTokens.map((token) => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+  );
+
+  assert.match(types, /interface RuntimeApiAiCapability/);
+  assert.match(types, /apiAi\?: RuntimeApiAiCapability/);
+  assert.match(api, /runtimeBoundary\?\.apiAi/);
+  assert.match(api, /capabilities\.apiAi/);
+  assert.match(api, /apiAi: apiAiCapability \|\| runtimeApiAi/);
+  assert.match(header, /runtimeBoundary\.capabilities\.apiAi\?\.available/);
+  assert.match(header, /t\('header\.runtimeApiAi'\)/);
+  assert.match(help, /help\.apiAiWorkflows/);
+  assert.match(en, /runtimeApiAi: 'API AI'/);
+  assert.match(zh, /runtimeApiAi: 'API AI'/);
+  assert.doesNotMatch(activeRuntimeText, blockedRuntimePattern);
 });
 
 test('markdown renderer is typed and heavy renderers are lazy-loaded', () => {

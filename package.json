@@ -9,6 +9,7 @@
     "test": "node --test scripts/dashboard-contract.test.mjs",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run test && npm run typecheck && npm run build",
+    "build:check": "npm run build",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

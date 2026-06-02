@@ -476,3 +476,13 @@ test('project scope panel consumes Alembic ProjectScope API without fake source 
     assert.match(en, new RegExp(`${key}:`), `en locale must define ${key}`);
   }
 });
+
+test('project scope panel falls back to current project folder name when scope is unbound', () => {
+  const panel = read('src/components/Layout/ProjectScopePanel.tsx');
+
+  assert.match(panel, /function projectDisplayNameFromRuntime\(runtimeBoundary\?: RuntimeBoundary\)/);
+  assert.match(panel, /runtimeBoundary\?\.project\.projectRoot/);
+  assert.match(panel, /folderName \|\| runtimeBoundary\?\.project\.projectId/);
+  assert.match(panel, /summary\?\.displayName \?\? projectDisplayNameFromRuntime\(runtimeBoundary\)/);
+  assert.doesNotMatch(panel, /summary\?\.displayName \?\? runtimeBoundary\?\.project\.projectId/);
+});

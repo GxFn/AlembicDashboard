@@ -32,6 +32,12 @@ function sourceFoldersFor(
   return folders.filter((folder) => pathKey(folder.path) !== controlRootKey);
 }
 
+function projectDisplayNameFromRuntime(runtimeBoundary?: RuntimeBoundary): string | null {
+  const projectRoot = runtimeBoundary?.project.projectRoot?.replace(/\\/g, '/').replace(/\/+$/, '');
+  const folderName = projectRoot?.split('/').filter(Boolean).pop();
+  return folderName || runtimeBoundary?.project.projectId || null;
+}
+
 function ProjectScopeField({
   label,
   value,
@@ -67,7 +73,7 @@ export function ProjectScopePanel({ runtimeBoundary }: { runtimeBoundary?: Runti
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const sourceFolders = useMemo(() => sourceFoldersFor(folders, summary), [folders, summary]);
-  const displayName = summary?.displayName ?? runtimeBoundary?.project.projectId ?? t('header.projectScopeTitle');
+  const displayName = summary?.displayName ?? projectDisplayNameFromRuntime(runtimeBoundary) ?? t('header.projectScopeTitle');
   const storageKind = summary?.storageKind ?? '—';
   const readyText = loading ? t('header.projectScopeLoading') : t('header.projectScopeReady');
   const folderCountText = t('header.projectScopeFolderCount', { count: sourceFolders.length });

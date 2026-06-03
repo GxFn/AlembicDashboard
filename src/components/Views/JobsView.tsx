@@ -29,9 +29,17 @@ import {
 } from 'lucide-react';
 import api, {
   type DaemonJobRecord,
+  type JobDisplaySnapshotArtifactRef,
+  type JobDisplaySnapshotEvidenceIncomplete,
+  type JobDisplaySnapshotEvidenceItem,
+  type JobDisplaySnapshotLlmIoEntry,
+  type JobDisplaySnapshotResponse,
+  type JobDisplaySnapshotSummaryRef,
+  type JobDisplaySnapshotWarning,
   type JobProcessArtifactContent,
   type JobProcessArtifactRef,
   type JobProcessDeveloperView,
+  normalizeJobDisplaySnapshotSummaryRef,
 } from '../../api';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
@@ -167,6 +175,42 @@ function labels(lang: string) {
     evidenceSource: zh ? '来源' : 'Source',
     reason: zh ? '原因' : 'Reason',
     diagnostics: zh ? '诊断' : 'Diagnostics',
+    displaySnapshot: zh ? 'Display snapshot' : 'Display snapshot',
+    openSnapshot: zh ? '查看 snapshot' : 'View snapshot',
+    snapshotLoading: zh ? '正在读取持久化 snapshot' : 'Loading persisted snapshot',
+    snapshotLoadFailed: zh ? 'snapshot 读取失败' : 'Failed to load snapshot',
+    snapshotUnavailable: zh ? '未发现 snapshot 索引；打开后会读取后端诊断快照。' : 'Snapshot index is missing; opening will read the backend diagnostic snapshot.',
+    snapshotPersisted: zh ? '已持久化' : 'Persisted',
+    snapshotNotPersisted: zh ? '后端返回诊断快照，未持久化' : 'Diagnostic snapshot returned, not persisted',
+    snapshotRef: zh ? 'Snapshot ref' : 'Snapshot ref',
+    snapshotVersion: zh ? '版本' : 'Version',
+    snapshotChecksum: zh ? 'Checksum' : 'Checksum',
+    snapshotWarnings: zh ? '警告' : 'Warnings',
+    snapshotIncomplete: zh ? '证据不完整' : 'Evidence incomplete',
+    snapshotValidation: zh ? 'Contract validation' : 'Contract validation',
+    snapshotManifest: zh ? 'Manifest' : 'Manifest',
+    snapshotIdentity: zh ? 'Snapshot identity' : 'Snapshot identity',
+    jobIdentity: zh ? 'Job identity' : 'Job identity',
+    contractVersion: zh ? 'Contract 版本' : 'Contract version',
+    phaseTimeline: zh ? '阶段 timeline' : 'Phase timeline',
+    llmIo: zh ? 'LLM I/O' : 'LLM I/O',
+    snapshotEvents: zh ? 'Snapshot events' : 'Snapshot events',
+    sourceRefs: zh ? 'SourceRefs' : 'Source refs',
+    findings: zh ? 'Findings' : 'Findings',
+    evidenceIncomplete: zh ? '证据不完整' : 'Evidence incomplete',
+    persisted: zh ? '持久化' : 'Persisted',
+    available: zh ? '可用' : 'Available',
+    unavailable: zh ? '不可用' : 'Unavailable',
+    ref: zh ? 'Ref' : 'Ref',
+    retained: zh ? '保留' : 'Retained',
+    truncated: zh ? '截断' : 'Truncated',
+    redaction: zh ? 'Redaction' : 'Redaction',
+    content: zh ? '内容' : 'Content',
+    message: zh ? '消息' : 'Message',
+    phase: zh ? '阶段' : 'Phase',
+    status: zh ? '状态' : 'Status',
+    startedAt: zh ? '开始' : 'Started',
+    completedAt: zh ? '完成' : 'Completed',
     processTimeline: zh ? '过程 Timeline' : 'Process timeline',
     showTimeline: zh ? '查看过程' : 'View process',
     hideTimeline: zh ? '收起过程' : 'Hide timeline',
@@ -241,6 +285,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const [startingKind, setStartingKind] = useState<DaemonJobRecord['kind'] | null>(null);
   const focusedJobId = useMemo(() => new URLSearchParams(window.location.search).get('job'), []);
   const [selectedTimelineJobId, setSelectedTimelineJobId] = useState<string | null>(focusedJobId);
+  const [selectedSnapshotJobId, setSelectedSnapshotJobId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async (quiet = false) => {
     if (quiet) {
@@ -294,6 +339,9 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
   const selectedTimelineJob = useMemo(() => {
     return jobs.find((job) => job.id === selectedTimelineJobId) || null;
   }, [jobs, selectedTimelineJobId]);
+  const selectedSnapshotJob = useMemo(() => {
+    return jobs.find((job) => job.id === selectedSnapshotJobId) || null;
+  }, [jobs, selectedSnapshotJobId]);
 
   useEffect(() => {
     setPage(1);
@@ -451,6 +499,7 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
                 onCancel={() => cancelJob(job)}
                 onCopy={() => copyJobId(job.id)}
                 onOpenTimeline={() => setSelectedTimelineJobId(job.id)}
+                onOpenSnapshot={() => setSelectedSnapshotJobId(job.id)}
                 onOpenCandidates={onOpenCandidates}
                 onOpenReports={onOpenReports}
               />
@@ -489,6 +538,13 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
           text={text}
           open={Boolean(selectedTimelineJob)}
           onClose={() => setSelectedTimelineJobId(null)}
+        />
+      )}
+      {selectedSnapshotJob && (
+        <JobDisplaySnapshotPanel
+          job={selectedSnapshotJob}
+          text={text}
+          onClose={() => setSelectedSnapshotJobId(null)}
         />
       )}
     </div>
@@ -535,6 +591,7 @@ function JobRow({
   busy,
   onCancel,
   onCopy,
+  onOpenSnapshot,
   onOpenTimeline,
   onOpenCandidates,
   onOpenReports,
@@ -544,6 +601,7 @@ function JobRow({
   busy: boolean;
   onCancel: () => void;
   onCopy: () => void;
+  onOpenSnapshot: () => void;
   onOpenTimeline: () => void;
   onOpenCandidates?: () => void;
   onOpenReports?: (sessionId?: string) => void;
@@ -558,6 +616,7 @@ function JobRow({
   const blockIssue = issue?.reason ? issue : (isCancelledStatusIssue(issue, job) ? null : issue);
   const jobErrorText = formatEvidenceIssueReason(job.error);
   const evidenceSessionId = job.progress?.sessionId || job.bootstrapSessionId;
+  const snapshotSummary = normalizeJobDisplaySnapshotSummaryRef(job.displaySnapshot);
   const canOpenCandidates =
     onOpenCandidates &&
     !isEvidenceIssueFailure(issue) &&
@@ -602,6 +661,8 @@ function JobRow({
         {job.progress && <ProgressBlock progress={job.progress} text={text} />}
 
         {blockIssue && <EvidenceIssueBlock issue={blockIssue} text={text} />}
+
+        <SnapshotSummaryBlock summary={snapshotSummary} text={text} />
 
         {efficiency && <EfficiencyBlock efficiency={efficiency} text={text} />}
 
@@ -648,6 +709,14 @@ function JobRow({
           <Terminal size={14} />
           {text.showTimeline}
         </button>
+        <button
+          type="button"
+          onClick={onOpenSnapshot}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
+        >
+          <FileText size={14} />
+          {text.openSnapshot}
+        </button>
         {canOpenCandidates && (
           <button
             type="button"
@@ -681,6 +750,559 @@ function JobRow({
         )}
       </div>
     </div>
+  );
+}
+
+function SnapshotSummaryBlock({
+  summary,
+  text,
+}: {
+  summary: JobDisplaySnapshotSummaryRef | null;
+  text: ReturnType<typeof labels>;
+}) {
+  const missing = !summary || summary.available === false;
+  const warningCount = summary?.warningCount ?? 0;
+  const incompleteCount = summary?.evidenceIncompleteCount ?? 0;
+  const toneClass = missing || warningCount > 0 || incompleteCount > 0
+    ? 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-200'
+    : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-200';
+  const chips = [
+    summary?.ref ? { key: 'ref', label: text.snapshotRef, value: summary.ref } : null,
+    typeof summary?.snapshotVersion === 'number'
+      ? { key: 'version', label: text.snapshotVersion, value: String(summary.snapshotVersion) }
+      : null,
+    summary?.checksum ? { key: 'checksum', label: text.snapshotChecksum, value: summary.checksum } : null,
+    warningCount > 0 ? { key: 'warnings', label: text.snapshotWarnings, value: String(warningCount) } : null,
+    incompleteCount > 0 ? { key: 'incomplete', label: text.snapshotIncomplete, value: String(incompleteCount) } : null,
+  ].filter((item): item is { key: string; label: string; value: string } => item !== null);
+
+  return (
+    <div className={cn('space-y-2 rounded-lg border p-2 text-xs', toneClass)}>
+      <div className="flex flex-wrap items-center gap-1.5 font-semibold">
+        {missing ? <AlertTriangle size={13} /> : <FileText size={13} />}
+        <span>{text.displaySnapshot}</span>
+        <span className="font-medium opacity-80">
+          {missing ? text.unavailable : text.available}
+        </span>
+      </div>
+      {missing && (
+        <p className="break-words text-current/80">
+          {summary?.reason ? `${text.reason}: ${summary.reason}` : text.snapshotUnavailable}
+        </p>
+      )}
+      {chips.length > 0 && (
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <span key={chip.key} className="max-w-full break-all rounded-md border border-current/20 bg-[var(--bg-surface)] px-1.5 py-0.5 text-current/90">
+              <span className="opacity-70">{chip.label}</span>
+              <span className="ml-1 font-medium">{chip.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function JobDisplaySnapshotPanel({
+  job,
+  text,
+  onClose,
+}: {
+  job: DaemonJobRecord;
+  text: ReturnType<typeof labels>;
+  onClose: () => void;
+}) {
+  const { isWide: drawerWide, toggle: toggleDrawerWide } = useDrawerWide();
+  const [snapshotState, setSnapshotState] = useState<{
+    error?: string;
+    response?: JobDisplaySnapshotResponse;
+    status: 'loading' | 'success' | 'error';
+  }>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setSnapshotState({ status: 'loading' });
+    api.getJobDisplaySnapshot(job.id)
+      .then((response) => {
+        if (!cancelled) {
+          setSnapshotState({ response, status: 'success' });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          const message = getErrorMessage(error, text.snapshotLoadFailed);
+          console.warn('[JobsView] display snapshot fetch failed', { jobId: job.id, message });
+          setSnapshotState({ error: message, status: 'error' });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, text.snapshotLoadFailed]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  const snapshot = snapshotState.response?.snapshot;
+  const subtitleParts = [
+    `${job.kind} · ${job.id}`,
+    snapshot?.snapshot.ref,
+    snapshotState.response
+      ? snapshotState.response.persisted ? text.snapshotPersisted : text.snapshotNotPersisted
+      : undefined,
+  ].filter((part): part is string => typeof part === 'string' && part.length > 0);
+
+  return (
+    <PageOverlay className="z-30 flex justify-end overflow-hidden" onClick={onClose}>
+      <PageOverlay.Backdrop className="bg-black/20 backdrop-blur-sm dark:bg-black/40" />
+      <Drawer.Panel size={drawerWide ? 'lg' : 'md'} width={drawerWide ? 'w-[min(92vw,960px)]' : 'w-[min(92vw,760px)]'}>
+        <Drawer.Header
+          leading={<FileText size={16} className="text-emerald-500" />}
+          title={text.displaySnapshot}
+          subtitle={subtitleParts.join(' · ')}
+        >
+          <Drawer.HeaderActions>
+            <Drawer.WidthToggle isWide={drawerWide} onToggle={toggleDrawerWide} />
+            <Drawer.CloseButton onClose={onClose} />
+          </Drawer.HeaderActions>
+        </Drawer.Header>
+        <Drawer.Body padded={false} className="min-h-0 bg-[#f8fafc] text-[#0f172a] dark:bg-[#020617] dark:text-[#e2e8f0]">
+          {snapshotState.status === 'loading' && (
+            <div className="flex items-center gap-2 px-5 py-5 text-xs text-[#64748b] dark:text-[#94a3b8]">
+              <Loader2 size={14} className="animate-spin" />
+              {text.snapshotLoading}
+            </div>
+          )}
+          {snapshotState.status === 'error' && (
+            <div className="px-5 py-5">
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-50 p-3 text-xs text-red-700 dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-200">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <span>{snapshotState.error || text.snapshotLoadFailed}</span>
+              </div>
+            </div>
+          )}
+          {snapshotState.status === 'success' && snapshotState.response && (
+            <JobDisplaySnapshotContent response={snapshotState.response} text={text} />
+          )}
+        </Drawer.Body>
+      </Drawer.Panel>
+    </PageOverlay>
+  );
+}
+
+function JobDisplaySnapshotContent({
+  response,
+  text,
+}: {
+  response: JobDisplaySnapshotResponse;
+  text: ReturnType<typeof labels>;
+}) {
+  const snapshot = response.snapshot;
+  const allIncomplete = [...snapshot.evidenceIncomplete, ...snapshot.llmIo.evidenceIncomplete];
+  const displayEvents = snapshot.developerViews.length > 0 ? snapshot.developerViews : snapshot.events;
+  const identityItems = [
+    { key: text.persisted, value: response.persisted ? 'true' : 'false' },
+    { key: text.contractVersion, value: formatDetailValue(snapshot.contractVersion) },
+    { key: text.snapshotVersion, value: formatDetailValue(snapshot.snapshot.snapshotVersion) },
+    { key: text.snapshotRef, value: snapshot.snapshot.ref || '' },
+    { key: text.snapshotChecksum, value: snapshot.snapshot.checksum || '' },
+    { key: 'updatedAt', value: formatDate(snapshot.snapshot.updatedAt) },
+  ].filter((item) => item.value.length > 0 && item.value !== '--');
+  const jobItems = [
+    { key: 'id', value: snapshot.job.id },
+    { key: 'kind', value: snapshot.job.kind || '' },
+    { key: text.status, value: snapshot.job.status || '' },
+    { key: 'projectId', value: snapshot.job.projectId || '' },
+    { key: text.startedAt, value: formatDate(snapshot.job.startedAt) },
+    { key: text.completedAt, value: formatDate(snapshot.job.completedAt) },
+  ].filter((item) => item.value.length > 0 && item.value !== '--');
+  const manifestItems = recordToDisplayItems({ ...snapshot.manifest });
+
+  return (
+    <div className="space-y-4 px-5 py-4">
+      <SnapshotAlertBlock
+        response={response}
+        incomplete={allIncomplete}
+        warnings={snapshot.warnings}
+        text={text}
+      />
+
+      <DetailSection title={text.summary}>
+        <div className="space-y-2 rounded-lg border border-[#d7e0ea] bg-white px-3 py-2.5 text-xs dark:border-[#334155] dark:bg-[#0f172a]">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="rounded-md border border-blue-500/20 bg-blue-50 px-2 py-0.5 font-medium text-blue-700 dark:border-blue-300/30 dark:bg-blue-300/10 dark:text-blue-200">
+              {snapshot.summary.statusText || snapshot.job.status || text.metadataNotProvided}
+            </span>
+            {snapshot.summary.phase && (
+              <span className="rounded-md border border-[#cbd5e1] bg-[#f8fafc] px-2 py-0.5 text-[#334155] dark:border-[#334155] dark:bg-[#111827] dark:text-[#e2e8f0]">
+                {text.phase}: {snapshot.summary.phase}
+              </span>
+            )}
+            {typeof snapshot.summary.progress === 'number' && (
+              <span className="rounded-md border border-[#cbd5e1] bg-[#f8fafc] px-2 py-0.5 text-[#334155] dark:border-[#334155] dark:bg-[#111827] dark:text-[#e2e8f0]">
+                {text.progress}: {snapshot.summary.progress}%
+              </span>
+            )}
+          </div>
+          <div className="space-y-1">
+            {snapshot.summary.title && <h4 className="break-words text-sm font-semibold text-[#0f172a] dark:text-[#f8fafc]">{snapshot.summary.title}</h4>}
+            {snapshot.summary.message && <p className="whitespace-pre-wrap break-all leading-relaxed text-[#334155] dark:text-[#cbd5e1]">{snapshot.summary.message}</p>}
+          </div>
+        </div>
+      </DetailSection>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DetailSection title={text.snapshotIdentity}>
+          <DetailKeyValueGrid items={identityItems} emptyText={text.metadataNotProvided} />
+        </DetailSection>
+        <DetailSection title={text.jobIdentity}>
+          <DetailKeyValueGrid items={jobItems} emptyText={text.metadataNotProvided} />
+        </DetailSection>
+      </div>
+
+      <DetailSection title={text.snapshotManifest}>
+        <DetailKeyValueGrid items={manifestItems} emptyText={text.metadataNotProvided} />
+      </DetailSection>
+
+      <SnapshotPhaseTimeline items={snapshot.phaseTimeline} text={text} />
+      <SnapshotWarnings warnings={snapshot.warnings} incomplete={allIncomplete} text={text} />
+      <SnapshotLlmIoEntries entries={snapshot.llmIo.entries} text={text} />
+      <SnapshotDeveloperEvents events={displayEvents} text={text} />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <SnapshotEvidenceList title={text.findings} items={snapshot.findings} text={text} />
+        <SnapshotEvidenceList title={text.candidates} items={snapshot.candidates} text={text} />
+        <SnapshotEvidenceList title={text.sourceRefs} items={snapshot.sourceRefs} text={text} />
+      </div>
+
+      <DetailSection title={text.artifacts}>
+        {snapshot.artifacts.length > 0 ? (
+          <SnapshotArtifactRefs artifacts={snapshot.artifacts} text={text} />
+        ) : (
+          <EmptyDetailValue text={text.noArtifact} />
+        )}
+      </DetailSection>
+
+      <DetailSection title={text.snapshotValidation}>
+        <DetailKeyValueGrid items={recordToDisplayItems(response.validation ?? null)} emptyText={text.metadataNotProvided} />
+      </DetailSection>
+    </div>
+  );
+}
+
+function SnapshotAlertBlock({
+  response,
+  incomplete,
+  warnings,
+  text,
+}: {
+  response: JobDisplaySnapshotResponse;
+  incomplete: JobDisplaySnapshotEvidenceIncomplete[];
+  warnings: JobDisplaySnapshotWarning[];
+  text: ReturnType<typeof labels>;
+}) {
+  const validationValid = typeof response.validation?.valid === 'boolean' ? response.validation.valid : undefined;
+  const messages = [
+    !response.persisted ? text.snapshotNotPersisted : null,
+    validationValid === false ? text.snapshotValidation : null,
+    warnings.length > 0 ? `${text.snapshotWarnings}: ${warnings.length}` : null,
+    incomplete.length > 0 ? `${text.snapshotIncomplete}: ${incomplete.length}` : null,
+  ].filter((item): item is string => item !== null);
+
+  if (messages.length === 0) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-200">
+        <CheckCircle2 size={14} />
+        <span>{text.snapshotPersisted}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1 rounded-lg border border-amber-500/25 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-100">
+      <div className="flex items-center gap-1.5 font-semibold">
+        <AlertTriangle size={14} />
+        {text.displaySnapshot}
+      </div>
+      <div className="flex min-w-0 flex-wrap gap-1.5">
+        {messages.map((message) => (
+          <span key={message} className="max-w-full break-words rounded-md border border-current/20 bg-white/60 px-1.5 py-0.5 dark:bg-black/10">
+            {message}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SnapshotPhaseTimeline({
+  items,
+  text,
+}: {
+  items: Array<{
+    completedAt?: string;
+    eventIds?: string[];
+    phase: string;
+    startedAt?: string;
+    status?: string;
+    summary?: string;
+    title?: string;
+  }>;
+  text: ReturnType<typeof labels>;
+}) {
+  return (
+    <DetailSection title={text.phaseTimeline}>
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div key={`${item.phase}:${item.startedAt || item.completedAt || item.title || ''}`} className="rounded-lg border border-[#d7e0ea] bg-white px-3 py-2.5 text-xs dark:border-[#334155] dark:bg-[#0f172a]">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="font-semibold text-[#0f172a] dark:text-[#f8fafc]">{item.title || item.phase}</span>
+                {item.status && <span className="rounded-md border border-[#cbd5e1] bg-[#f8fafc] px-1.5 py-0.5 text-[#334155] dark:border-[#334155] dark:bg-[#111827] dark:text-[#e2e8f0]">{item.status}</span>}
+                {item.eventIds && item.eventIds.length > 0 && <span className="text-[#64748b] dark:text-[#94a3b8]">{text.events}: {item.eventIds.length}</span>}
+              </div>
+              {item.summary && <p className="mt-1 whitespace-pre-wrap break-all leading-relaxed text-[#334155] dark:text-[#cbd5e1]">{item.summary}</p>}
+              <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[#64748b] dark:text-[#94a3b8]">
+                {item.startedAt && <span>{text.startedAt}: {formatDate(item.startedAt)}</span>}
+                {item.completedAt && <span>{text.completedAt}: {formatDate(item.completedAt)}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyDetailValue text={text.metadataNotProvided} />
+      )}
+    </DetailSection>
+  );
+}
+
+function SnapshotWarnings({
+  incomplete,
+  text,
+  warnings,
+}: {
+  incomplete: JobDisplaySnapshotEvidenceIncomplete[];
+  text: ReturnType<typeof labels>;
+  warnings: JobDisplaySnapshotWarning[];
+}) {
+  if (warnings.length === 0 && incomplete.length === 0) {
+    return null;
+  }
+  return (
+    <DetailSection title={`${text.snapshotWarnings} / ${text.evidenceIncomplete}`}>
+      <div className="space-y-2">
+        {warnings.map((warning, index) => (
+          <SnapshotNotice
+            key={`warning:${warning.code || warning.message}:${index}`}
+            title={warning.code || warning.severity || text.snapshotWarnings}
+            message={warning.message}
+            meta={[
+              warning.section ? `${text.phase}: ${warning.section}` : '',
+              warning.evidenceIncompleteReason ? `${text.reason}: ${warning.evidenceIncompleteReason}` : '',
+            ].filter(Boolean)}
+            severity={warning.severity}
+          />
+        ))}
+        {incomplete.map((item, index) => (
+          <SnapshotNotice
+            key={`incomplete:${item.reason}:${item.eventId || index}`}
+            title={item.reason}
+            message={item.message}
+            meta={[
+              item.section ? `${text.phase}: ${item.section}` : '',
+              item.eventId ? `eventId: ${item.eventId}` : '',
+              item.artifactRef ? `${text.ref}: ${item.artifactRef}` : '',
+            ].filter(Boolean)}
+            severity={item.severity}
+          />
+        ))}
+      </div>
+    </DetailSection>
+  );
+}
+
+function SnapshotNotice({
+  message,
+  meta,
+  severity,
+  title,
+}: {
+  message: string;
+  meta: string[];
+  severity?: string;
+  title: string;
+}) {
+  const tone = severity === 'error'
+    ? 'border-red-500/25 bg-red-50 text-red-700 dark:border-red-400/30 dark:bg-red-400/10 dark:text-red-200'
+    : 'border-amber-500/25 bg-amber-50 text-amber-800 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-100';
+  return (
+    <div className={cn('space-y-1 rounded-lg border px-3 py-2 text-xs', tone)}>
+      <div className="flex items-center gap-1.5 font-semibold">
+        <AlertTriangle size={13} />
+        <span>{title}</span>
+      </div>
+      <p className="whitespace-pre-wrap break-all leading-relaxed">{message}</p>
+      {meta.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[11px] opacity-80">
+          {meta.map((item) => <span key={item} className="break-all">{item}</span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SnapshotLlmIoEntries({
+  entries,
+  text,
+}: {
+  entries: JobDisplaySnapshotLlmIoEntry[];
+  text: ReturnType<typeof labels>;
+}) {
+  return (
+    <DetailSection title={text.llmIo}>
+      {entries.length > 0 ? (
+        <div className="space-y-2">
+          {entries.map((entry) => {
+            const content = formatSnapshotContent(entry.content);
+            return (
+              <div key={`${entry.sequence}:${entry.kind}:${entry.eventId || ''}`} className="space-y-2 rounded-lg border border-[#d7e0ea] bg-white px-3 py-2.5 text-xs dark:border-[#334155] dark:bg-[#0f172a]">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-blue-500/20 bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700 dark:border-blue-300/30 dark:bg-blue-300/10 dark:text-blue-200">
+                    #{entry.sequence} · {entry.kind}
+                  </span>
+                  <span className="break-words font-semibold text-[#0f172a] dark:text-[#f8fafc]">{entry.title}</span>
+                  {entry.phase && <span className="text-[#64748b] dark:text-[#94a3b8]">{text.phase}: {entry.phase}</span>}
+                </div>
+                {entry.summary && <p className="whitespace-pre-wrap break-all leading-relaxed text-[#334155] dark:text-[#cbd5e1]">{entry.summary}</p>}
+                {content && <SnapshotTextBlock text={content} />}
+                <SnapshotArtifactRefs artifacts={entry.artifactRefs} text={text} />
+                <DetailKeyValueGrid items={recordToDisplayItems(entry.metadata ?? null)} emptyText={text.metadataNotProvided} />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyDetailValue text={text.metadataNotProvided} />
+      )}
+    </DetailSection>
+  );
+}
+
+function SnapshotDeveloperEvents({
+  events,
+  text,
+}: {
+  events: JobProcessDeveloperView[];
+  text: ReturnType<typeof labels>;
+}) {
+  return (
+    <DetailSection title={text.snapshotEvents}>
+      {events.length > 0 ? (
+        <div className="space-y-2">
+          {events.map((event) => (
+            <div key={processEventStableKey(event)} className="space-y-2 rounded-lg border border-[#d7e0ea] bg-white px-3 py-2.5 text-xs dark:border-[#334155] dark:bg-[#0f172a]">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium', getProcessEventTone(event).badge)}>
+                  {getProcessEventIcon(event)}
+                  #{event.sequence} · {event.kind}
+                </span>
+                <span className="break-words font-semibold text-[#0f172a] dark:text-[#f8fafc]">{event.title}</span>
+                {event.phase && <span className="text-[#64748b] dark:text-[#94a3b8]">{text.phase}: {event.phase}</span>}
+              </div>
+              {event.summary && <p className="whitespace-pre-wrap break-all leading-relaxed text-[#334155] dark:text-[#cbd5e1]">{event.summary}</p>}
+              {event.content && <SnapshotTextBlock text={event.content} />}
+              <SnapshotArtifactRefs artifacts={event.artifactRefs} text={text} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyDetailValue text={text.metadataNotProvided} />
+      )}
+    </DetailSection>
+  );
+}
+
+function SnapshotEvidenceList({
+  items,
+  text,
+  title,
+}: {
+  items: JobDisplaySnapshotEvidenceItem[];
+  text: ReturnType<typeof labels>;
+  title: string;
+}) {
+  return (
+    <DetailSection title={title}>
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="space-y-2 rounded-lg border border-[#d7e0ea] bg-white px-3 py-2.5 text-xs dark:border-[#334155] dark:bg-[#0f172a]">
+              <div className="break-words font-semibold text-[#0f172a] dark:text-[#f8fafc]">{item.title || item.id}</div>
+              {item.sourceRef && <div className="break-all text-[11px] text-[#64748b] dark:text-[#94a3b8]">{text.ref}: {item.sourceRef}</div>}
+              {item.summary && <p className="whitespace-pre-wrap break-all leading-relaxed text-[#334155] dark:text-[#cbd5e1]">{item.summary}</p>}
+              <SnapshotArtifactRefs artifacts={item.artifactRefs} text={text} />
+              <DetailKeyValueGrid items={recordToDisplayItems(item.metadata ?? null)} emptyText={text.metadataNotProvided} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyDetailValue text={text.metadataNotProvided} />
+      )}
+    </DetailSection>
+  );
+}
+
+function SnapshotArtifactRefs({
+  artifacts,
+  text,
+}: {
+  artifacts?: Array<JobDisplaySnapshotArtifactRef | JobProcessArtifactRef>;
+  text: ReturnType<typeof labels>;
+}) {
+  if (!artifacts || artifacts.length === 0) {
+    return null;
+  }
+  return (
+    <div className="flex min-w-0 flex-wrap gap-1.5">
+      {artifacts.map((artifact) => {
+        const retained = 'retained' in artifact && typeof artifact.retained === 'boolean'
+          ? `${text.retained}: ${artifact.retained}`
+          : '';
+        const truncated = 'truncated' in artifact && typeof artifact.truncated === 'boolean'
+          ? `${text.truncated}: ${artifact.truncated}`
+          : '';
+        const redaction = 'redactionState' in artifact && artifact.redactionState
+          ? `${text.redaction}: ${artifact.redactionState}`
+          : '';
+        const title = [artifact.ref, retained, truncated, redaction].filter(Boolean).join(' · ');
+        return (
+          <span
+            key={`${artifact.kind}:${artifact.ref}`}
+            className="inline-flex max-w-full items-center gap-1 break-all rounded-md border border-violet-500/25 bg-violet-50 px-2 py-0.5 text-violet-700 dark:border-violet-300/40 dark:bg-violet-300/10 dark:text-violet-100"
+            title={title || artifact.ref}
+          >
+            <Package size={11} className="shrink-0" />
+            {artifact.label || artifact.kind}: {artifact.ref}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function SnapshotTextBlock({ text }: { text: string }) {
+  return (
+    <pre className="overflow-x-hidden whitespace-pre-wrap break-all rounded-lg border border-[#d7e0ea] bg-[#f8fafc] px-3 py-2.5 font-mono text-[11px] leading-relaxed text-[#1e293b] dark:border-[#334155] dark:bg-[#111827] dark:text-[#e2e8f0]">
+      {text}
+    </pre>
   );
 }
 
@@ -1323,6 +1945,27 @@ function formatDetailValue(value: unknown): string {
     }
   }
   return '';
+}
+
+function formatSnapshotContent(value: unknown): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    return value.length > 0 ? value : undefined;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (isRecord(value) && typeof value.text === 'string' && value.text.length > 0) {
+    return value.text;
+  }
+  try {
+    const formatted = JSON.stringify(value, null, 2);
+    return formatted && formatted !== '{}' && formatted !== '[]' ? formatted : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function getProcessEventIcon(event: JobProcessDeveloperView): React.ReactNode {

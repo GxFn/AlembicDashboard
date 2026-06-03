@@ -310,6 +310,49 @@ test('jobs process terminal readability rules are enforced in the DOM contract',
   assert.doesNotMatch(jobs, /text-slate-100/);
 });
 
+test('jobs display snapshot viewer consumes the persisted snapshot contract', () => {
+  const api = read('src/api.ts');
+  const jobs = read('src/components/Views/JobsView.tsx');
+
+  assert.match(api, /interface JobDisplaySnapshotSummaryRef extends JobDisplaySnapshotRef/);
+  assert.match(api, /interface JobDisplaySnapshotResponse/);
+  assert.match(api, /displaySnapshot\?: JobDisplaySnapshotSummaryRef \| null/);
+  assert.match(api, /displaySnapshotUrl\?: string/);
+  assert.match(api, /export function normalizeJobDisplaySnapshotSummaryRef/);
+  assert.match(api, /function normalizeJobDisplaySnapshotResponse\(value: unknown, fallbackJobId: string\)/);
+  assert.match(api, /async getJobDisplaySnapshot\(jobId: string\)/);
+  assert.match(api, /`\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/display-snapshot`/);
+  assert.match(api, /return normalizeJobDisplaySnapshotResponse\(res\.data\?\.data, jobId\)/);
+  assert.match(api, /warnings: normalizeJobDisplaySnapshotWarnings\(record\.warnings\)/);
+  assert.match(api, /evidenceIncomplete: normalizeJobDisplaySnapshotEvidenceIncomplete\(record\.evidenceIncomplete\)/);
+  assert.match(api, /entries: normalizeJobDisplaySnapshotLlmIoEntries\(llmIo\.entries\)/);
+  assert.match(api, /sourceRefs: normalizeJobDisplaySnapshotEvidenceItems\(record\.sourceRefs\)/);
+  assert.match(api, /findings: normalizeJobDisplaySnapshotEvidenceItems\(record\.findings\)/);
+  assert.match(api, /candidates: normalizeJobDisplaySnapshotEvidenceItems\(record\.candidates\)/);
+
+  assert.match(jobs, /selectedSnapshotJobId/);
+  assert.match(jobs, /selectedSnapshotJob && \(/);
+  assert.match(jobs, /JobDisplaySnapshotPanel/);
+  assert.match(jobs, /onOpenSnapshot=\{\(\) => setSelectedSnapshotJobId\(job\.id\)\}/);
+  assert.match(jobs, /normalizeJobDisplaySnapshotSummaryRef\(job\.displaySnapshot\)/);
+  assert.match(jobs, /<SnapshotSummaryBlock summary=\{snapshotSummary\} text=\{text\} \/>/);
+  assert.match(jobs, /api\.getJobDisplaySnapshot\(job\.id\)/);
+  assert.match(jobs, /text\.snapshotUnavailable/);
+  assert.match(jobs, /snapshotState\.response\.persisted \? text\.snapshotPersisted : text\.snapshotNotPersisted/);
+  assert.match(jobs, /const allIncomplete = \[\.\.\.snapshot\.evidenceIncomplete, \.\.\.snapshot\.llmIo\.evidenceIncomplete\]/);
+  assert.match(jobs, /snapshot\.phaseTimeline/);
+  assert.match(jobs, /snapshot\.warnings/);
+  assert.match(jobs, /snapshot\.llmIo\.entries/);
+  assert.match(jobs, /snapshot\.developerViews\.length > 0 \? snapshot\.developerViews : snapshot\.events/);
+  assert.match(jobs, /snapshot\.findings/);
+  assert.match(jobs, /snapshot\.candidates/);
+  assert.match(jobs, /snapshot\.sourceRefs/);
+  assert.match(jobs, /SnapshotTextBlock/);
+  assert.match(jobs, /overflow-x-hidden whitespace-pre-wrap break-all/);
+  assert.doesNotMatch(jobs, /readJobProcessEventsDisplayCache\(.*snapshot/i);
+  assert.doesNotMatch(jobs, /localStorage[\s\S]*displaySnapshot/i);
+});
+
 test('recipe evolution drawer uses the same responsive stack pattern as timeline details', () => {
   const recipes = read('src/components/Views/RecipesView.tsx');
   assert.match(recipes, /<PageOverlay className="z-30 flex justify-end overflow-hidden" onClick=\{closeDrawer\}>/);

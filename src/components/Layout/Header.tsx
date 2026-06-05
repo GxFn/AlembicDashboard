@@ -6,7 +6,14 @@ import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
-import type { DashboardProjectActionResult, DashboardProjectRuntimeScopeSummary, DashboardProjectsSnapshot, RuntimeBoundary } from '../../types';
+import type {
+  DashboardProjectActionResult,
+  DashboardProjectRuntimeControlDiagnostic,
+  DashboardProjectRuntimeSourceOfTruth,
+  DashboardProjectRuntimeScopeSummary,
+  DashboardProjectsSnapshot,
+  RuntimeBoundary,
+} from '../../types';
 import { Button } from '../ui/Button';
 import { ProjectScopePanel } from './ProjectScopePanel';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/Tooltip';
@@ -156,6 +163,29 @@ function projectStatusTone(project: DashboardProjectRuntimeScopeSummary): string
   return 'bg-[var(--bg-subtle)] text-[var(--fg-subtle)] border-[var(--border-default)]';
 }
 
+function runtimeReadinessTone(sourceOfTruth: DashboardProjectRuntimeSourceOfTruth | null): string {
+  if (!sourceOfTruth) {
+    return 'bg-[var(--bg-subtle)] text-[var(--fg-subtle)] border-[var(--border-default)]';
+  }
+  if (sourceOfTruth.readiness.ready) {
+    return 'bg-emerald-500/10 text-emerald-600 border-emerald-300/40';
+  }
+  if (sourceOfTruth.readiness.stale || sourceOfTruth.failure) {
+    return 'bg-amber-500/10 text-amber-600 border-amber-300/40';
+  }
+  return 'bg-[var(--bg-subtle)] text-[var(--fg-subtle)] border-[var(--border-default)]';
+}
+
+function diagnosticTone(diagnostic: DashboardProjectRuntimeControlDiagnostic): string {
+  if (diagnostic.severity === 'error') {
+    return 'border-red-300/40 bg-red-500/10 text-red-600';
+  }
+  if (diagnostic.severity === 'warning') {
+    return 'border-amber-300/40 bg-amber-500/10 text-amber-600';
+  }
+  return 'border-sky-300/40 bg-sky-500/10 text-sky-600';
+}
+
 function ProjectStatusIcon({ project }: { project: DashboardProjectRuntimeScopeSummary }) {
   if (project.flags.missing || project.status === 'missing') {
     return <AlertTriangle size={12} />;
@@ -196,6 +226,201 @@ function compactProjectRoot(projectRoot: string): string {
     return projectRoot || '—';
   }
   return `…/${parts.slice(-3).join('/')}`;
+}
+
+function uniqueRefs(...groups: string[][]): string[] {
+  return Array.from(new Set(groups.flat())).filter((ref) => ref.trim().length > 0);
+}
+
+function RuntimeSourceOfTruthPanel({
+  projectsLoading,
+  projectsSnapshot,
+}: {
+  projectsLoading: boolean;
+  projectsSnapshot?: DashboardProjectsSnapshot | null;
+}) {
+  const { t } = useI18n();
+  const sourceOfTruth = projectsSnapshot?.sourceOfTruth ?? null;
+  const diagnostics = sourceOfTruth?.diagnostics.length
+    ? sourceOfTruth.diagnostics
+    : projectsSnapshot?.diagnostics ?? [];
+  const cleanup = sourceOfTruth?.runtimeControl?.stateCleanup ?? projectsSnapshot?.stateCleanup ?? null;
+  const activeCleanup = cleanup?.activeState ?? null;
+  const failure = sourceOfTruth?.failure ?? null;
+  const nextActions = failure?.nextActions ?? [];
+  const refs = sourceOfTruth
+    ? uniqueRefs(sourceOfTruth.sourceRefs, sourceOfTruth.detailRefs, failure?.sourceRefs ?? [], failure?.detailRefs ?? [])
+    : [];
+  const visibleDiagnostics = diagnostics.slice(0, 4);
+  const hiddenDiagnosticCount = Math.max(0, diagnostics.length - visibleDiagnostics.length);
+
+  if (projectsLoading) {
+    return (
+      <section className="px-2 py-2" aria-label={t('header.projectDiagnosticsTitle')}>
+        <div className="rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-surface)] px-2.5 py-2 text-xs text-[var(--fg-subtle)]">
+          <div className="flex items-center gap-1.5 font-medium text-[var(--fg-default)]">
+            <Loader2 size={13} className="animate-spin text-sky-500" />
+            {t('header.projectDiagnosticsLoading')}
+          </div>
+          <p className="mt-1">{t('header.projectDiagnosticsLoadingHint')}</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!sourceOfTruth) {
+    return (
+      <section className="px-2 py-2" aria-label={t('header.projectDiagnosticsTitle')}>
+        <div className="rounded-[var(--radius-md)] border border-amber-300/40 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-600">
+          <div className="flex items-center gap-1.5 font-medium">
+            <AlertTriangle size={13} />
+            {t('header.projectDiagnosticsUnavailable')}
+          </div>
+          <p className="mt-1 text-[var(--fg-subtle)]">{t('header.projectDiagnosticsUnavailableHint')}</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="px-2 py-2" aria-label={t('header.projectDiagnosticsTitle')}>
+      <div className="rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-surface)] px-2.5 py-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Server size={13} className="text-emerald-500" />
+              <p className="truncate text-xs font-semibold text-[var(--fg-default)]">
+                {t('header.projectDiagnosticsTitle')}
+              </p>
+            </div>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+              <span className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
+                runtimeReadinessTone(sourceOfTruth),
+              )}>
+                {sourceOfTruth.readiness.ready ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+                {sourceOfTruth.readiness.ready ? t('header.projectDiagnosticsReady') : t('header.projectDiagnosticsBlocked')}
+              </span>
+              <span className="rounded-full border border-[var(--border-muted)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--fg-subtle)]">
+                {sourceOfTruth.operation.readOnly !== false ? t('header.projectDiagnosticsReadOnly') : t('header.projectDiagnosticsWritableBlocked')}
+              </span>
+            </div>
+          </div>
+          <span className="shrink-0 rounded-full border border-[var(--border-muted)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--fg-subtle)]">
+            {sourceOfTruth.requiredService.route ?? sourceOfTruth.route ?? '—'}
+          </span>
+        </div>
+
+        <div className="mt-2 grid gap-1.5 text-[11px] text-[var(--fg-subtle)] sm:grid-cols-2">
+          <p className="truncate" title={sourceOfTruth.readiness.reasonCode}>
+            {t('header.projectDiagnosticsReason')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.readiness.reasonCode}</span>
+          </p>
+          <p className="truncate" title={sourceOfTruth.readiness.status}>
+            {t('header.projectDiagnosticsStatus')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.readiness.status}</span>
+          </p>
+          <p className="truncate" title={sourceOfTruth.route ?? '—'}>
+            {t('header.projectDiagnosticsRoute')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.route ?? '—'}</span>
+          </p>
+          <p className="truncate" title={sourceOfTruth.generatedAt ?? '—'}>
+            {t('header.projectDiagnosticsGeneratedAt')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.generatedAt ?? '—'}</span>
+          </p>
+        </div>
+
+        {activeCleanup?.cleaned ? (
+          <div className="mt-2 rounded-[var(--radius-md)] border border-amber-300/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+            <p className="font-medium">{t('header.projectDiagnosticsCleanupCleaned')}</p>
+            <p className="mt-0.5 text-[var(--fg-subtle)]">
+              {activeCleanup.message ?? activeCleanup.reasonCode ?? '—'}
+            </p>
+            {activeCleanup.previousProjectRoot && (
+              <p className="mt-0.5 truncate text-[var(--fg-muted)]" title={activeCleanup.previousProjectRoot}>
+                {compactProjectRoot(activeCleanup.previousProjectRoot)}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-2 text-[11px] text-[var(--fg-muted)]">{t('header.projectDiagnosticsCleanupStable')}</p>
+        )}
+
+        <div className="mt-2 space-y-1.5">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
+            {t('header.projectDiagnosticsDiagnostics')}
+          </p>
+          {visibleDiagnostics.length > 0 ? (
+            <ul className="space-y-1">
+              {visibleDiagnostics.map((diagnostic, index) => (
+                <li
+                  key={`${diagnostic.reasonCode}:${diagnostic.code ?? index}`}
+                  className="rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-subtle)]/60 px-2 py-1.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={cn(
+                      'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
+                      diagnosticTone(diagnostic),
+                    )}>
+                      {diagnostic.severity}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[var(--fg-default)]" title={diagnostic.reasonCode}>
+                      {diagnostic.reasonCode}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--fg-subtle)]">{diagnostic.message}</p>
+                  {diagnostic.projectRoot && (
+                    <p className="mt-0.5 truncate text-[11px] text-[var(--fg-muted)]" title={diagnostic.projectRoot}>
+                      {compactProjectRoot(diagnostic.projectRoot)}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-subtle)]/60 px-2 py-1.5 text-xs text-[var(--fg-subtle)]">
+              {t('header.projectDiagnosticsDiagnosticsEmpty')}
+            </p>
+          )}
+          {hiddenDiagnosticCount > 0 && (
+            <p className="text-[11px] text-[var(--fg-muted)]">
+              {t('header.projectDiagnosticsMoreDiagnostics', { count: hiddenDiagnosticCount })}
+            </p>
+          )}
+        </div>
+
+        {nextActions.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
+              {t('header.projectDiagnosticsNextActions')}
+            </p>
+            <ul className="space-y-1 text-xs text-[var(--fg-subtle)]">
+              {nextActions.map((action) => (
+                <li key={action} className="rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-subtle)]/60 px-2 py-1.5">
+                  {action}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {failure?.blockedFallbacks.length ? (
+          <p className="mt-2 text-[11px] text-[var(--fg-muted)]">
+            {t('header.projectDiagnosticsBlockedFallbacks')}: {failure.blockedFallbacks.join(', ')}
+          </p>
+        ) : null}
+
+        {refs.length > 0 && (
+          <div className="mt-2 space-y-1">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
+              {t('header.projectDiagnosticsRefs')}
+            </p>
+            {refs.slice(0, 3).map((ref) => (
+              <p key={ref} className="truncate text-[11px] text-[var(--fg-muted)]" title={ref}>
+                {compactProjectRoot(ref)}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
 function isSameProject(
@@ -498,6 +723,11 @@ const Header: React.FC<HeaderProps> = ({
               </div>
               <DropdownMenuSeparator />
               <ProjectScopePanel runtimeBoundary={runtimeBoundary} />
+              <DropdownMenuSeparator />
+              <RuntimeSourceOfTruthPanel
+                projectsLoading={projectsLoading || projectActionPending === 'refresh'}
+                projectsSnapshot={projectsSnapshot}
+              />
               <DropdownMenuSeparator />
               <div className="max-h-[420px] overflow-y-auto py-1">
                 {projects.length === 0 ? (

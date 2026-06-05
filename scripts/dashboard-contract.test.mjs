@@ -102,6 +102,45 @@ test('dashboard consumes API AI runtime contract naming', () => {
   assert.doesNotMatch(activeRuntimeText, blockedRuntimePattern);
 });
 
+test('projects runtime control source-of-truth diagnostics are preserved and visible', () => {
+  const types = read('src/types.ts');
+  const api = read('src/api.ts');
+  const header = read('src/components/Layout/Header.tsx');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+
+  assert.match(types, /interface DashboardProjectRuntimeSourceOfTruth/);
+  assert.match(types, /interface DashboardProjectRuntimeFailureEnvelope/);
+  assert.match(types, /interface DashboardProjectRuntimeControlDiagnostic/);
+  assert.match(types, /sourceOfTruth: DashboardProjectRuntimeSourceOfTruth \| null/);
+  assert.match(types, /stateCleanup: DashboardProjectRuntimeControlStateCleanup/);
+  assert.match(types, /nextActions: string\[\]/);
+  assert.match(types, /detailRefs: string\[\]/);
+
+  assert.match(api, /function normalizeProjectRuntimeSourceOfTruth/);
+  assert.match(api, /function normalizeProjectRuntimeDiagnostics/);
+  assert.match(api, /function normalizeProjectRuntimeStateCleanup/);
+  assert.match(api, /sourceOfTruth: normalizeProjectRuntimeSourceOfTruth\(record\.sourceOfTruth/);
+  assert.match(api, /diagnostics: normalizeProjectRuntimeDiagnostics\(record\.diagnostics\)/);
+  assert.match(api, /stateCleanup = normalizeProjectRuntimeStateCleanup\(record\.stateCleanup\)/);
+  assert.match(api, /getCurrentProjectSnapshot\(\): Promise<DashboardProjectsSnapshot>/);
+  assert.doesNotMatch(api, /sourceOfTruth:\s*null/);
+
+  assert.match(header, /function RuntimeSourceOfTruthPanel/);
+  assert.match(header, /projectsSnapshot\?\.sourceOfTruth/);
+  assert.match(header, /sourceOfTruth\.readiness\.reasonCode/);
+  assert.match(header, /sourceOfTruth\.operation\.readOnly/);
+  assert.match(header, /failure\?\.nextActions/);
+  assert.match(header, /activeCleanup\?\.cleaned/);
+  assert.match(header, /projectDiagnosticsTitle/);
+  assert.match(header, /projectDiagnosticsUnavailableHint/);
+
+  assert.match(zh, /projectDiagnosticsTitle: '运行诊断'/);
+  assert.match(zh, /projectDiagnosticsNextActions: '下一步'/);
+  assert.match(en, /projectDiagnosticsTitle: 'Runtime diagnostics'/);
+  assert.match(en, /projectDiagnosticsNextActions: 'Next actions'/);
+});
+
 test('markdown renderer is typed and heavy renderers are lazy-loaded', () => {
   const markdown = read('src/components/Shared/MarkdownWithHighlight.tsx');
   const segment = read('src/components/Shared/MarkdownSegment.tsx');

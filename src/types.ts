@@ -298,6 +298,143 @@ export interface DashboardProjectRuntimeFlags {
   unavailable: boolean;
 }
 
+/** Alembic projects API 的 source-of-truth 只读诊断视图；Dashboard 只展示，不写 runtime-control state。 */
+export type DashboardProjectRuntimeDiagnosticSeverity = 'info' | 'warning' | 'error' | (string & {});
+
+export interface DashboardProjectRuntimeControlDiagnostic {
+  action: string | null;
+  code: string | null;
+  detailRefs: string[];
+  message: string;
+  projectId: string | null;
+  projectRoot: string | null;
+  reasonCode: string;
+  severity: DashboardProjectRuntimeDiagnosticSeverity;
+  source: string | null;
+  sourceRefs: string[];
+}
+
+export interface DashboardProjectRuntimeControlStateCleanup {
+  activeState: {
+    cleaned: boolean;
+    cleanedAt: string | null;
+    message: string | null;
+    previousProjectId: string | null;
+    previousProjectRoot: string | null;
+    reasonCode: string | null;
+  };
+}
+
+export interface DashboardProjectRuntimeProjectRef {
+  activeRuntime: boolean;
+  dataRoot: string | null;
+  dataRootSource: string | null;
+  projectId: string | null;
+  projectRoot: string;
+  projectScopeId: string | null;
+  ready: boolean;
+  selected: boolean;
+  stale: boolean;
+  status: DashboardProjectConnectionState;
+}
+
+export interface DashboardProjectRuntimeReadiness {
+  capabilities: {
+    apiAiAvailable: boolean | null;
+    dashboardAvailable: boolean | null;
+    dashboardUrl: string | null;
+    fileMonitorAvailable: boolean | null;
+    fileMonitorMode: string | null;
+    jobsAvailable: boolean | null;
+    projectScopeAvailable: boolean | null;
+  };
+  daemon: {
+    dashboardUrl: string | null;
+    logPath: string | null;
+    message: string | null;
+    pidAlive: boolean | null;
+    ready: boolean | null;
+    statePath: string | null;
+    status: DashboardProjectDaemonStatus;
+    url: string | null;
+  };
+  ready: boolean;
+  reasonCode: string;
+  stale: boolean;
+  status: DashboardProjectConnectionState;
+}
+
+export interface DashboardProjectRuntimeFailureEnvelope {
+  blockedFallbacks: string[];
+  blockingCondition: string;
+  detailRefs: string[];
+  diagnostics: DashboardProjectRuntimeControlDiagnostic[];
+  nextActions: string[];
+  observedSource: string | null;
+  reasonCode: string;
+  retryable: boolean | null;
+  sourceRefs: string[];
+}
+
+export interface DashboardProjectRuntimeControlSource {
+  activeMatchesCurrentProject: boolean | null;
+  activeProject: DashboardProjectRuntimeProjectRef | null;
+  activeReadyProject: DashboardProjectRuntimeProjectRef | null;
+  activeStateTrusted: boolean | null;
+  diagnostics: DashboardProjectRuntimeControlDiagnostic[];
+  projects: {
+    missing: number | null;
+    ready: number | null;
+    stale: number | null;
+    total: number | null;
+    unavailable: number | null;
+  };
+  readOnly: boolean | null;
+  selectedMatchesCurrentProject: boolean | null;
+  selectedProject: DashboardProjectRuntimeProjectRef | null;
+  state: DashboardProjectRuntimeControlState;
+  stateCleanup: DashboardProjectRuntimeControlStateCleanup;
+  statePath: string | null;
+}
+
+export interface DashboardProjectRuntimeSourceOfTruth {
+  contractVersion: number | null;
+  detailRefs: string[];
+  diagnostics: DashboardProjectRuntimeControlDiagnostic[];
+  explicitActions: {
+    daemonLifecycle: string[];
+    projectScopeRegistry: string[];
+    runtimeControl: string[];
+  };
+  failure: DashboardProjectRuntimeFailureEnvelope | null;
+  generatedAt: string | null;
+  operation: {
+    explicitRuntimeActionRequired: boolean | null;
+    implicitRuntimeActionAllowed: boolean | null;
+    mode: string | null;
+    readOnly: boolean | null;
+  };
+  owner: string | null;
+  readiness: DashboardProjectRuntimeReadiness;
+  requiredService: {
+    kind: string | null;
+    owner: string | null;
+    route: string | null;
+  };
+  route: string | null;
+  runtimeControl: DashboardProjectRuntimeControlSource | null;
+  sourceRefs: string[];
+  targetProject: DashboardProjectRuntimeProjectRef | null;
+  writePolicy: {
+    activeStateWriteAllowed: boolean | null;
+    daemonLifecycleWriteAllowed: boolean | null;
+    jobStoreWriteAllowed: boolean | null;
+    projectScopeRegistryWriteAllowed: boolean | null;
+    selectedStateWriteAllowed: boolean | null;
+    writeOwner: string | null;
+  };
+}
+
 export interface DashboardProjectRuntimeScopeSummary {
   cacheKey: string;
   dashboardUrl: string | null;
@@ -320,10 +457,13 @@ export interface DashboardProjectRuntimeScopeSummary {
 
 export interface DashboardProjectsSnapshot {
   activeRuntimeProject: DashboardProjectRuntimeScopeSummary | null;
+  diagnostics: DashboardProjectRuntimeControlDiagnostic[];
   generatedAt: string | null;
   projects: DashboardProjectRuntimeScopeSummary[];
   selectedProject: DashboardProjectRuntimeScopeSummary | null;
   state: DashboardProjectRuntimeControlState;
+  stateCleanup: DashboardProjectRuntimeControlStateCleanup;
+  sourceOfTruth: DashboardProjectRuntimeSourceOfTruth | null;
 }
 
 export interface DashboardProjectRuntimeHandoff {

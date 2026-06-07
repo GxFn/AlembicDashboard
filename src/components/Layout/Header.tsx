@@ -6,6 +6,11 @@ import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
+import {
+  buildRuntimeDiagnosticExtraRows,
+  buildRuntimeDiagnosticsFieldRows,
+  runtimeDiagnosticsRowValue,
+} from '../../runtimeDiagnosticsPanelModel';
 import type {
   DashboardProjectActionResult,
   DashboardProjectRuntimeControlDiagnostic,
@@ -249,8 +254,16 @@ function RuntimeSourceOfTruthPanel({
   const failure = sourceOfTruth?.failure ?? null;
   const nextActions = failure?.nextActions ?? [];
   const refs = sourceOfTruth
-    ? uniqueRefs(sourceOfTruth.sourceRefs, sourceOfTruth.detailRefs, failure?.sourceRefs ?? [], failure?.detailRefs ?? [])
+    ? uniqueRefs(
+        sourceOfTruth.sourceRefs,
+        sourceOfTruth.detailRefs,
+        failure?.sourceRefs ?? [],
+        failure?.detailRefs ?? [],
+        ...diagnostics.map((diagnostic) => diagnostic.sourceRefs),
+        ...diagnostics.map((diagnostic) => diagnostic.detailRefs),
+      )
     : [];
+  const detailRows = sourceOfTruth ? buildRuntimeDiagnosticsFieldRows(sourceOfTruth) : [];
   const visibleDiagnostics = diagnostics.slice(0, 4);
   const hiddenDiagnosticCount = Math.max(0, diagnostics.length - visibleDiagnostics.length);
 
@@ -312,18 +325,14 @@ function RuntimeSourceOfTruthPanel({
         </div>
 
         <div className="mt-2 grid gap-1.5 text-[11px] text-[var(--fg-subtle)] sm:grid-cols-2">
-          <p className="truncate" title={sourceOfTruth.readiness.reasonCode}>
-            {t('header.projectDiagnosticsReason')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.readiness.reasonCode}</span>
-          </p>
-          <p className="truncate" title={sourceOfTruth.readiness.status}>
-            {t('header.projectDiagnosticsStatus')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.readiness.status}</span>
-          </p>
-          <p className="truncate" title={sourceOfTruth.route ?? '—'}>
-            {t('header.projectDiagnosticsRoute')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.route ?? '—'}</span>
-          </p>
-          <p className="truncate" title={sourceOfTruth.generatedAt ?? '—'}>
-            {t('header.projectDiagnosticsGeneratedAt')}: <span className="font-medium text-[var(--fg-default)]">{sourceOfTruth.generatedAt ?? '—'}</span>
-          </p>
+          {detailRows.map((row) => {
+            const value = runtimeDiagnosticsRowValue(row, t);
+            return (
+              <p className="truncate" title={value} key={row.key}>
+                {t(row.labelKey)}: <span className="font-medium text-[var(--fg-default)]">{value}</span>
+              </p>
+            );
+          })}
         </div>
 
         {activeCleanup?.cleaned ? (
@@ -365,6 +374,16 @@ function RuntimeSourceOfTruthPanel({
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-[var(--fg-subtle)]">{diagnostic.message}</p>
+                  {Object.keys(diagnostic.extraFields).length > 0 && (
+                    <div className="mt-1 space-y-0.5 text-[11px] text-[var(--fg-muted)]">
+                      <p className="font-medium text-[var(--fg-subtle)]">{t('header.projectDiagnosticsExtraFields')}</p>
+                      {buildRuntimeDiagnosticExtraRows(diagnostic).slice(0, 3).map((row) => (
+                        <p key={row.key} className="truncate" title={`${row.labelKey}: ${row.value}`}>
+                          {row.labelKey}: <span className="text-[var(--fg-subtle)]">{row.value}</span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   {diagnostic.projectRoot && (
                     <p className="mt-0.5 truncate text-[11px] text-[var(--fg-muted)]" title={diagnostic.projectRoot}>
                       {compactProjectRoot(diagnostic.projectRoot)}
@@ -411,7 +430,7 @@ function RuntimeSourceOfTruthPanel({
             <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
               {t('header.projectDiagnosticsRefs')}
             </p>
-            {refs.slice(0, 3).map((ref) => (
+            {refs.slice(0, 6).map((ref) => (
               <p key={ref} className="truncate text-[11px] text-[var(--fg-muted)]" title={ref}>
                 {compactProjectRoot(ref)}
               </p>

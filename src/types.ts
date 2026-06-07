@@ -305,6 +305,8 @@ export interface DashboardProjectRuntimeControlDiagnostic {
   action: string | null;
   code: string | null;
   detailRefs: string[];
+  /** Preserve backend diagnostic extensions for read-only UI and troubleshooting. */
+  extraFields: Record<string, unknown>;
   message: string;
   projectId: string | null;
   projectRoot: string | null;

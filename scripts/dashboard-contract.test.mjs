@@ -1,13 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
+import ts from 'typescript';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 function read(relativePath) {
   return readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+async function importTranspiled(relativePath) {
+  const source = read(relativePath);
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+    },
+  }).outputText;
+  const tempDir = path.join(root, 'node_modules', '.tmp', 'dashboard-contract');
+  mkdirSync(tempDir, { recursive: true });
+  const tempFile = path.join(tempDir, `${relativePath.replace(/[^A-Za-z0-9._-]+/g, '-')}-${Date.now()}.mjs`);
+  writeFileSync(tempFile, output);
+  return import(pathToFileURL(tempFile).href);
 }
 
 test('package exposes real local quality gates', () => {
@@ -114,12 +131,15 @@ test('projects runtime control source-of-truth diagnostics are preserved and vis
   assert.match(types, /interface DashboardProjectRuntimeControlDiagnostic/);
   assert.match(types, /sourceOfTruth: DashboardProjectRuntimeSourceOfTruth \| null/);
   assert.match(types, /stateCleanup: DashboardProjectRuntimeControlStateCleanup/);
+  assert.match(types, /extraFields: Record<string, unknown>/);
   assert.match(types, /nextActions: string\[\]/);
   assert.match(types, /detailRefs: string\[\]/);
 
   assert.match(api, /function normalizeProjectRuntimeSourceOfTruth/);
   assert.match(api, /function normalizeProjectRuntimeDiagnostics/);
   assert.match(api, /function normalizeProjectRuntimeStateCleanup/);
+  assert.match(api, /projectRuntimeDiagnosticExtraFields/);
+  assert.match(api, /extraFields: projectRuntimeDiagnosticExtraFields\(record\)/);
   assert.match(api, /sourceOfTruth: normalizeProjectRuntimeSourceOfTruth\(record\.sourceOfTruth/);
   assert.match(api, /diagnostics: normalizeProjectRuntimeDiagnostics\(record\.diagnostics\)/);
   assert.match(api, /stateCleanup = normalizeProjectRuntimeStateCleanup\(record\.stateCleanup\)/);
@@ -128,8 +148,10 @@ test('projects runtime control source-of-truth diagnostics are preserved and vis
 
   assert.match(header, /function RuntimeSourceOfTruthPanel/);
   assert.match(header, /projectsSnapshot\?\.sourceOfTruth/);
-  assert.match(header, /sourceOfTruth\.readiness\.reasonCode/);
-  assert.match(header, /sourceOfTruth\.operation\.readOnly/);
+  assert.match(header, /buildRuntimeDiagnosticsFieldRows\(sourceOfTruth\)/);
+  assert.match(header, /runtimeDiagnosticsRowValue\(row, t\)/);
+  assert.match(header, /buildRuntimeDiagnosticExtraRows\(diagnostic\)/);
+  assert.match(header, /refs\.slice\(0, 6\)/);
   assert.match(header, /failure\?\.nextActions/);
   assert.match(header, /activeCleanup\?\.cleaned/);
   assert.match(header, /projectDiagnosticsTitle/);
@@ -139,6 +161,133 @@ test('projects runtime control source-of-truth diagnostics are preserved and vis
   assert.match(zh, /projectDiagnosticsNextActions: '下一步'/);
   assert.match(en, /projectDiagnosticsTitle: 'Runtime diagnostics'/);
   assert.match(en, /projectDiagnosticsNextActions: 'Next actions'/);
+});
+
+test('projects runtime diagnostics fixture preserves source-of-truth details through executable normalizer', async () => {
+  const { normalizeProjectsSnapshot } = await importTranspiled('src/api.ts');
+  const snapshot = normalizeProjectsSnapshot({
+    diagnostics: [
+      {
+        reasonCode: 'fallback-diagnostic',
+        message: 'Fallback diagnostic',
+        severity: 'warning',
+        detailRefs: ['fallback-detail.md'],
+        sourceRefs: ['fallback-source.md'],
+      },
+    ],
+    state: { activeProjectId: 'old-active', selectedProjectId: 'selected' },
+    stateCleanup: {
+      activeState: {
+        cleaned: true,
+        cleanedAt: '2026-06-07T14:00:00Z',
+        previousProjectRoot: '/tmp/old',
+        reasonCode: 'stale-active-state',
+      },
+    },
+    sourceOfTruth: {
+      contractVersion: 1,
+      detailRefs: ['detail/source-of-truth.md'],
+      diagnostics: [
+        {
+          reasonCode: 'runtime-control-blocked',
+          message: 'Runtime control blocked implicit writes',
+          severity: 'error',
+          sourceRefs: ['runtime/source.ts'],
+          detailRefs: ['runtime/detail.md'],
+          remediationOwner: 'plugin-runtime',
+          nestedContext: { queue: 'runtime-control' },
+        },
+      ],
+      explicitActions: { runtimeControl: ['switch'], daemonLifecycle: [], projectScopeRegistry: [] },
+      failure: {
+        reasonCode: 'runtime-control-unavailable',
+        blockingCondition: 'required service route missing',
+        observedSource: 'projects-api',
+        retryable: false,
+        blockedFallbacks: ['dashboard-local-state'],
+        nextActions: ['restart daemon'],
+        sourceRefs: ['failure/source.ts'],
+        detailRefs: ['failure/detail.md'],
+      },
+      generatedAt: '2026-06-07T14:30:00Z',
+      operation: {
+        mode: 'read-only-diagnostics',
+        readOnly: true,
+        explicitRuntimeActionRequired: true,
+        implicitRuntimeActionAllowed: false,
+      },
+      readiness: { ready: false, reasonCode: 'needs-runtime-control', stale: false, status: 'blocked' },
+      requiredService: { kind: 'runtime-control', owner: 'AlembicPlugin', route: '/api/v1/projects/current' },
+      route: '/api/v1/projects',
+      sourceRefs: ['source-of-truth.ts'],
+      writePolicy: {
+        activeStateWriteAllowed: false,
+        daemonLifecycleWriteAllowed: false,
+        jobStoreWriteAllowed: false,
+        projectScopeRegistryWriteAllowed: false,
+        selectedStateWriteAllowed: false,
+        writeOwner: 'AlembicPlugin',
+      },
+    },
+  });
+
+  assert.equal(snapshot.sourceOfTruth?.requiredService.kind, 'runtime-control');
+  assert.equal(snapshot.sourceOfTruth?.operation.mode, 'read-only-diagnostics');
+  assert.equal(snapshot.sourceOfTruth?.operation.implicitRuntimeActionAllowed, false);
+  assert.equal(snapshot.sourceOfTruth?.writePolicy.activeStateWriteAllowed, false);
+  assert.equal(snapshot.sourceOfTruth?.failure?.blockingCondition, 'required service route missing');
+  assert.equal(snapshot.stateCleanup.activeState.cleaned, true);
+  assert.equal(snapshot.sourceOfTruth?.diagnostics[0]?.extraFields.remediationOwner, 'plugin-runtime');
+  assert.deepEqual(snapshot.sourceOfTruth?.diagnostics[0]?.extraFields.nestedContext, { queue: 'runtime-control' });
+  assert.notEqual(snapshot.sourceOfTruth, null);
+});
+
+test('runtime diagnostics panel model exposes operation, service, write-policy, failure, and extra-field rows', async () => {
+  const { buildRuntimeDiagnosticExtraRows, buildRuntimeDiagnosticsFieldRows } = await importTranspiled('src/runtimeDiagnosticsPanelModel.ts');
+  const rows = buildRuntimeDiagnosticsFieldRows({
+    readiness: { reasonCode: 'needs-runtime-control', status: 'blocked' },
+    route: '/api/v1/projects',
+    generatedAt: '2026-06-07T14:30:00Z',
+    operation: {
+      mode: 'read-only-diagnostics',
+      readOnly: true,
+      explicitRuntimeActionRequired: true,
+      implicitRuntimeActionAllowed: false,
+    },
+    requiredService: { kind: 'runtime-control', owner: 'AlembicPlugin', route: '/api/v1/projects/current' },
+    writePolicy: {
+      activeStateWriteAllowed: false,
+      daemonLifecycleWriteAllowed: false,
+      jobStoreWriteAllowed: false,
+      projectScopeRegistryWriteAllowed: false,
+      selectedStateWriteAllowed: false,
+      writeOwner: 'AlembicPlugin',
+    },
+    failure: {
+      reasonCode: 'runtime-control-unavailable',
+      blockingCondition: 'required service route missing',
+      observedSource: 'projects-api',
+      retryable: false,
+    },
+  });
+  const rowKeys = rows.map((row) => row.key);
+  assert.ok(rowKeys.includes('operation-mode'));
+  assert.ok(rowKeys.includes('operation-explicit-required'));
+  assert.ok(rowKeys.includes('required-service-kind'));
+  assert.ok(rowKeys.includes('write-active-state'));
+  assert.ok(rowKeys.includes('failure-blocking-condition'));
+
+  const extraRows = buildRuntimeDiagnosticExtraRows({
+    extraFields: { remediationOwner: 'plugin-runtime', nestedContext: { queue: 'runtime-control' } },
+  });
+  assert.deepEqual(extraRows.map((row) => row.key), ['nestedContext', 'remediationOwner']);
+
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+  for (const key of ['projectDiagnosticsOperationMode', 'projectDiagnosticsWriteActiveState', 'projectDiagnosticsFailureBlockingCondition', 'projectDiagnosticsExtraFields']) {
+    assert.match(zh, new RegExp(`${key}:`));
+    assert.match(en, new RegExp(`${key}:`));
+  }
 });
 
 test('markdown renderer is typed and heavy renderers are lazy-loaded', () => {

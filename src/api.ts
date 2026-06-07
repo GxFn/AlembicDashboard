@@ -563,6 +563,26 @@ function normalizeProjectRuntimeFlags(value: unknown): DashboardProjectRuntimeFl
   };
 }
 
+const PROJECT_RUNTIME_DIAGNOSTIC_KNOWN_FIELDS = new Set([
+  'action',
+  'code',
+  'detailRefs',
+  'message',
+  'blockingCondition',
+  'projectId',
+  'projectRoot',
+  'reasonCode',
+  'severity',
+  'source',
+  'sourceRefs',
+]);
+
+function projectRuntimeDiagnosticExtraFields(record: UnknownRecord): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => !PROJECT_RUNTIME_DIAGNOSTIC_KNOWN_FIELDS.has(key)),
+  );
+}
+
 function normalizeProjectRuntimeDiagnostic(value: unknown): DashboardProjectRuntimeControlDiagnostic | null {
   const record = asRuntimeRecord(value);
   if (!record) {
@@ -575,6 +595,8 @@ function normalizeProjectRuntimeDiagnostic(value: unknown): DashboardProjectRunt
     action: firstString(record.action),
     code: firstString(record.code),
     detailRefs: stringArray(record.detailRefs),
+    // Preserve backend diagnostic extensions instead of silently dropping them.
+    extraFields: projectRuntimeDiagnosticExtraFields(record),
     message,
     projectId: firstString(record.projectId),
     projectRoot: firstString(record.projectRoot),
@@ -812,7 +834,7 @@ function normalizeNullableProjectRuntimeScope(value: unknown): DashboardProjectR
   return value === null || value === undefined ? null : normalizeProjectRuntimeScope(value);
 }
 
-function normalizeProjectsSnapshot(value: unknown): DashboardProjectsSnapshot {
+export function normalizeProjectsSnapshot(value: unknown): DashboardProjectsSnapshot {
   const record = asRuntimeRecord(value) ?? {};
   const diagnostics = normalizeProjectRuntimeDiagnostics(record.diagnostics);
   const state = normalizeProjectRuntimeControlState(record.state);

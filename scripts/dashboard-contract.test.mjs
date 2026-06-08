@@ -600,6 +600,23 @@ test('jobs view lets the page scroll without inner list scrolling', () => {
   assert.doesNotMatch(jobs, /min-h-0 flex-1 overflow-y-auto/);
 });
 
+test('guard view keeps narrow screens from overflowing on long audit paths', () => {
+  const app = read('src/App.tsx');
+  const guard = read('src/components/Views/GuardView.tsx');
+
+  assert.ok(app.includes('<main className="flex-1 min-w-0 flex flex-col overflow-hidden relative">'));
+  assert.ok(guard.includes('flex-1 flex min-w-0 flex-col overflow-hidden'));
+  assert.ok(guard.includes('grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'));
+  assert.ok(guard.includes('overflow-x-auto px-1 pb-1 scrollbar-hidden'));
+  assert.ok(guard.includes('min-w-0 flex-1 break-all font-mono text-xs text-[var(--fg-primary)] sm:text-sm sm:truncate'));
+  assert.ok(guard.includes('max-w-full break-all font-mono text-xs text-[var(--fg-secondary)]'));
+  assert.ok(guard.includes('overflow-x-hidden whitespace-pre-wrap break-all'));
+  assert.ok(guard.includes('<table className="min-w-[760px] w-full text-sm">'));
+  assert.ok(guard.includes('break-all font-mono text-[11px] text-indigo-500'));
+  assert.ok(guard.includes('flex min-w-0 flex-col gap-2 p-3 rounded-lg'));
+  assert.ok(guard.includes('min-w-0 flex-1 break-all text-xs text-[var(--fg-secondary)] sm:truncate'));
+});
+
 test('socket process events share REST content normalization', () => {
   const api = read('src/api.ts');
   const hook = read('src/hooks/useJobProcessEvents.ts');

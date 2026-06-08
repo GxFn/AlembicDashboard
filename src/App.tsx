@@ -1133,7 +1133,7 @@ const App: React.FC = () => {
     projectName={data?.projectName}
     />
 
-    <main className="flex-1 flex flex-col overflow-hidden relative">
+    <main className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
     <Header 
       aiConfig={data?.aiConfig}
       llmReady={llmReady}

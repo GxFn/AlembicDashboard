@@ -295,9 +295,9 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
   }
 
   return (
-  <div className="flex-1 flex flex-col overflow-hidden">
+  <div className="flex-1 flex min-w-0 flex-col overflow-hidden">
     {/* ── 页面头部 ── */}
-    <div className="mb-4 flex flex-wrap justify-between items-center gap-3 shrink-0">
+    <div className="mb-4 flex flex-col gap-3 shrink-0 lg:flex-row lg:items-center lg:justify-between">
     <div className="flex items-center gap-3 min-w-0">
       <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
       <Shield className="text-blue-600" size={20} />
@@ -312,7 +312,7 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
       </p>
       </div>
     </div>
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
       <a
       href={GITHUB_ISSUES_NEW_GUARD_URL}
       target="_blank"
@@ -330,7 +330,7 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
         <Trash2 size={14} /> {t('guard.clearHistory')}
       </button>
       )}
-      <div className="flex items-center gap-3 text-xs">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
       <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-default)]">
         <Shield size={14} className="text-[var(--fg-muted)]" />
         <span className="text-[var(--fg-secondary)]">{t('guard.tableHeaders.rule')} <strong className="text-[var(--fg-primary)]">{ruleEntries.length}</strong></span>
@@ -347,7 +347,7 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
 
     {/* ── 指标卡片 ── */}
     {!reportLoading && guardReport && (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 shrink-0">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4 mb-5 shrink-0">
       <div className="flex items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-4 px-3">
         <CircularProgress value={guardReport.complianceScore} label={t('guard.metricCompliance')} suffix="/100" hint={t('guard.hintCompliance')} />
       </div>
@@ -363,7 +363,7 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
     </div>
     )}
     {reportLoading && (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 shrink-0">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4 mb-5 shrink-0">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="flex items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-4 px-3 h-[130px]">
           <div className="w-[84px] h-[84px] rounded-full border-4 border-[var(--border-default)] animate-pulse" />
@@ -373,7 +373,7 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
     )}
 
     {/* ── Tab 导航 ── */}
-    <div className="flex items-center gap-1.5 mb-4 shrink-0">
+    <div className="-mx-1 mb-4 flex shrink-0 items-center gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-hidden">
       {TAB_KEYS.map(tab => {
         const isActive = activeTab === tab;
         let badge: React.ReactNode = null;
@@ -394,7 +394,7 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
             key={tab}
             type="button"
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center ${
+            className={`shrink-0 px-3 sm:px-4 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center ${
             isActive
               ? 'bg-[var(--accent-subtle)] text-[var(--accent)] border border-[var(--accent-emphasis)]'
               : 'text-[var(--fg-muted)] hover:bg-[var(--bg-subtle)] border border-transparent'
@@ -407,7 +407,7 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
     </div>
 
     {/* ── 内容区域 ── */}
-    <div className="flex-1 overflow-y-auto pr-1 pb-6">
+    <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pr-0 sm:pr-1 pb-6">
 
     {/* ── Rules Tab ── */}
     {activeTab === 'rules' && (
@@ -455,15 +455,15 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
       })}
     </div>
     {/* ── Code-Level / Cross-File 配置提示 ── */}
-    <div className="mb-3 flex items-start gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-100 text-xs text-indigo-700">
+    <div className="mb-3 flex min-w-0 items-start gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-100 text-xs text-indigo-700">
       <Info size={14} className="shrink-0 mt-0.5" />
-      <div>
+      <div className="min-w-0">
         <span>{t('guard.codeLevelConfigTip')}</span>
-        <span className="ml-1 font-mono text-[11px] text-indigo-500">{t('guard.codeLevelConfigPath')}</span>
+        <span className="ml-1 break-all font-mono text-[11px] text-indigo-500">{t('guard.codeLevelConfigPath')}</span>
       </div>
     </div>
-    <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl overflow-x-auto">
+      <table className="min-w-[760px] w-full text-sm">
       <thead className="bg-[var(--bg-subtle)] border-b border-[var(--border-default)]">
         <tr>
         <th className="text-left py-2 px-4 font-medium text-[var(--fg-secondary)]">{t('guard.ruleId')}</th>
@@ -538,20 +538,26 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
           <button
           type="button"
           onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
-          className="w-full flex items-center gap-2 py-3 px-4 text-left hover:bg-[var(--bg-subtle)] transition-colors"
+          className="w-full py-3 px-3 text-left hover:bg-[var(--bg-subtle)] transition-colors sm:px-4"
           >
-          {isExpanded ? <ChevronDown size={ICON_SIZES.md} /> : <ChevronRight size={ICON_SIZES.md} />}
-          <span className="font-mono text-sm text-[var(--fg-primary)]">{run.filePath}</span>
-          <span className="text-xs text-[var(--fg-muted)]">
-            {new Date(run.triggeredAt).toLocaleString()}
-          </span>
-          {hasViolations ? (
-            <span className="ml-auto flex items-center gap-1 text-amber-600 text-xs font-medium">
-            <AlertTriangle size={ICON_SIZES.sm} /> {t('guard.totalViolations', { count: run.violations.length })}
-            </span>
-          ) : (
-            <span className="ml-auto text-[var(--fg-muted)] text-xs">{t('guard.noViolations')}</span>
-          )}
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              {isExpanded ? <ChevronDown size={ICON_SIZES.md} className="shrink-0" /> : <ChevronRight size={ICON_SIZES.md} className="shrink-0" />}
+              <span className="min-w-0 flex-1 break-all font-mono text-xs text-[var(--fg-primary)] sm:text-sm sm:truncate" title={run.filePath}>{run.filePath}</span>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs sm:justify-end sm:pl-0">
+              <span className="text-[var(--fg-muted)]">
+                {new Date(run.triggeredAt).toLocaleString()}
+              </span>
+              {hasViolations ? (
+                <span className="flex items-center gap-1 text-amber-600 font-medium">
+                  <AlertTriangle size={ICON_SIZES.sm} /> {t('guard.totalViolations', { count: run.violations.length })}
+                </span>
+              ) : (
+                <span className="text-[var(--fg-muted)]">{t('guard.noViolations')}</span>
+              )}
+            </div>
+          </div>
           </button>
           {isExpanded && (
           <div className="border-t border-[var(--border-default)] bg-[var(--bg-subtle)] p-4">
@@ -562,24 +568,26 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
               {run.violations.map((v, i) => {
               const matchedRule = rules[v.ruleId];
               return (
-              <li key={i} className="flex items-start gap-2 text-sm">
+              <li key={i} className="flex min-w-0 items-start gap-2 text-sm">
                 {v.severity === 'error' ? (
                 <AlertCircle size={ICON_SIZES.md} className="text-red-500 shrink-0 mt-0.5" />
                 ) : (
                 <AlertTriangle size={ICON_SIZES.md} className="text-amber-500 shrink-0 mt-0.5" />
                 )}
-                <div className="flex-1 space-y-1.5">
-                <div>
-                  <span className="font-mono text-xs text-[var(--fg-secondary)]">[{v.ruleId}] {v.filePath ? `${v.filePath}:${v.line}` : `L${v.line}`}</span>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="max-w-full break-all font-mono text-xs text-[var(--fg-secondary)]">[{v.ruleId}] {v.filePath ? `${v.filePath}:${v.line}` : `L${v.line}`}</span>
                   {v.dimension && (
-                  <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--fg-secondary)]">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--fg-secondary)]">
                     {v.dimension === 'file' ? t('guard.dimFile') : v.dimension === 'target' ? t('guard.dimTarget') : t('guard.dimProject')}
                   </span>
                   )}
-                  <span className="text-[var(--fg-primary)] ml-2">{ruleMsg(v.ruleId, v.message)}</span>
+                  </div>
+                  <p className="mt-1 break-words text-[var(--fg-primary)]">{ruleMsg(v.ruleId, v.message)}</p>
                 </div>
                 {v.snippet && (
-                  <pre className="text-xs text-[var(--fg-secondary)] bg-[var(--bg-subtle)] p-2 rounded overflow-x-auto">
+                  <pre className="text-xs text-[var(--fg-secondary)] bg-[var(--bg-subtle)] p-2 rounded overflow-x-hidden whitespace-pre-wrap break-all">
                   {v.snippet}
                   </pre>
                 )}
@@ -809,8 +817,8 @@ const AuditTabContent: React.FC<AuditTabContentProps> = ({ logs, total, loading,
             : 'text-[var(--fg-secondary)]';
 
         return (
-          <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)]">
-            <span className="text-xs text-[var(--fg-muted)] shrink-0 w-36 tabular-nums">
+          <div key={idx} className="flex min-w-0 flex-col gap-2 p-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] sm:flex-row sm:items-center sm:gap-3">
+            <span className="text-xs text-[var(--fg-muted)] shrink-0 tabular-nums sm:w-36">
               {new Date(entry.timestamp).toLocaleString()}
             </span>
             <span className="text-xs font-semibold text-[var(--fg-primary)] shrink-0">
@@ -822,7 +830,7 @@ const AuditTabContent: React.FC<AuditTabContentProps> = ({ logs, total, loading,
             <span className={`text-xs font-medium shrink-0 ${resultCls}`}>
               {entry.result === 'success' ? '✓' : entry.result === 'failure' ? '✗' : entry.result}
             </span>
-            <span className="text-xs text-[var(--fg-secondary)] truncate min-w-0 flex-1" title={entry.target}>
+            <span className="min-w-0 flex-1 break-all text-xs text-[var(--fg-secondary)] sm:truncate" title={entry.target}>
               {entry.target}
             </span>
           </div>

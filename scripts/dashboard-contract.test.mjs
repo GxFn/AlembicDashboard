@@ -718,6 +718,108 @@ test('dashboard replays accepted Alembic provider fixtures through executable no
   assert.deepEqual(normalizedFolders.folders.map((folder) => folder.path), ['src']);
 });
 
+test('dashboard keeps legacy source labels as display compatibility only', async () => {
+  const labels = await importTranspiled('src/utils/sourceLabels.ts');
+  const t = (key) => `translated:${key}`;
+
+  const legacy = labels.getSourceLabelInfo('ide-agent');
+  assert.equal(legacy.compatibility, true);
+  assert.equal(legacy.disposition, 'display-compatibility');
+  assert.match(legacy.compatibilityOwner, /AlembicDashboard display adapter/);
+  assert.match(legacy.cleanupTrigger, /provider fixtures/);
+  assert.equal(labels.formatSourceLabel('ide-agent', t), 'translated:sources.legacyIdeAgent');
+
+  const current = labels.getSourceLabelInfo('host-agent');
+  assert.equal(current.compatibility, undefined);
+  assert.equal(current.disposition, 'provider-source');
+
+  const unknown = labels.getSourceLabelInfo('custom-importer');
+  assert.equal(unknown.disposition, 'unmapped-display');
+  assert.equal(labels.formatSourceLabel('custom-importer', t), 'custom-importer');
+});
+
+test('runtime boundary aliases are explicit diagnostic compatibility metadata', async () => {
+  const apiModule = await importTranspiled('src/api.ts');
+  const boundary = apiModule.normalizeRuntimeBoundary({}, {
+    mode: 'daemon',
+    projectRoot: '/workspace/alembic',
+    capabilities: {
+      fileMonitor: {
+        available: true,
+        acceptedEventSources: ['file-change'],
+        compatibilityAliases: {
+          'ide-edit': 'host-edit',
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(boundary.capabilities.fileMonitor.compatibilityAliases, { 'ide-edit': 'host-edit' });
+  assert.equal(boundary.capabilities.fileMonitor.compatibilityAliasPolicy.disposition, 'diagnostic-compatibility');
+  assert.equal(boundary.capabilities.fileMonitor.compatibilityAliasPolicy.owner, 'AlembicCore RuntimeContracts');
+  assert.ok(boundary.capabilities.fileMonitor.compatibilityAliasPolicy.validationRefs.includes('D13-D01'));
+});
+
+test('knowledge save uses a typed provider payload projector', async () => {
+  const app = read('src/App.tsx');
+  const api = read('src/api.ts');
+  const payload = await importTranspiled('src/knowledgePayload.ts');
+  const projected = payload.buildKnowledgeCreatePayload({
+    title: 'Typed boundary',
+    description: 'No wide bag',
+    trigger: 'unused',
+    language: 'ts',
+    category: 'interfaces',
+    tags: ['contract'],
+    source: 'host-agent',
+    content: { pattern: 'const ok = true;' },
+    reasoning: { whyStandard: 'provider contract', sources: ['fixture'], confidence: 0.8 },
+    quality: { overall: 0.9 },
+    stats: { applications: 1 },
+    headers: ['A.h'],
+    headerPaths: ['Sources/A.h'],
+    includeHeaders: true,
+  }, ['typed-boundary']);
+
+  assert.equal(projected.title, 'Typed boundary');
+  assert.equal(projected.trigger, 'typed-boundary');
+  assert.equal(projected.kind, 'pattern');
+  assert.deepEqual(projected.headerPaths, ['Sources/A.h']);
+  assert.equal(projected.includeHeaders, true);
+  assert.match(app, /buildKnowledgeCreatePayload\(extracted, triggers\)/);
+  assert.doesNotMatch(app, /const v3Data: Record<string, any>/);
+  assert.match(api, /knowledgeCreate\(data: KnowledgeCreatePayload\)/);
+});
+
+test('chat stream summarizes tool args without retaining raw payload bags', async () => {
+  const hook = read('src/hooks/useChatStream.ts');
+  const stream = await importTranspiled('src/hooks/useChatStream.ts');
+  const t = (key, vars) => {
+    if (key === 'chatStream.andNFiles') {
+      return ` +${vars.n - 1}`;
+    }
+    return key;
+  };
+
+  const summary = stream.toolSummary(t, 'read_project_file', {
+    filePath: '/workspace/AlembicDashboard/src/App.tsx',
+    secretToken: 'sk-redacted',
+    nested: { raw: 'do-not-render' },
+  });
+  assert.equal(summary, 'read_project_file: App.tsx');
+  assert.doesNotMatch(summary, /secret|raw|workspace|\\{|"|sk-redacted/);
+
+  const searchSummary = stream.toolSummary(t, 'search_project_code', {
+    patterns: ['first-pattern', 'second-pattern', 'third-pattern'],
+  });
+  assert.equal(searchSummary, 'search_project_code: first-pattern, second-pattern ...');
+
+  assert.doesNotMatch(hook, /Record<string, any>/);
+  assert.doesNotMatch(hook, /toolMeta: Array<\{ tool: string; args/);
+  assert.match(hook, /toolMeta: Array<\{ summary: string \}>/);
+  assert.match(hook, /asToolEventArgs\(evt\.args\)/);
+});
+
 test('project scope panel consumes Alembic ProjectScope API without fake source folders', () => {
   const api = read('src/api.ts');
   const types = read('src/types.ts');

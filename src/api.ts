@@ -8,6 +8,7 @@
  */
 
 import axios from 'axios';
+import type { KnowledgeCreatePayload } from './knowledgePayload';
 import type {
   Recipe,
   RecipeStats,
@@ -144,6 +145,23 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
     typeof entry[1] === 'string'
   );
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function fileMonitorCompatibilityAliasPolicy(aliases: Record<string, string> | undefined) {
+  if (!aliases || Object.keys(aliases).length === 0) {
+    return undefined;
+  }
+  return {
+    disposition: 'diagnostic-compatibility' as const,
+    owner: 'AlembicCore RuntimeContracts',
+    cleanupTrigger:
+      'Remove after Dashboard and Alembic provider fixture replay no longer require file monitor compatibilityAliases.',
+    validationRefs: [
+      'D9-C02',
+      'D13-D01',
+      'runtime-boundary-fixture-replay',
+    ],
+  };
 }
 
 function firstNumber(...values: unknown[]): number | null {
@@ -1049,7 +1067,7 @@ async function postProjectAction(
   return result;
 }
 
-function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: unknown): RuntimeBoundary {
+export function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: unknown): RuntimeBoundary {
   const projectInfo = asRuntimeRecord(projectInfoValue) ?? {};
   const daemon = asRuntimeRecord(daemonHealthValue) ?? {};
   const daemonCapabilities = asRuntimeRecord(daemon.capabilities);
@@ -1088,6 +1106,7 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
   const apiCapability = asRuntimeRecord(capabilities.api);
   const dashboardCapability = asRuntimeRecord(capabilities.dashboard);
   const fileMonitorCapability = asRuntimeRecord(capabilities.fileMonitor);
+  const fileMonitorCompatibilityAliases = stringRecord(fileMonitorCapability?.compatibilityAliases);
   const jobsCapability = asRuntimeRecord(capabilities.jobs);
   const apiAiCapability = asRuntimeRecord(capabilities.apiAi);
   const projectScopeCapability = asRuntimeRecord(capabilities.projectScope);
@@ -1171,7 +1190,8 @@ function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: 
               fileMonitorCapability?.acceptedEventSources,
               runtimeFileMonitor?.acceptedEventSources
             ),
-            compatibilityAliases: stringRecord(fileMonitorCapability?.compatibilityAliases),
+            compatibilityAliases: fileMonitorCompatibilityAliases,
+            compatibilityAliasPolicy: fileMonitorCompatibilityAliasPolicy(fileMonitorCompatibilityAliases),
             dispatcher: firstString(runtimeFileMonitor?.dispatcher),
             longLivedOwner: firstString(runtimeFileMonitor?.longLivedOwner),
           }
@@ -3584,7 +3604,7 @@ Skill 文档格式要求：
   },
 
   /** 创建知识条目 */
-  async knowledgeCreate(data: Partial<KnowledgeEntry>): Promise<KnowledgeEntry> {
+  async knowledgeCreate(data: KnowledgeCreatePayload): Promise<KnowledgeEntry> {
     const res = await http.post('/knowledge', data);
     return res.data?.data;
   },

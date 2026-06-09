@@ -18,6 +18,7 @@ import { TabType, validTabs } from './constants';
 import { isShellTarget, isSilentTarget, isPendingTarget, getWritePermissionErrorMsg, getSaveErrorMsg } from './utils';
 import { getErrorMessage, isAbortError, isTimeoutError, isAiError, isAxiosCancel } from './utils/error';
 import api from './api';
+import { buildKnowledgeCreatePayload } from './knowledgePayload';
 import { useAuth } from './hooks/useAuth';
 import { usePermission } from './hooks/usePermission';
 import { useBootstrapSocket } from './hooks/useBootstrapSocket';
@@ -886,43 +887,7 @@ const App: React.FC = () => {
     return;
     }
 
-    // ── V3 直透：结构化数据直接写入 Knowledge API，不经 markdown 序列化 ──
-    const v3Data: Record<string, any> = {
-      title:         extracted.title || 'Untitled',
-      description:   extracted.description || '',
-      trigger:       triggers.join(', ') || '',
-      language:      extracted.language || '',
-      category:      extracted.category || 'Utility',
-      kind:          extracted.kind || 'pattern',
-      knowledgeType: extracted.knowledgeType || 'code-pattern',
-      complexity:    extracted.complexity || 'intermediate',
-      scope:         extracted.scope || undefined,
-      difficulty:    extracted.difficulty || '',
-      tags:          extracted.tags || [],
-      source:        extracted.source || 'ai-scan',
-      sourceFile:    extracted.sourceFile || '',
-      moduleName:    extracted.moduleName || '',
-
-      // Delivery fields
-      doClause:      extracted.doClause || '',
-      dontClause:    extracted.dontClause || '',
-      whenClause:    extracted.whenClause || '',
-      topicHint:     extracted.topicHint || '',
-      coreCode:      extracted.coreCode || '',
-
-      // V3 结构化子对象
-      content:       extracted.content || {},
-      reasoning:     extracted.reasoning || {},
-      quality:       extracted.quality || {},
-      constraints:   extracted.constraints || {},
-      relations:     extracted.relations || {},
-      stats:         extracted.stats || {},
-
-      // 头文件
-      headers:       extracted.headers || [],
-      headerPaths:   extracted.headerPaths || [],
-      includeHeaders: extracted.includeHeaders || false,
-    };
+    const v3Data = buildKnowledgeCreatePayload(extracted, triggers);
 
     const created = await api.knowledgeCreate(v3Data);
 

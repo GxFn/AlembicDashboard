@@ -27,6 +27,17 @@ async function importTranspiled(relativePath) {
   return import(pathToFileURL(tempFile).href);
 }
 
+async function importAlembicProviderContracts() {
+  const providerPath = path.resolve(root, '..', 'Alembic', 'dist', 'lib', 'http', 'provider-contracts.js');
+  return import(pathToFileURL(providerPath).href);
+}
+
+function providerFixture(fixtures, fixtureId) {
+  const fixture = fixtures.find((item) => item.fixtureId === fixtureId);
+  assert.ok(fixture, `Alembic provider fixture ${fixtureId} is required`);
+  return fixture;
+}
+
 test('package exposes real local quality gates', () => {
   const pkg = JSON.parse(read('package.json'));
   for (const scriptName of ['lint', 'test', 'typecheck', 'build', 'build:check', 'check']) {
@@ -624,7 +635,8 @@ test('socket process events share REST content normalization', () => {
   assert.match(api, /function contentTextOrUndefined\(value: unknown\)/);
   assert.match(api, /stringOrUndefined\(record\.text\)/);
   assert.match(api, /JSON\.stringify\(value, null, 2\)/);
-  assert.match(api, /content: contentTextOrUndefined\(record\.content\)/);
+  assert.match(api, /const content = contentTextOrUndefined\(record\.content\)/);
+  assert.match(api, /content,/);
 
   assert.doesNotMatch(hook, /\.\.\.payload\.event,\s*\n\s*jobId:/);
   assert.match(hook, /event\?: unknown/);
@@ -635,6 +647,75 @@ test('socket process events share REST content normalization', () => {
   assert.match(hook, /socket\.io\.on\('reconnect', recover\)/);
   assert.match(hook, /setInterval\(\(\) => fetchEvents\('incremental'\), 5000\)/);
   assert.doesNotMatch(hook, /socketAppendQueue|SOCKET_APPEND|appendNextQueued|ensureSocketAppend/);
+});
+
+test('dashboard replays accepted Alembic provider fixtures through executable normalizers', async () => {
+  const provider = await importAlembicProviderContracts();
+  const apiModule = await importTranspiled('src/api.ts');
+  const eventUtils = await importTranspiled('src/utils/jobProcessEvents.ts');
+  const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
+  const eventContracts = provider.ALEMBIC_PROVIDER_EVENT_CONTRACTS;
+  const routeContracts = provider.ALEMBIC_PROVIDER_ROUTE_CONTRACTS;
+
+  assert.ok(routeContracts.some((route) => route.operationId === 'listProjects'));
+  assert.ok(routeContracts.some((route) => route.operationId === 'getProjectScope'));
+  assert.ok(routeContracts.some((route) => route.operationId === 'listJobProcessEvents'));
+  assert.ok(routeContracts.some((route) => route.operationId === 'getJobDisplaySnapshot'));
+  assert.ok(
+    eventContracts.some((event) => event.transport === 'rest-recovery' && event.eventName === 'job-process-events'),
+  );
+  assert.ok(
+    eventContracts.some((event) => event.transport === 'socket.io' && event.eventName === 'job:process-event'),
+  );
+
+  const visibleEvent = providerFixture(fixtures, 'job-event.visible');
+  const directEvent = apiModule.normalizeProcessDeveloperView(visibleEvent.payload.event, visibleEvent.payload.jobId);
+  assert.equal(directEvent.jobId, 'job-bootstrap-1');
+  assert.equal(directEvent.kind, 'bootstrap');
+  assert.equal(directEvent.title, 'bootstrap');
+  assert.equal(directEvent.content, 'Indexed project files.');
+
+  const recoveredEvents = apiModule.normalizeJobProcessEventsResponse(
+    visibleEvent.payload,
+    visibleEvent.payload.jobId,
+  );
+  assert.equal(recoveredEvents.developerViews.length, 1);
+  assert.equal(recoveredEvents.developerViews[0].eventId, 'evt-1');
+  assert.equal(recoveredEvents.nextSequence, 2);
+
+  const mergedEvents = eventUtils.mergeProcessEvents([], recoveredEvents.developerViews);
+  assert.deepEqual(mergedEvents.map((event) => event.eventId), ['evt-1']);
+
+  const partialEvents = providerFixture(fixtures, 'job-event.partial');
+  const normalizedPartialEvents = apiModule.normalizeJobProcessEventsResponse(
+    partialEvents.payload,
+    partialEvents.payload.jobId,
+  );
+  assert.equal(normalizedPartialEvents.retainedCount, 50);
+  assert.equal(normalizedPartialEvents.developerViews.length, 0);
+
+  const snapshotFixture = providerFixture(fixtures, 'job-snapshot.success');
+  const normalizedSnapshot = apiModule.normalizeJobDisplaySnapshotResponse(
+    snapshotFixture.payload,
+    'job-bootstrap-1',
+  );
+  assert.equal(normalizedSnapshot.persisted, true);
+  assert.equal(normalizedSnapshot.snapshot.snapshot.jobId, 'job-bootstrap-1');
+  assert.equal(normalizedSnapshot.snapshot.snapshot.snapshotVersion, 1);
+
+  const projectsFixture = providerFixture(fixtures, 'project-runtime.success');
+  const normalizedProjects = apiModule.normalizeProjectsSnapshot(projectsFixture.payload);
+  assert.equal(normalizedProjects.state.activeProjectId, 'project-alpha');
+  assert.equal(normalizedProjects.projects[0].projectId, 'project-alpha');
+
+  const scopeFixture = providerFixture(fixtures, 'project-scope.success');
+  const normalizedScope = apiModule.normalizeProjectScopeResponse(scopeFixture.payload);
+  assert.equal(normalizedScope.summary.projectScopeId, 'scope-alpha');
+  assert.equal(normalizedScope.summary.folders[0].path, 'src');
+  assert.equal(normalizedScope.summary.folders[0].displayName, 'src');
+
+  const normalizedFolders = apiModule.normalizeProjectScopeFoldersResponse(scopeFixture.payload);
+  assert.deepEqual(normalizedFolders.folders.map((folder) => folder.path), ['src']);
 });
 
 test('project scope panel consumes Alembic ProjectScope API without fake source folders', () => {

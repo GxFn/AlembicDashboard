@@ -83,6 +83,12 @@ function asRuntimeRecord(value: unknown): UnknownRecord | null {
   return isRecord(value) ? value : null;
 }
 
+function providerDataRecord(value: unknown): UnknownRecord {
+  const record = asRuntimeRecord(value) ?? {};
+  const data = asRuntimeRecord(record.data);
+  return record.success === true && data ? data : record;
+}
+
 function firstString(...values: unknown[]): string | null {
   for (const value of values) {
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -223,7 +229,8 @@ export function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: st
   const eventId = firstString(record.eventId, record.id);
   const jobId = firstString(record.jobId, fallbackJobId);
   const sequence = firstNumber(record.sequence);
-  const kind = firstString(record.kind);
+  const kind = firstString(record.kind, record.type, record.eventName, record.phase) ?? 'workflow';
+  const content = contentTextOrUndefined(record.content);
   const title = firstString(record.title, record.summary, kind);
   if (!eventId || !jobId || sequence === null || !kind || !title) {
     return null;
@@ -238,7 +245,7 @@ export function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: st
     phase: stringOrUndefined(record.phase),
     title,
     summary: stringOrUndefined(record.summary),
-    content: contentTextOrUndefined(record.content),
+    content,
     severity: stringOrUndefined(record.severity),
     sourceClass: stringOrUndefined(record.sourceClass),
     displayPolicy: stringOrUndefined(record.displayPolicy),
@@ -266,10 +273,15 @@ function normalizeProcessEndpointCapability(value: unknown): JobProcessEndpointC
   };
 }
 
-function normalizeJobProcessEventsResponse(value: unknown, fallbackJobId: string): JobProcessEventsResponse {
-  const record = asRuntimeRecord(value) ?? {};
+export function normalizeJobProcessEventsResponse(value: unknown, fallbackJobId: string): JobProcessEventsResponse {
+  const record = providerDataRecord(value);
   const jobId = firstString(record.jobId, fallbackJobId) ?? fallbackJobId;
-  const developerViews = recordArray(record.developerViews)
+  const eventRecords = [
+    ...recordArray(record.developerViews),
+    ...recordArray(record.events),
+    ...(record.event === undefined ? [] : [record.event]),
+  ];
+  const developerViews = eventRecords
     .map((item) => normalizeProcessDeveloperView(item, jobId))
     .filter((item): item is JobProcessDeveloperView => item !== null)
     .sort((a, b) => a.sequence - b.sequence);
@@ -305,8 +317,8 @@ export function normalizeJobDisplaySnapshotSummaryRef(value: unknown): JobDispla
   };
 }
 
-function normalizeJobDisplaySnapshotResponse(value: unknown, fallbackJobId: string): JobDisplaySnapshotResponse {
-  const record = asRuntimeRecord(value) ?? {};
+export function normalizeJobDisplaySnapshotResponse(value: unknown, fallbackJobId: string): JobDisplaySnapshotResponse {
+  const record = providerDataRecord(value);
   return {
     persisted: firstBoolean(record.persisted) ?? false,
     snapshot: normalizeJobDisplaySnapshot(record.snapshot, fallbackJobId),
@@ -317,7 +329,8 @@ function normalizeJobDisplaySnapshotResponse(value: unknown, fallbackJobId: stri
 
 function normalizeJobDisplaySnapshot(value: unknown, fallbackJobId: string): JobDisplaySnapshot {
   const record = asRuntimeRecord(value) ?? {};
-  const snapshotMeta = asRuntimeRecord(record.snapshot) ?? {};
+  const snapshotMeta = asRuntimeRecord(record.snapshot) ??
+    (record.snapshotId || record.snapshotVersion || record.ref || record.jobId ? record : {});
   const jobRecord = asRuntimeRecord(record.job) ?? {};
   const summary = asRuntimeRecord(record.summary) ?? {};
   const manifest = asRuntimeRecord(record.manifest) ?? {};
@@ -807,21 +820,23 @@ function normalizeProjectRuntimeScope(value: unknown): DashboardProjectRuntimeSc
   }
 
   const daemon = normalizeProjectRuntimeDaemon(record.daemon);
-  const projectRoot = firstString(record.projectRoot) ?? '';
+  const projectId = firstString(record.projectId, record.id);
+  const projectRoot = firstString(record.projectRoot, record.root, record.path) ?? '';
   const ghost = booleanOrFalse(record.ghost);
   return {
-    cacheKey: firstString(record.cacheKey, record.projectId, projectRoot) ?? '',
+    cacheKey: firstString(record.cacheKey, projectId, projectRoot) ?? '',
     dashboardUrl: firstString(record.dashboardUrl, daemon.dashboardUrl),
     dataRoot: firstString(record.dataRoot, projectRoot) ?? '',
     dataRootSource: firstString(record.dataRootSource, ghost ? 'ghost-registry' : null) ?? 'unknown',
     daemon,
-    displayName: firstString(record.displayName) ?? fallbackDisplayName(projectRoot),
+    displayName: firstString(record.displayName, record.name, record.label, projectId) ??
+      fallbackDisplayName(projectRoot),
     flags: normalizeProjectRuntimeFlags(record.flags),
     ghost,
     mode: firstString(record.mode, ghost ? 'ghost' : null) ?? 'unknown',
     projectExists: booleanOrFalse(record.projectExists),
-    projectId: firstString(record.projectId),
-    projectRealpath: firstString(record.projectRealpath, projectRoot) ?? '',
+    projectId,
+    projectRealpath: firstString(record.projectRealpath, record.realpath, projectRoot) ?? '',
     projectRoot,
     registered: booleanOrFalse(record.registered),
     runtimeDir: firstString(record.runtimeDir) ?? '',
@@ -835,7 +850,7 @@ function normalizeNullableProjectRuntimeScope(value: unknown): DashboardProjectR
 }
 
 export function normalizeProjectsSnapshot(value: unknown): DashboardProjectsSnapshot {
-  const record = asRuntimeRecord(value) ?? {};
+  const record = providerDataRecord(value);
   const diagnostics = normalizeProjectRuntimeDiagnostics(record.diagnostics);
   const state = normalizeProjectRuntimeControlState(record.state);
   const stateCleanup = normalizeProjectRuntimeStateCleanup(record.stateCleanup);
@@ -887,13 +902,13 @@ function normalizeProjectScopeFolder(value: unknown): ProjectScopeFolderSummary 
     return null;
   }
 
-  const path = firstString(record.path);
+  const path = firstString(record.path, record.folderPath, record.realpath, record.id, record.folderId);
   if (!path) {
     return null;
   }
 
   return {
-    displayName: firstString(record.displayName, record.name) ?? fallbackDisplayName(path),
+    displayName: firstString(record.displayName, record.name, record.label) ?? fallbackDisplayName(path),
     folderId: firstString(record.folderId, record.id, path) ?? path,
     path,
     realpath: firstString(record.realpath),
@@ -924,9 +939,10 @@ function normalizeProjectScopeSummary(value: unknown): ProjectScopeSummary | nul
   const folders = normalizeProjectScopeFolders(record.folders, controlRoot);
   const currentFolderRecord = asRuntimeRecord(record.currentFolder);
   const currentFolderPath = firstString(record.currentFolderPath, currentFolderRecord?.path);
+  const contractVersion = firstString(record.contractVersion) ?? firstNumber(record.contractVersion)?.toString();
 
   return {
-    contractVersion: firstString(record.contractVersion),
+    contractVersion,
     controlRoot,
     controlRootIncludedInFolders: record.controlRootIncludedInFolders === true,
     currentFolderId: firstString(record.currentFolderId, currentFolderRecord?.id, currentFolderRecord?.folderId),
@@ -960,10 +976,11 @@ function normalizeProjectScopeResolution(value: unknown): ProjectScopeResolution
   };
 }
 
-function normalizeProjectScopeResponse(value: unknown): ProjectScopeResponse {
-  const record = asRuntimeRecord(value) ?? {};
-  const projectScope = normalizeProjectScopeSummary(record.projectScope);
-  const summary = normalizeProjectScopeSummary(record.summary) ?? projectScope;
+export function normalizeProjectScopeResponse(value: unknown): ProjectScopeResponse {
+  const record = providerDataRecord(value);
+  const directSummary = record.projectScope || record.summary ? null : normalizeProjectScopeSummary(record);
+  const projectScope = normalizeProjectScopeSummary(record.projectScope) ?? directSummary;
+  const summary = normalizeProjectScopeSummary(record.summary) ?? projectScope ?? directSummary;
   return {
     capability: normalizeProjectScopeCapability(record.capability),
     projectScope,
@@ -973,10 +990,11 @@ function normalizeProjectScopeResponse(value: unknown): ProjectScopeResponse {
   };
 }
 
-function normalizeProjectScopeFoldersResponse(value: unknown): ProjectScopeFoldersResponse {
-  const record = asRuntimeRecord(value) ?? {};
-  const projectScope = normalizeProjectScopeSummary(record.projectScope);
-  const summary = normalizeProjectScopeSummary(record.summary) ?? projectScope;
+export function normalizeProjectScopeFoldersResponse(value: unknown): ProjectScopeFoldersResponse {
+  const record = providerDataRecord(value);
+  const directSummary = record.projectScope || record.summary ? null : normalizeProjectScopeSummary(record);
+  const projectScope = normalizeProjectScopeSummary(record.projectScope) ?? directSummary;
+  const summary = normalizeProjectScopeSummary(record.summary) ?? projectScope ?? directSummary;
   const controlRoot = summary?.controlRoot ?? projectScope?.controlRoot ?? null;
   return {
     capability: normalizeProjectScopeCapability(record.capability),

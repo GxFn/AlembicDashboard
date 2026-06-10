@@ -221,6 +221,53 @@ export function providerDataRecord(value: unknown): UnknownRecord {
   return record.success === true && data ? data : record;
 }
 
+const DASHBOARD_PRIVATE_PROVIDER_FIELD_KEYS = new Set([
+  'apikey',
+  'authorization',
+  'authtoken',
+  'hiddenreasoning',
+  'hostmetadata',
+  'password',
+  'privatepath',
+  'providerrequest',
+  'providerresponse',
+  'rawpayload',
+  'rawproviderpayload',
+  'rawresponse',
+  'secret',
+  'secrettoken',
+  'token',
+]);
+
+function normalizedProviderFieldKey(key: string): string {
+  return key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function isPrivateProviderFieldKey(key: string): boolean {
+  return DASHBOARD_PRIVATE_PROVIDER_FIELD_KEYS.has(normalizedProviderFieldKey(key));
+}
+
+function stripPrivateProviderFields(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripPrivateProviderFields);
+  }
+  const record = asRuntimeRecord(value);
+  if (!record) {
+    return value;
+  }
+
+  // 普通 UI projection 不应把 provider 私有字段继续带给组件；诊断扩展字段会在专门的 extraFields 中显式处理。
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([key]) => !isPrivateProviderFieldKey(key))
+      .map(([key, nestedValue]) => [key, stripPrivateProviderFields(nestedValue)]),
+  );
+}
+
+function dashboardPublicRecord(value: unknown): UnknownRecord | undefined {
+  return asRuntimeRecord(stripPrivateProviderFields(value)) ?? undefined;
+}
+
 function firstString(...values: unknown[]): string | null {
   for (const value of values) {
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -385,7 +432,7 @@ export function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: st
     return null;
   }
 
-  const metadata = asRuntimeRecord(record.metadata);
+  const metadata = dashboardPublicRecord(record.metadata);
   return {
     eventId,
     jobId,
@@ -402,7 +449,7 @@ export function normalizeProcessDeveloperView(value: unknown, fallbackJobId?: st
     targetName: stringOrUndefined(record.targetName),
     parentEventId: stringOrUndefined(record.parentEventId),
     artifactRefs: processArtifactRefs(record.artifactRefs),
-    metadata: metadata ?? undefined,
+    metadata,
     timestamp: numberOrUndefined(record.timestamp) ?? stringOrUndefined(record.timestamp),
   };
 }
@@ -472,7 +519,7 @@ export function normalizeJobDisplaySnapshotResponse(value: unknown, fallbackJobI
     persisted: firstBoolean(record.persisted) ?? false,
     snapshot: normalizeJobDisplaySnapshot(record.snapshot, fallbackJobId),
     snapshotPath: firstString(record.snapshotPath),
-    validation: asRuntimeRecord(record.validation) ?? undefined,
+    validation: dashboardPublicRecord(record.validation),
   };
 }
 
@@ -527,7 +574,7 @@ function normalizeJobDisplaySnapshot(value: unknown, fallbackJobId: string): Job
       warningCount: numberOrUndefined(manifest.warningCount) ?? recordArray(record.warnings).length,
     },
     phaseTimeline: normalizeJobDisplaySnapshotPhaseTimeline(record.phaseTimeline),
-    producer: asRuntimeRecord(record.producer) ?? undefined,
+    producer: dashboardPublicRecord(record.producer),
     snapshot: {
       checksum: stringOrUndefined(snapshotMeta.checksum),
       checksumAlgorithm: stringOrUndefined(snapshotMeta.checksumAlgorithm),
@@ -588,7 +635,7 @@ function normalizeJobDisplaySnapshotEvidenceItems(value: unknown): JobDisplaySna
       return {
         artifactRefs: normalizeJobDisplaySnapshotArtifactRefs(record.artifactRefs),
         id: id ?? sourceRef ?? title ?? 'snapshot-evidence',
-        metadata: asRuntimeRecord(record.metadata) ?? undefined,
+        metadata: dashboardPublicRecord(record.metadata),
         sourceRef,
         summary,
         title,
@@ -629,16 +676,16 @@ function normalizeJobDisplaySnapshotLlmIoEntries(value: unknown): JobDisplaySnap
       }
       return {
         artifactRefs: normalizeJobDisplaySnapshotArtifactRefs(record.artifactRefs),
-        content: record.content,
+        content: stripPrivateProviderFields(record.content),
         eventId: stringOrUndefined(record.eventId),
         kind,
-        metadata: asRuntimeRecord(record.metadata) ?? undefined,
+        metadata: dashboardPublicRecord(record.metadata),
         phase: stringOrUndefined(record.phase),
-        redaction: asRuntimeRecord(record.redaction) ?? undefined,
+        redaction: dashboardPublicRecord(record.redaction),
         sequence,
         summary: stringOrUndefined(record.summary),
         title,
-        truncation: asRuntimeRecord(record.truncation) ?? undefined,
+        truncation: dashboardPublicRecord(record.truncation),
       };
     })
     .filter((item): item is JobDisplaySnapshotLlmIoEntry => item !== null)
@@ -741,7 +788,9 @@ const PROJECT_RUNTIME_DIAGNOSTIC_KNOWN_FIELDS = new Set([
 
 function projectRuntimeDiagnosticExtraFields(record: UnknownRecord): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(record).filter(([key]) => !PROJECT_RUNTIME_DIAGNOSTIC_KNOWN_FIELDS.has(key)),
+    Object.entries(record)
+      .filter(([key]) => !PROJECT_RUNTIME_DIAGNOSTIC_KNOWN_FIELDS.has(key) && !isPrivateProviderFieldKey(key))
+      .map(([key, nestedValue]) => [key, stripPrivateProviderFields(nestedValue)]),
   );
 }
 
@@ -2463,16 +2512,19 @@ export function normalizeSearchResponse(value: unknown): {
 } {
   const data = providerDataRecord(value);
   const searchMeta = asRuntimeRecord(data.searchMeta);
-  const items: SearchResultItem[] = recordArray(data.items).map((record) => ({
-    ...record,
-    title: firstString(record.title, record.name) ?? '',
-    content: parseSearchContent(record.content),
-    score: firstNumber(record.score, record.similarity) ?? 0,
-    qualityScore: firstNumber(record.qualityScore) ?? undefined,
-    usageCount: firstNumber(record.usageCount) ?? undefined,
-    authorityScore: firstNumber(record.authorityScore, record.authority) ?? undefined,
-    matchType: firstString(record.matchType) ?? undefined,
-  }));
+  const items: SearchResultItem[] = recordArray(data.items).map((record) => {
+    const publicRecord = dashboardPublicRecord(record) ?? {};
+    return {
+      ...publicRecord,
+      title: firstString(record.title, record.name) ?? '',
+      content: stripPrivateProviderFields(parseSearchContent(record.content)) as KnowledgeContent,
+      score: firstNumber(record.score, record.similarity) ?? 0,
+      qualityScore: firstNumber(record.qualityScore) ?? undefined,
+      usageCount: firstNumber(record.usageCount) ?? undefined,
+      authorityScore: firstNumber(record.authorityScore, record.authority) ?? undefined,
+      matchType: firstString(record.matchType) ?? undefined,
+    };
+  });
   return {
     items,
     total: firstNumber(data.totalResults, data.total) ?? items.length,
@@ -2538,8 +2590,9 @@ export function normalizeGuardRuleRecord(value: unknown): GuardRuleProviderRecor
   if (!record || !pattern) {
     return null;
   }
+  const publicRecord = dashboardPublicRecord(record) ?? {};
   return {
-    ...record,
+    ...publicRecord,
     message: firstString(record.message) ?? pattern,
     severity: firstString(record.severity) ?? 'warning',
     pattern,
@@ -2560,8 +2613,9 @@ export function normalizeGuardViolationRecord(value: unknown): GuardViolationPro
   if (!record || !ruleId) {
     return null;
   }
+  const publicRecord = dashboardPublicRecord(record) ?? {};
   return {
-    ...record,
+    ...publicRecord,
     ruleId,
     message: firstString(record.message) ?? ruleId,
     severity: firstString(record.severity) ?? 'warning',
@@ -2578,8 +2632,9 @@ export function normalizeGuardRunRecord(value: unknown): GuardRunProviderRecord 
   if (!record || !id) {
     return null;
   }
+  const publicRecord = dashboardPublicRecord(record) ?? {};
   return {
-    ...record,
+    ...publicRecord,
     id,
     filePath: firstString(record.filePath) ?? '',
     triggeredAt: firstString(record.triggeredAt, record.createdAt) ?? '',
@@ -2587,6 +2642,10 @@ export function normalizeGuardRunRecord(value: unknown): GuardRunProviderRecord 
       .map(normalizeGuardViolationRecord)
       .filter((violation): violation is GuardViolationProviderRecord => violation !== null),
   };
+}
+
+export function normalizeGuardReportResponse(value: unknown): Record<string, unknown> {
+  return dashboardPublicRecord(providerDataRecord(value)) ?? {};
 }
 
 /**
@@ -4242,7 +4301,7 @@ Skill 文档格式要求：
     maxFiles?: number;
   }): Promise<unknown> {
     const res = await http.get('/guard/report', { params: options });
-    return res.data?.data;
+    return normalizeGuardReportResponse(res.data);
   },
 
   /** 获取模块知识覆盖率热力图 */

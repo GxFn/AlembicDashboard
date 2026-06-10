@@ -38,6 +38,124 @@ function providerFixture(fixtures, fixtureId) {
   return fixture;
 }
 
+const dashboardForbiddenPublicFieldKeys = new Set([
+  'apikey',
+  'authorization',
+  'authtoken',
+  'hiddenreasoning',
+  'hostmetadata',
+  'password',
+  'privatepath',
+  'providerrequest',
+  'providerresponse',
+  'rawpayload',
+  'rawproviderpayload',
+  'rawresponse',
+  'secret',
+  'secrettoken',
+  'token',
+]);
+
+function normalizedFieldKey(key) {
+  return key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function addForbiddenProviderFields(record) {
+  if (!isRecord(record)) {
+    return;
+  }
+  record.apiKey = 'sk-dashboard-private';
+  record.secretToken = 'private-token';
+  record.rawProviderPayload = { requestId: 'raw-provider-request' };
+  record.privatePath = '/private/alembic/provider.json';
+  record.hostMetadata = { host: 'codex' };
+  record.hiddenReasoning = 'provider-only reasoning';
+}
+
+function cloneWithForbiddenProviderFields(value) {
+  const clone = cloneJson(value);
+  const targets = [
+    clone,
+    clone.data,
+    clone.data?.items?.[0],
+    clone.data?.event,
+    clone.data?.metadata,
+    clone.data?.searchMeta,
+    clone.event,
+    clone.metadata,
+    clone.validation,
+    clone.producer,
+  ];
+  for (const target of targets) {
+    addForbiddenProviderFields(target);
+  }
+  return clone;
+}
+
+function assertNoForbiddenPublicFields(value, pathLabel = 'projection') {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoForbiddenPublicFields(item, `${pathLabel}[${index}]`));
+    return;
+  }
+  if (!isRecord(value)) {
+    return;
+  }
+  for (const [key, nestedValue] of Object.entries(value)) {
+    assert.ok(
+      !dashboardForbiddenPublicFieldKeys.has(normalizedFieldKey(key)),
+      `${pathLabel}.${key} must not expose provider-private fields`,
+    );
+    assertNoForbiddenPublicFields(nestedValue, `${pathLabel}.${key}`);
+  }
+}
+
+function valueAtPath(value, pathExpression) {
+  return pathExpression.split('.').reduce((current, key) => {
+    if (Array.isArray(current) && /^\d+$/.test(key)) {
+      return current[Number(key)];
+    }
+    return isRecord(current) ? current[key] : undefined;
+  }, value);
+}
+
+function assertExpectedProjectionFields(projection, scenario) {
+  for (const [pathExpression, expected] of scenario.expectedFields) {
+    assert.deepEqual(
+      valueAtPath(projection, pathExpression),
+      expected,
+      `${scenario.id} should expose ${pathExpression}`,
+    );
+  }
+}
+
+function producerContractForFixture(provider, fixture) {
+  return provider.ALEMBIC_PROVIDER_ROUTE_CONTRACTS.find((contract) =>
+    contract.fixtureIds.includes(fixture.fixtureId)
+  ) ||
+    provider.ALEMBIC_PROVIDER_EVENT_CONTRACTS.find((contract) => contract.fixtureIds.includes(fixture.fixtureId));
+}
+
+function classifyDashboardReplayFailure({ fixture, producerContract, projection }) {
+  if (!fixture) {
+    return 'producer-fixture';
+  }
+  if (!producerContract) {
+    return 'contract-registry';
+  }
+  if (!projection) {
+    return 'dashboard-adapter';
+  }
+  return 'dashboard-consumer-expectation';
+}
+
 test('package exposes real local quality gates', () => {
   const pkg = JSON.parse(read('package.json'));
   for (const scriptName of ['lint', 'test', 'typecheck', 'build', 'build:check', 'check']) {
@@ -945,6 +1063,147 @@ test('dashboard replays D20 provider fixtures through typed adapter projections'
   const refineEvent = apiModule.projectProviderSseMessage(providerFixture(fixtures, 'sse.candidate-refine.success').payload);
   assert.equal(refineEvent.type, 'data:preview');
   assert.equal(refineEvent.candidateId, 'candidate-alpha');
+});
+
+test('dashboard replays D24 consumer scenarios with public projections and failure classification', async () => {
+  const provider = await importAlembicProviderContracts();
+  const apiModule = await importTranspiled('src/api.ts');
+  const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
+  const scenarios = [
+    {
+      id: 'runtime-route-badge-ready',
+      consumerScenario: 'Header runtime route badge renders daemon-ready capabilities',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'runtime-health.ready',
+      producerContract: 'I03.runtime-health.get',
+      project: (payload) => apiModule.normalizeRuntimeBoundary({}, payload.data),
+      expectedFields: [
+        ['mode', 'daemon'],
+        ['capabilities.jobs.available', true],
+        ['capabilities.projectScope.available', true],
+      ],
+    },
+    {
+      id: 'project-switch-snapshot-success',
+      consumerScenario: 'Project switcher consumes active project snapshot',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'project-runtime.success',
+      producerContract: 'I04.projects.get',
+      project: (payload) => apiModule.normalizeProjectsSnapshot(payload),
+      expectedFields: [
+        ['state.activeProjectId', 'project-alpha'],
+        ['projects.0.projectId', 'project-alpha'],
+      ],
+    },
+    {
+      id: 'job-timeline-rest-recovery',
+      consumerScenario: 'Jobs timeline recovers developer-visible process events',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'job-event.visible',
+      producerContract: 'I07.job-events.get',
+      project: (payload) => apiModule.normalizeJobProcessEventsResponse(payload, payload.jobId),
+      expectedFields: [
+        ['jobId', 'job-bootstrap-1'],
+        ['developerViews.0.content', 'Indexed project files.'],
+        ['developerViews.0.displayPolicy', 'visible'],
+      ],
+    },
+    {
+      id: 'job-display-snapshot-panel',
+      consumerScenario: 'Jobs display snapshot panel consumes persisted snapshot metadata',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'job-snapshot.success',
+      producerContract: 'I08.job-snapshot.get',
+      project: (payload) => apiModule.normalizeJobDisplaySnapshotResponse(payload, 'job-bootstrap-1'),
+      expectedFields: [
+        ['persisted', true],
+        ['snapshot.snapshot.jobId', 'job-bootstrap-1'],
+        ['snapshot.snapshot.snapshotVersion', 1],
+      ],
+    },
+    {
+      id: 'project-scope-panel',
+      consumerScenario: 'Project scope panel renders accepted source folders',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'project-scope.success',
+      producerContract: 'I05.project-scope.get',
+      project: (payload) => apiModule.normalizeProjectScopeResponse(payload),
+      expectedFields: [
+        ['summary.projectScopeId', 'scope-alpha'],
+        ['summary.folders.0.path', 'src'],
+        ['summary.folders.0.displayName', 'src'],
+      ],
+    },
+    {
+      id: 'knowledge-search-results',
+      consumerScenario: 'Search and command palette consume typed search results',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'search.success',
+      producerContract: 'I22.search.get',
+      project: (payload) => apiModule.normalizeSearchResponse(payload),
+      expectedFields: [
+        ['items.0.title', 'Boundary rule'],
+        ['items.0.content.markdown', undefined],
+        ['mode', 'bm25'],
+      ],
+    },
+    {
+      id: 'guard-report-summary',
+      consumerScenario: 'Guard metrics consume report summary without raw provider bags',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'guard.success',
+      producerContract: 'I21.guard.post',
+      project: (payload) => apiModule.normalizeGuardReportResponse(payload),
+      expectedFields: [
+        ['summary.total', 1],
+        ['summary.warnings', 1],
+      ],
+    },
+    {
+      id: 'sse-chat-delta',
+      consumerScenario: 'AI chat stream consumes projected text delta events',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'sse.ai-chat.success',
+      producerContract: 'I22.ai-chat.sse',
+      project: (payload) => apiModule.projectProviderSseMessage(payload),
+      expectedFields: [
+        ['type', 'text:delta'],
+        ['delta', 'Ready'],
+      ],
+    },
+  ];
+
+  const replayResults = scenarios.map((scenario) => {
+    const fixture = providerFixture(fixtures, scenario.fixtureId);
+    assert.equal(fixture.contractId, scenario.producerContract, `${scenario.id} should name its producer contract`);
+    const producerContract = producerContractForFixture(provider, fixture);
+    assert.ok(producerContract, `${scenario.id} should be backed by the contract registry`);
+    const projection = scenario.project(cloneWithForbiddenProviderFields(fixture.payload), fixture);
+    assertExpectedProjectionFields(projection, scenario);
+    assertNoForbiddenPublicFields(projection, scenario.id);
+    return {
+      consumerScenario: scenario.consumerScenario,
+      failureClassification: classifyDashboardReplayFailure({ fixture, producerContract, projection }),
+      fixtureId: scenario.fixtureId,
+      id: scenario.id,
+      producerContract: fixture.contractId,
+      registryRowId: fixture.registryRowId,
+    };
+  });
+
+  assert.equal(new Set(replayResults.map((result) => result.consumerScenario)).size, scenarios.length);
+  assert.deepEqual(
+    replayResults.map((result) => result.failureClassification),
+    scenarios.map(() => 'dashboard-consumer-expectation'),
+  );
+  assert.deepEqual(
+    [
+      classifyDashboardReplayFailure({ fixture: null, producerContract: {}, projection: {} }),
+      classifyDashboardReplayFailure({ fixture: {}, producerContract: null, projection: {} }),
+      classifyDashboardReplayFailure({ fixture: {}, producerContract: {}, projection: null }),
+    ],
+    ['producer-fixture', 'contract-registry', 'dashboard-adapter'],
+  );
 });
 
 test('project scope panel consumes Alembic ProjectScope API without fake source folders', () => {

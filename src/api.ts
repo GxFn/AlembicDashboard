@@ -2507,91 +2507,188 @@ function readBoolean(record: Record<string, unknown> | null, key: string): boole
   return record?.[key] === true;
 }
 
+interface HostManagedPayloadView {
+  root: Record<string, unknown> | null;
+  data: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
+  meta: Record<string, unknown> | null;
+  boundary: Record<string, unknown> | null;
+}
+
+function hostManagedPayloadView(payload: unknown): HostManagedPayloadView {
+  const root = asRecord(payload);
+  const data = asRecord(root?.data);
+  const error = asRecord(root?.error);
+  const meta = asRecord(root?.meta) || asRecord(data?.meta);
+  const boundary = asRecord(root?.boundary) || asRecord(data?.boundary) || asRecord(error?.boundary);
+  return { root, data, error, meta, boundary };
+}
+
+function readFirstHostManagedString(
+  fields: Array<[Record<string, unknown> | null, string]>,
+): string | undefined {
+  for (const [record, key] of fields) {
+    const value = readString(record, key);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function readAnyHostManagedBoolean(fields: Array<[Record<string, unknown> | null, string]>): boolean {
+  return fields.some(([record, key]) => readBoolean(record, key));
+}
+
+function readHostManagedCode(
+  view: HostManagedPayloadView,
+  taxonomyProblem: DashboardErrorProblemProjection | null,
+): string | undefined {
+  return taxonomyProblem?.code || readFirstHostManagedString([
+    [view.error, 'code'],
+    [view.root, 'code'],
+    [view.data, 'code'],
+    [view.data, 'reason'],
+    [view.root, 'canonicalCode'],
+    [view.data, 'canonicalCode'],
+    [view.root, 'boundaryCode'],
+    [view.data, 'boundaryCode'],
+    [view.meta, 'boundaryCode'],
+    [view.boundary, 'code'],
+  ]);
+}
+
+function readHostManagedMessage(
+  view: HostManagedPayloadView,
+  taxonomyProblem: DashboardErrorProblemProjection | null,
+  fallbackMessage: string,
+): string {
+  return taxonomyProblem?.message || readFirstHostManagedString([
+    [view.error, 'message'],
+    [view.root, 'message'],
+    [view.data, 'message'],
+  ]) || fallbackMessage;
+}
+
+function readHostManagedBy(view: HostManagedPayloadView): string | undefined {
+  return readFirstHostManagedString([
+    [view.root, 'managedBy'],
+    [view.data, 'managedBy'],
+    [view.meta, 'managedBy'],
+    [view.boundary, 'managedBy'],
+  ]);
+}
+
+function isTaxonomyHostFailure(taxonomyProblem: DashboardErrorProblemProjection | null): boolean {
+  return taxonomyProblem?.dashboardState === 'host-failure' ||
+    taxonomyProblem?.reasonCode === 'host-failure' ||
+    taxonomyProblem?.agentBranch === 'host-failure' ||
+    (typeof taxonomyProblem?.code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(taxonomyProblem.code));
+}
+
+function readHostAgentManaged(
+  view: HostManagedPayloadView,
+  taxonomyProblem: DashboardErrorProblemProjection | null,
+  managedBy: string | undefined,
+): boolean {
+  return taxonomyProblem?.agentBranch === 'host-failure' ||
+    taxonomyProblem?.dashboardState === 'host-failure' ||
+    readAnyHostManagedBoolean([
+      [view.root, 'hostAgentManaged'],
+      [view.data, 'hostAgentManaged'],
+      [view.meta, 'hostAgentManaged'],
+      [view.boundary, 'hostAgentManaged'],
+      [view.root, 'hostAiManaged'],
+      [view.data, 'hostAiManaged'],
+    ]) ||
+    managedBy === 'codex-host-agent' ||
+    managedBy === 'host-agent';
+}
+
+function readLocalAiUnavailable(view: HostManagedPayloadView): boolean {
+  return readAnyHostManagedBoolean([
+    [view.root, 'localAiUnavailable'],
+    [view.data, 'localAiUnavailable'],
+    [view.meta, 'localAiUnavailable'],
+    [view.boundary, 'localAiUnavailable'],
+  ]);
+}
+
+function hasHostManagedFlag(view: HostManagedPayloadView): boolean {
+  return readAnyHostManagedBoolean([
+    [view.root, 'hostManaged'],
+    [view.data, 'hostManaged'],
+    [view.meta, 'hostManaged'],
+    [view.boundary, 'hostManaged'],
+  ]);
+}
+
+function hasLegacyHostManagedSignal(
+  taxonomyProblem: DashboardErrorProblemProjection | null,
+  code: string | undefined,
+  status: number | undefined,
+): boolean {
+  const stableTaxonomyPresent = taxonomyProblem !== null && taxonomyProblem.source !== 'compatibility-fallback';
+  return !stableTaxonomyPresent && (
+    (typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code)) ||
+    status === 501 ||
+    status === 410
+  );
+}
+
+function normalizeHostManagedUnavailableCode(code: string | undefined): HostManagedUnavailableCode {
+  return typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code)
+    ? code as HostManagedUnavailableCode
+    : 'HOST_AI_MANAGED';
+}
+
+function isHostManagedUnavailableStatus(view: HostManagedPayloadView, status: number | undefined): boolean {
+  return readBoolean(view.root, 'unavailable') || readBoolean(view.data, 'unavailable') || status === 501 || status === 410;
+}
+
+function hostManagedPublicData(
+  view: HostManagedPayloadView,
+  taxonomyProblem: DashboardErrorProblemProjection | null,
+  payload: unknown,
+): unknown {
+  return dashboardPublicRecord({
+    ...(view.data ?? view.root ?? {}),
+    failureTaxonomy: taxonomyProblem ?? undefined,
+  }) ?? payload;
+}
+
 export function parseHostManagedUnavailable(
   payload: unknown,
   status?: number,
   fallbackMessage = 'This AI capability is managed by the host environment.',
 ): HostManagedUnavailableDetails | null {
   const taxonomyProblem = normalizeDashboardErrorProblem(payload, status);
-  const root = asRecord(payload);
-  const data = asRecord(root?.data);
-  const error = asRecord(root?.error);
-  const meta = asRecord(root?.meta) || asRecord(data?.meta);
-  const boundary = asRecord(root?.boundary) || asRecord(data?.boundary) || asRecord(error?.boundary);
-  const code =
-    taxonomyProblem?.code ||
-    readString(error, 'code') ||
-    readString(root, 'code') ||
-    readString(data, 'code') ||
-    readString(data, 'reason') ||
-    readString(root, 'canonicalCode') ||
-    readString(data, 'canonicalCode') ||
-    readString(root, 'boundaryCode') ||
-    readString(data, 'boundaryCode') ||
-    readString(meta, 'boundaryCode') ||
-    readString(boundary, 'code');
-  const managedBy =
-    readString(root, 'managedBy') ||
-    readString(data, 'managedBy') ||
-    readString(meta, 'managedBy') ||
-    readString(boundary, 'managedBy');
-  const message =
-    taxonomyProblem?.message ||
-    readString(error, 'message') ||
-    readString(root, 'message') ||
-    readString(data, 'message') ||
-    fallbackMessage;
-  const hostAgentManaged =
-    taxonomyProblem?.agentBranch === 'host-failure' ||
-    taxonomyProblem?.dashboardState === 'host-failure' ||
-    readBoolean(root, 'hostAgentManaged') ||
-    readBoolean(data, 'hostAgentManaged') ||
-    readBoolean(meta, 'hostAgentManaged') ||
-    readBoolean(boundary, 'hostAgentManaged') ||
-    readBoolean(root, 'hostAiManaged') ||
-    readBoolean(data, 'hostAiManaged') ||
-    managedBy === 'codex-host-agent' ||
-    managedBy === 'host-agent';
-  const localAiUnavailable =
-    readBoolean(root, 'localAiUnavailable') ||
-    readBoolean(data, 'localAiUnavailable') ||
-    readBoolean(meta, 'localAiUnavailable') ||
-    readBoolean(boundary, 'localAiUnavailable');
-  const stableTaxonomyPresent = taxonomyProblem !== null && taxonomyProblem.source !== 'compatibility-fallback';
-  const taxonomyHostManaged =
-    taxonomyProblem?.dashboardState === 'host-failure' ||
-    taxonomyProblem?.reasonCode === 'host-failure' ||
-    taxonomyProblem?.agentBranch === 'host-failure' ||
-    (typeof taxonomyProblem?.code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(taxonomyProblem.code));
+  const view = hostManagedPayloadView(payload);
+  const code = readHostManagedCode(view, taxonomyProblem);
+  const managedBy = readHostManagedBy(view);
+  const message = readHostManagedMessage(view, taxonomyProblem, fallbackMessage);
+  const hostAgentManaged = readHostAgentManaged(view, taxonomyProblem, managedBy);
+  const localAiUnavailable = readLocalAiUnavailable(view);
   const hostManaged =
-    taxonomyHostManaged ||
-    readBoolean(root, 'hostManaged') ||
-    readBoolean(data, 'hostManaged') ||
-    readBoolean(meta, 'hostManaged') ||
-    readBoolean(boundary, 'hostManaged') ||
+    isTaxonomyHostFailure(taxonomyProblem) ||
+    hasHostManagedFlag(view) ||
     hostAgentManaged ||
     localAiUnavailable ||
-    (!stableTaxonomyPresent && (typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code))) ||
-    (!stableTaxonomyPresent && (status === 501 || status === 410));
+    hasLegacyHostManagedSignal(taxonomyProblem, code, status);
 
   if (!hostManaged) {
     return null;
   }
 
   return {
-    code: typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code)
-      ? code as HostManagedUnavailableCode
-      : 'HOST_AI_MANAGED',
+    code: normalizeHostManagedUnavailableCode(code),
     message,
     hostManaged: true,
     hostAgentManaged: hostAgentManaged ? true : undefined,
     localAiUnavailable: localAiUnavailable ? true : undefined,
-    unavailable: readBoolean(root, 'unavailable') || readBoolean(data, 'unavailable') || status === 501 || status === 410,
+    unavailable: isHostManagedUnavailableStatus(view, status),
     status,
-    data: dashboardPublicRecord({
-      ...(data ?? root ?? {}),
-      failureTaxonomy: taxonomyProblem ?? undefined,
-    }) ?? payload,
+    data: hostManagedPublicData(view, taxonomyProblem, payload),
   };
 }
 

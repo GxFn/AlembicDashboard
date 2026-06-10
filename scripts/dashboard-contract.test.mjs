@@ -85,6 +85,10 @@ function cloneWithForbiddenProviderFields(value) {
   const targets = [
     clone,
     clone.data,
+    clone.error,
+    clone.error?.failureTaxonomy,
+    clone.data?.error,
+    clone.data?.failureTaxonomy,
     clone.data?.items?.[0],
     clone.data?.event,
     clone.data?.metadata,
@@ -1203,6 +1207,142 @@ test('dashboard replays D24 consumer scenarios with public projections and failu
       classifyDashboardReplayFailure({ fixture: {}, producerContract: {}, projection: null }),
     ],
     ['producer-fixture', 'contract-registry', 'dashboard-adapter'],
+  );
+});
+
+test('dashboard routes D25 problem taxonomy without raw payload guessing', async () => {
+  const provider = await importAlembicProviderContracts();
+  const apiModule = await importTranspiled('src/api.ts');
+  const errorUtils = await importTranspiled('src/utils/error.ts');
+  const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
+  const fixtureByKind = {
+    'invalid-input': 'guard.invalid-input',
+    'not-found': 'route.not-found',
+    conflict: 'project-runtime.conflict',
+    'permission-denied': 'route.permission-denied',
+    timeout: 'project-runtime.timeout',
+    cancelled: 'jobs.cancelled-problem',
+    unavailable: 'workflow.unavailable',
+    degraded: 'workflow.degraded',
+    partial: 'workflow.partial',
+    'capability-mismatch': 'workflow.capability-mismatch',
+    'needs-confirmation': 'decision-register.needs-confirmation',
+    'provider-error': 'workflow.provider-error',
+    'host-failure': 'workflow.host-failure',
+    'internal-error': 'workflow.internal-error',
+  };
+
+  assert.deepEqual(apiModule.DASHBOARD_D25_REQUIRED_FAILURE_KINDS, Object.keys(fixtureByKind));
+
+  for (const [failureKind, fixtureId] of Object.entries(fixtureByKind)) {
+    const fixture = providerFixture(fixtures, fixtureId);
+    const projection = apiModule.normalizeDashboardErrorProblem(
+      cloneWithForbiddenProviderFields(fixture.payload),
+      fixture.payload.error.status,
+    );
+    assert.ok(projection, `${fixtureId} should project a dashboard problem`);
+    assert.equal(projection.source, 'provider-taxonomy');
+    assert.equal(projection.reasonCode, failureKind);
+    assert.equal(projection.dashboardState, failureKind);
+    assert.equal(projection.failureId, `core.failure.${failureKind}`);
+    assert.equal(projection.mcpErrorCode, `core.failure.${failureKind}`);
+    assert.equal(projection.mcpStatus, failureKind);
+    assert.equal(projection.privateDataSafe, true);
+    assert.match(projection.message, /\S/);
+    assert.match(projection.refPolicy, /\S/);
+    assertNoForbiddenPublicFields(projection, `d25.${failureKind}`);
+  }
+
+  const providerErrorProjection = apiModule.normalizeDashboardErrorProblem({
+    ok: false,
+    status: 'provider-error',
+    error: {
+      agentBranch: 'provider-error',
+      dashboardState: 'provider-error',
+      detailRefs: ['provider-log:42'],
+      failureId: 'core.failure.provider-error',
+      mcpErrorCode: 'core.failure.provider-error',
+      mcpStatus: 'provider-error',
+      message: 'MCP provider error',
+      privateDataSafe: true,
+      problemClass: 'provider-problem',
+      reasonCode: 'provider-error',
+      refPolicy: 'detailRef',
+      retryPolicy: 'retryable-after-backoff',
+      retryable: true,
+      secretToken: 'must-not-render',
+    },
+  }, 502);
+  assert.equal(providerErrorProjection.source, 'mcp-taxonomy');
+  assert.equal(providerErrorProjection.reasonCode, 'provider-error');
+  assert.deepEqual(providerErrorProjection.detailRefs, ['provider-log:42']);
+  assertNoForbiddenPublicFields(providerErrorProjection, 'd25.mcp');
+
+  const agentProjection = apiModule.normalizeDashboardErrorProblem({
+    branch: 'host-failure',
+    error: { message: 'raw adapter host failure', rawProviderPayload: { hidden: true } },
+    failureTaxonomy: {
+      agentBranch: 'host-failure',
+      dashboardState: 'host-failure',
+      kind: 'host-failure',
+      privateDataSafe: true,
+      problemClass: 'host-problem',
+      publicMessage: 'Host runtime failed',
+      refPolicy: 'detailRef',
+      retryPolicy: 'manual-intervention',
+      retryable: false,
+      stableId: 'core.failure.host-failure',
+      status: 'failed',
+    },
+  }, 424);
+  assert.equal(agentProjection.source, 'agent-taxonomy');
+  assert.equal(agentProjection.reasonCode, 'host-failure');
+  assert.equal(agentProjection.failureId, 'core.failure.host-failure');
+  assert.equal(agentProjection.message, 'Host runtime failed');
+  assertNoForbiddenPublicFields(agentProjection, 'd25.agent');
+
+  const compatibility = apiModule.normalizeDashboardErrorProblem({
+    success: false,
+    error: {
+      code: 'HOST_AGENT_MANAGED',
+      message: 'Use the Codex host agent.',
+      rawProviderPayload: { hidden: true },
+    },
+  }, 501);
+  assert.equal(compatibility.source, 'compatibility-fallback');
+  assert.equal(compatibility.reasonCode, 'host-failure');
+  assert.match(compatibility.compatibility.owner, /AlembicDashboard D25 error adapter/);
+  assert.match(compatibility.compatibility.cleanupTrigger, /stable failure taxonomy fields only/);
+  assert.deepEqual(compatibility.compatibility.matchedBy, ['code:HOST_AGENT_MANAGED']);
+  assert.equal(compatibility.privateDataSafe, false);
+  assertNoForbiddenPublicFields(compatibility, 'd25.compatibility');
+
+  const capabilityMismatch = providerFixture(fixtures, 'workflow.capability-mismatch');
+  assert.equal(
+    apiModule.parseHostManagedUnavailable(capabilityMismatch.payload, capabilityMismatch.payload.error.status),
+    null,
+    'stable capability-mismatch problem must not be coerced to host-managed only because it uses HTTP 501',
+  );
+
+  const hostFailure = providerFixture(fixtures, 'workflow.host-failure');
+  const hostManaged = apiModule.parseHostManagedUnavailable(hostFailure.payload, hostFailure.payload.error.status);
+  assert.equal(hostManaged.hostManaged, true);
+  assert.equal(hostManaged.hostAgentManaged, true);
+  assert.equal(hostManaged.data.failureTaxonomy.reasonCode, 'host-failure');
+  assertNoForbiddenPublicFields(hostManaged.data, 'd25.hostManaged');
+
+  assert.equal(
+    errorUtils.getErrorMessage({
+      response: {
+        data: {
+          error: {
+            failureId: 'core.failure.needs-confirmation',
+            publicMessage: 'Needs confirmation',
+          },
+        },
+      },
+    }),
+    'Needs confirmation',
   );
 });
 

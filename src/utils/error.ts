@@ -9,7 +9,15 @@ interface AxiosLikeError {
   response?: {
     status?: number;
     data?: {
-      error?: string | { message?: string };
+      error?: string | {
+        failureId?: string;
+        message?: string;
+        publicMessage?: string;
+      };
+      failureTaxonomy?: {
+        message?: string;
+        publicMessage?: string;
+      };
       message?: string;
       aiError?: boolean;
     };
@@ -24,7 +32,7 @@ interface AxiosLikeError {
  *
  * 提取优先级:
  *  1. Axios `err.response.data.error` (string)
- *  2. Axios `err.response.data.error.message`
+ *  2. Axios D25 stable problem/taxonomy message
  *  3. Axios `err.response.data.message`
  *  4. Error `.message`
  *  5. 字符串本身
@@ -43,8 +51,15 @@ export function getErrorMessage(err: unknown, fallback = 'Unknown error'): strin
       if (typeof data.error === 'string') {
         return data.error;
       }
-      if (typeof data.error === 'object' && data.error?.message) {
-        return data.error.message;
+      if (typeof data.error === 'object') {
+        const stableMessage = getStableProblemMessage(data);
+        if (stableMessage) {
+          return stableMessage;
+        }
+      }
+      const taxonomyMessage = getStableProblemMessage(data);
+      if (taxonomyMessage) {
+        return taxonomyMessage;
       }
       if (typeof data.message === 'string') {
         return data.message;
@@ -71,6 +86,32 @@ function isAxiosLikeError(err: unknown): err is AxiosLikeError {
     err !== null &&
     'response' in err &&
     typeof (err as AxiosLikeError).response === 'object'
+  );
+}
+
+function asMessageRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readMessageString(record: Record<string, unknown> | null, key: string): string | null {
+  const value = record?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function getStableProblemMessage(data: NonNullable<AxiosLikeError['response']>['data']): string | null {
+  const record = asMessageRecord(data);
+  const error = asMessageRecord(record?.error);
+  const taxonomy =
+    asMessageRecord(record?.failureTaxonomy) ??
+    asMessageRecord(error?.failureTaxonomy);
+
+  return (
+    readMessageString(error, 'message') ??
+    readMessageString(error, 'publicMessage') ??
+    readMessageString(taxonomy, 'message') ??
+    readMessageString(taxonomy, 'publicMessage')
   );
 }
 

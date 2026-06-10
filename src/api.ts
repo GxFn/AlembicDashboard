@@ -268,6 +268,381 @@ function dashboardPublicRecord(value: unknown): UnknownRecord | undefined {
   return asRuntimeRecord(stripPrivateProviderFields(value)) ?? undefined;
 }
 
+export const DASHBOARD_D25_REQUIRED_FAILURE_KINDS = [
+  'invalid-input',
+  'not-found',
+  'conflict',
+  'permission-denied',
+  'timeout',
+  'cancelled',
+  'unavailable',
+  'degraded',
+  'partial',
+  'capability-mismatch',
+  'needs-confirmation',
+  'provider-error',
+  'host-failure',
+  'internal-error',
+] as const;
+
+const DASHBOARD_KNOWN_FAILURE_KINDS = [
+  ...DASHBOARD_D25_REQUIRED_FAILURE_KINDS,
+  'schema-drift',
+  'sensitive-leak',
+] as const;
+
+const DASHBOARD_FAILURE_KIND_SET = new Set<string>(DASHBOARD_KNOWN_FAILURE_KINDS);
+
+export type DashboardFailureKind = (typeof DASHBOARD_KNOWN_FAILURE_KINDS)[number];
+
+export type DashboardFailureProjectionSource =
+  | 'provider-taxonomy'
+  | 'mcp-taxonomy'
+  | 'agent-taxonomy'
+  | 'compatibility-fallback';
+
+export interface DashboardErrorCompatibilityPolicy {
+  owner: string;
+  cleanupTrigger: string;
+  matchedBy: string[];
+}
+
+export interface DashboardErrorProblemProjection {
+  agentBranch?: string;
+  artifactRefs: string[];
+  canonicalHttpStatus?: number;
+  code?: string;
+  dashboardState: DashboardFailureKind;
+  detailExposureClass?: string;
+  detailRefs: string[];
+  exposureClass?: string;
+  failureId?: string;
+  failureStatus?: string;
+  mcpErrorCode?: string;
+  mcpStatus?: DashboardFailureKind;
+  message: string;
+  privateDataSafe: boolean;
+  problemClass?: string;
+  reasonCode: DashboardFailureKind;
+  refPolicy?: string;
+  retryPolicy?: string;
+  retryable?: boolean;
+  source: DashboardFailureProjectionSource;
+  status?: number;
+  taxonomyVersion?: number;
+  compatibility?: DashboardErrorCompatibilityPolicy;
+}
+
+export const DASHBOARD_ERROR_TAXONOMY_COMPATIBILITY = {
+  owner: 'AlembicDashboard D25 error adapter',
+  cleanupTrigger:
+    'Remove status/code fallback after accepted provider, MCP, and Agent surfaces emit stable failure taxonomy fields only.',
+} as const;
+
+function normalizeDashboardFailureKind(value: unknown): DashboardFailureKind | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase().replace(/^core\.failure\./, '');
+  return DASHBOARD_FAILURE_KIND_SET.has(normalized) ? normalized as DashboardFailureKind : null;
+}
+
+function firstDashboardFailureKind(...values: unknown[]): DashboardFailureKind | null {
+  for (const value of values) {
+    const kind = normalizeDashboardFailureKind(value);
+    if (kind) {
+      return kind;
+    }
+  }
+  return null;
+}
+
+function dashboardProblemCandidateRecords(value: unknown): UnknownRecord[] {
+  const root = asRuntimeRecord(value);
+  if (!root) {
+    return [];
+  }
+
+  const data = asRuntimeRecord(root.data);
+  const error = asRuntimeRecord(root.error);
+  const dataError = asRuntimeRecord(data?.error);
+  const details = asRuntimeRecord(root.details) ?? asRuntimeRecord(data?.details);
+  const failureTaxonomy =
+    asRuntimeRecord(root.failureTaxonomy) ??
+    asRuntimeRecord(data?.failureTaxonomy) ??
+    asRuntimeRecord(error?.failureTaxonomy) ??
+    asRuntimeRecord(dataError?.failureTaxonomy);
+
+  const records = [
+    error,
+    dataError,
+    failureTaxonomy,
+    details,
+    root,
+    data,
+  ].filter((record): record is UnknownRecord => record !== null && record !== undefined);
+
+  return records.filter((record, index) => records.indexOf(record) === index);
+}
+
+function hasStableDashboardTaxonomy(record: UnknownRecord): boolean {
+  return (
+    firstDashboardFailureKind(
+      record.dashboardState,
+      record.reasonCode,
+      record.mcpStatus,
+      record.failureId,
+      record.stableId,
+      record.mcpErrorCode,
+      record.kind,
+    ) !== null &&
+    (
+      typeof record.failureId === 'string' ||
+      typeof record.stableId === 'string' ||
+      typeof record.dashboardState === 'string' ||
+      typeof record.mcpStatus === 'string' ||
+      typeof record.mcpErrorCode === 'string'
+    )
+  );
+}
+
+function firstProblemString(records: UnknownRecord[], key: string): string | undefined {
+  for (const record of records) {
+    const value = firstString(record[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function firstProblemNumber(records: UnknownRecord[], key: string): number | undefined {
+  for (const record of records) {
+    const value = firstNumber(record[key]);
+    if (typeof value === 'number') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function firstProblemBoolean(records: UnknownRecord[], key: string): boolean | undefined {
+  for (const record of records) {
+    const value = firstBoolean(record[key]);
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function firstProblemStringArray(records: UnknownRecord[], key: string): string[] {
+  for (const record of records) {
+    const value = firstStringArray(record[key]);
+    if (value.length > 0) {
+      return value;
+    }
+  }
+  return [];
+}
+
+function dashboardFailureKindFromCompatibility(records: UnknownRecord[], status?: number) {
+  const code = firstProblemString(records, 'code') ?? firstProblemString(records, 'reason');
+  const normalizedCode = code?.trim().toUpperCase();
+  const matchedBy: string[] = [];
+
+  const codeKind = (() => {
+    switch (normalizedCode) {
+      case 'INVALID_INPUT':
+      case 'VALIDATION_ERROR':
+        return 'invalid-input';
+      case 'NOT_FOUND':
+      case 'ARTIFACT_MISSING':
+        return 'not-found';
+      case 'CONFLICT':
+      case 'PROJECT_RUNTIME_CONFLICT':
+        return 'conflict';
+      case 'PERMISSION_DENIED':
+      case 'FORBIDDEN':
+        return 'permission-denied';
+      case 'TIMEOUT':
+      case 'PROJECT_RUNTIME_TIMEOUT':
+        return 'timeout';
+      case 'CANCELLED':
+      case 'JOB_CANCELLED':
+        return 'cancelled';
+      case 'UNAVAILABLE':
+      case 'UNAVAILABLE_RUNTIME':
+      case 'LOCAL_AI_UNAVAILABLE':
+        return 'unavailable';
+      case 'DEGRADED':
+      case 'WORKFLOW_DEGRADED':
+        return 'degraded';
+      case 'PARTIAL':
+      case 'WORKFLOW_PARTIAL':
+        return 'partial';
+      case 'CAPABILITY_MISMATCH':
+        return 'capability-mismatch';
+      case 'NEEDS_CONFIRMATION':
+      case 'DECISION_REQUIRES_CONFIRMATION':
+        return 'needs-confirmation';
+      case 'PROVIDER_ERROR':
+        return 'provider-error';
+      case 'HOST_FAILURE':
+      case 'HOST_AI_MANAGED':
+      case 'HOST_AGENT_MANAGED':
+      case 'CODEX_HOST_AGENT_MANAGED':
+        return 'host-failure';
+      case 'INTERNAL_ERROR':
+        return 'internal-error';
+      default:
+        return null;
+    }
+  })();
+
+  if (codeKind) {
+    matchedBy.push(`code:${normalizedCode}`);
+    return { kind: codeKind as DashboardFailureKind, matchedBy };
+  }
+
+  switch (status) {
+    case 400:
+      matchedBy.push('status:400');
+      return { kind: 'invalid-input' as DashboardFailureKind, matchedBy };
+    case 401:
+    case 403:
+      matchedBy.push(`status:${status}`);
+      return { kind: 'permission-denied' as DashboardFailureKind, matchedBy };
+    case 404:
+      matchedBy.push('status:404');
+      return { kind: 'not-found' as DashboardFailureKind, matchedBy };
+    case 408:
+    case 504:
+      matchedBy.push(`status:${status}`);
+      return { kind: 'timeout' as DashboardFailureKind, matchedBy };
+    case 409:
+      matchedBy.push('status:409');
+      return { kind: 'conflict' as DashboardFailureKind, matchedBy };
+    case 412:
+      matchedBy.push('status:412');
+      return { kind: 'needs-confirmation' as DashboardFailureKind, matchedBy };
+    case 424:
+      matchedBy.push('status:424');
+      return { kind: 'host-failure' as DashboardFailureKind, matchedBy };
+    case 501:
+      matchedBy.push('status:501');
+      return { kind: 'capability-mismatch' as DashboardFailureKind, matchedBy };
+    case 502:
+      matchedBy.push('status:502');
+      return { kind: 'provider-error' as DashboardFailureKind, matchedBy };
+    case 503:
+      matchedBy.push('status:503');
+      return { kind: 'unavailable' as DashboardFailureKind, matchedBy };
+    default:
+      if (typeof status === 'number' && status >= 500) {
+        matchedBy.push(`status:${status}`);
+        return { kind: 'internal-error' as DashboardFailureKind, matchedBy };
+      }
+      return null;
+  }
+}
+
+function dashboardProblemSource(record: UnknownRecord, root: UnknownRecord): DashboardFailureProjectionSource {
+  if (root.success === false && asRuntimeRecord(root.error) === record) {
+    return 'provider-taxonomy';
+  }
+  if (root.ok === false || typeof root.toolName === 'string' || asRuntimeRecord(root.structuredContent) !== null) {
+    return 'mcp-taxonomy';
+  }
+  if (
+    typeof record.agentBranch === 'string' ||
+    typeof record.stableId === 'string' ||
+    asRuntimeRecord(root.failureTaxonomy) !== null
+  ) {
+    return 'agent-taxonomy';
+  }
+  return 'provider-taxonomy';
+}
+
+export function normalizeDashboardErrorProblem(
+  value: unknown,
+  status?: number,
+): DashboardErrorProblemProjection | null {
+  const root = asRuntimeRecord(value);
+  if (!root) {
+    return null;
+  }
+
+  const records = dashboardProblemCandidateRecords(root);
+  const stableRecord = records.find(hasStableDashboardTaxonomy);
+  const stableKind = stableRecord
+    ? firstDashboardFailureKind(
+        stableRecord.dashboardState,
+        stableRecord.reasonCode,
+        stableRecord.mcpStatus,
+        stableRecord.failureId,
+        stableRecord.stableId,
+        stableRecord.mcpErrorCode,
+        stableRecord.kind,
+      )
+    : null;
+  const fallback = stableKind ? null : dashboardFailureKindFromCompatibility(records, status);
+  const reasonCode = stableKind ?? fallback?.kind ?? null;
+
+  if (!reasonCode) {
+    return null;
+  }
+
+  const source = stableRecord ? dashboardProblemSource(stableRecord, root) : 'compatibility-fallback';
+  const lookupRecords = stableRecord ? [stableRecord, ...records] : records;
+  const message =
+    (stableRecord
+      ? firstString(stableRecord.message, stableRecord.publicMessage)
+      : undefined) ??
+    firstProblemString(records, 'message') ??
+    firstProblemString(records, 'publicMessage') ??
+    firstProblemString(lookupRecords, 'summary') ??
+    reasonCode;
+  const mcpStatus = firstDashboardFailureKind(firstProblemString(lookupRecords, 'mcpStatus')) ?? undefined;
+  const privateDataSafe = source === 'compatibility-fallback'
+    ? false
+    : firstProblemBoolean(lookupRecords, 'privateDataSafe') === true;
+
+  return {
+    agentBranch: firstProblemString(lookupRecords, 'agentBranch'),
+    artifactRefs: firstProblemStringArray(lookupRecords, 'artifactRefs'),
+    canonicalHttpStatus: firstProblemNumber(lookupRecords, 'canonicalHttpStatus'),
+    code: firstProblemString(lookupRecords, 'code'),
+    dashboardState: firstDashboardFailureKind(firstProblemString(lookupRecords, 'dashboardState')) ?? reasonCode,
+    detailExposureClass: firstProblemString(lookupRecords, 'detailExposureClass'),
+    detailRefs: firstProblemStringArray(lookupRecords, 'detailRefs'),
+    exposureClass: firstProblemString(lookupRecords, 'exposureClass'),
+    failureId:
+      firstProblemString(lookupRecords, 'failureId') ??
+      firstProblemString(lookupRecords, 'stableId') ??
+      firstProblemString(lookupRecords, 'mcpErrorCode'),
+    failureStatus: firstProblemString(lookupRecords, 'failureStatus') ?? firstProblemString(lookupRecords, 'status'),
+    mcpErrorCode: firstProblemString(lookupRecords, 'mcpErrorCode'),
+    mcpStatus,
+    message,
+    privateDataSafe,
+    problemClass: firstProblemString(lookupRecords, 'problemClass'),
+    reasonCode,
+    refPolicy: firstProblemString(lookupRecords, 'refPolicy'),
+    retryPolicy: firstProblemString(lookupRecords, 'retryPolicy'),
+    retryable: firstProblemBoolean(lookupRecords, 'retryable'),
+    source,
+    status: firstProblemNumber(lookupRecords, 'status') ?? status,
+    taxonomyVersion: firstProblemNumber(lookupRecords, 'taxonomyVersion'),
+    compatibility: fallback
+      ? {
+          ...DASHBOARD_ERROR_TAXONOMY_COMPATIBILITY,
+          matchedBy: fallback.matchedBy,
+        }
+      : undefined,
+  };
+}
+
 function firstString(...values: unknown[]): string | null {
   for (const value of values) {
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -2137,12 +2512,14 @@ export function parseHostManagedUnavailable(
   status?: number,
   fallbackMessage = 'This AI capability is managed by the host environment.',
 ): HostManagedUnavailableDetails | null {
+  const taxonomyProblem = normalizeDashboardErrorProblem(payload, status);
   const root = asRecord(payload);
   const data = asRecord(root?.data);
   const error = asRecord(root?.error);
   const meta = asRecord(root?.meta) || asRecord(data?.meta);
   const boundary = asRecord(root?.boundary) || asRecord(data?.boundary) || asRecord(error?.boundary);
   const code =
+    taxonomyProblem?.code ||
     readString(error, 'code') ||
     readString(root, 'code') ||
     readString(data, 'code') ||
@@ -2159,11 +2536,14 @@ export function parseHostManagedUnavailable(
     readString(meta, 'managedBy') ||
     readString(boundary, 'managedBy');
   const message =
+    taxonomyProblem?.message ||
     readString(error, 'message') ||
     readString(root, 'message') ||
     readString(data, 'message') ||
     fallbackMessage;
   const hostAgentManaged =
+    taxonomyProblem?.agentBranch === 'host-failure' ||
+    taxonomyProblem?.dashboardState === 'host-failure' ||
     readBoolean(root, 'hostAgentManaged') ||
     readBoolean(data, 'hostAgentManaged') ||
     readBoolean(meta, 'hostAgentManaged') ||
@@ -2177,16 +2557,22 @@ export function parseHostManagedUnavailable(
     readBoolean(data, 'localAiUnavailable') ||
     readBoolean(meta, 'localAiUnavailable') ||
     readBoolean(boundary, 'localAiUnavailable');
+  const stableTaxonomyPresent = taxonomyProblem !== null && taxonomyProblem.source !== 'compatibility-fallback';
+  const taxonomyHostManaged =
+    taxonomyProblem?.dashboardState === 'host-failure' ||
+    taxonomyProblem?.reasonCode === 'host-failure' ||
+    taxonomyProblem?.agentBranch === 'host-failure' ||
+    (typeof taxonomyProblem?.code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(taxonomyProblem.code));
   const hostManaged =
-    (typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code)) ||
+    taxonomyHostManaged ||
     readBoolean(root, 'hostManaged') ||
     readBoolean(data, 'hostManaged') ||
     readBoolean(meta, 'hostManaged') ||
     readBoolean(boundary, 'hostManaged') ||
     hostAgentManaged ||
     localAiUnavailable ||
-    status === 501 ||
-    status === 410;
+    (!stableTaxonomyPresent && (typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code))) ||
+    (!stableTaxonomyPresent && (status === 501 || status === 410));
 
   if (!hostManaged) {
     return null;
@@ -2202,7 +2588,10 @@ export function parseHostManagedUnavailable(
     localAiUnavailable: localAiUnavailable ? true : undefined,
     unavailable: readBoolean(root, 'unavailable') || readBoolean(data, 'unavailable') || status === 501 || status === 410,
     status,
-    data: data || root || payload,
+    data: dashboardPublicRecord({
+      ...(data ?? root ?? {}),
+      failureTaxonomy: taxonomyProblem ?? undefined,
+    }) ?? payload,
   };
 }
 

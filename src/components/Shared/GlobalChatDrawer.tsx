@@ -359,7 +359,9 @@ export const GlobalChatPanel: React.FC = () => {
         const result = await api.refinePreviewStream(currentRefineId, text, (evt) => {
           if (evt.type === 'data:progress') {
             // 更新进度提示
-            const msg = evt.message || evt.stage || t('globalChat.system.processing');
+            const message = typeof evt['message'] === 'string' ? evt['message'] : '';
+            const stage = typeof evt['stage'] === 'string' ? evt['stage'] : '';
+            const msg = message || stage || t('globalChat.system.processing');
             setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: `🔄 ${msg}` } : m));
           }
         }, abort.signal);

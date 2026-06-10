@@ -817,7 +817,134 @@ test('chat stream summarizes tool args without retaining raw payload bags', asyn
   assert.doesNotMatch(hook, /Record<string, any>/);
   assert.doesNotMatch(hook, /toolMeta: Array<\{ tool: string; args/);
   assert.match(hook, /toolMeta: Array<\{ summary: string \}>/);
-  assert.match(hook, /asToolEventArgs\(evt\.args\)/);
+  assert.match(hook, /asToolEventArgs\(evt\['args'\]\)/);
+});
+
+test('dashboard classifies D21 adapter fallbacks by provider surface', async () => {
+  const api = read('src/api.ts');
+  const apiModule = await importTranspiled('src/api.ts');
+  const policies = apiModule.DASHBOARD_PROVIDER_ADAPTER_POLICIES;
+
+  assert.doesNotMatch(api, /不做字段映射/);
+  assert.match(api, /显式 adapter\/view projection/);
+  assert.ok(Array.isArray(policies));
+
+  const ids = new Set(policies.map((policy) => policy.id));
+  for (const id of [
+    'providerDataRecord',
+    'firstString',
+    'firstRecord',
+    'runtimeFileMonitor.compatibilityAliases',
+    'projectRuntimeDiagnostic.extraFields',
+    'hostManagedUnavailable',
+    'sseProjection',
+  ]) {
+    assert.ok(ids.has(id), `adapter policy should classify ${id}`);
+  }
+
+  for (const surface of [
+    'runtime-project',
+    'project-scope',
+    'jobs-events',
+    'knowledge-search',
+    'guard',
+    'decision-register',
+    'diagnostics',
+    'ai-host-managed-unavailable',
+    'artifacts',
+    'sse',
+  ]) {
+    assert.ok(
+      policies.some((policy) => policy.surface === surface || policy.fixtureRefs.some((ref) => ref.includes(surface.split('-')[0]))),
+      `adapter policies should cover ${surface}`,
+    );
+  }
+
+  for (const policy of policies) {
+    assert.match(policy.currentConsumer, /\S/);
+    assert.match(policy.providerBranch, /\S/);
+    assert.match(policy.cleanupTrigger, /\S/);
+    assert.ok(policy.fixtureRefs.length > 0);
+  }
+});
+
+test('dashboard replays D20 provider fixtures through typed adapter projections', async () => {
+  const provider = await importAlembicProviderContracts();
+  const apiModule = await importTranspiled('src/api.ts');
+  const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
+
+  const runtimeReady = providerFixture(fixtures, 'runtime-health.ready');
+  const readyBoundary = apiModule.normalizeRuntimeBoundary({}, runtimeReady.payload.data);
+  assert.equal(readyBoundary.mode, 'daemon');
+  assert.equal(readyBoundary.capabilities.jobs.available, true);
+  assert.equal(readyBoundary.capabilities.projectScope.available, true);
+
+  const runtimePartial = providerFixture(fixtures, 'runtime-health.partial');
+  const partialBoundary = apiModule.normalizeRuntimeBoundary({}, runtimePartial.payload.data);
+  assert.equal(partialBoundary.capabilities.apiAi.available, false);
+  assert.equal(partialBoundary.capabilities.apiAi.configSource, 'empty');
+  assert.equal(partialBoundary.capabilities.fileMonitor.available, true);
+
+  const runtimeUnavailable = apiModule.providerDataRecord(providerFixture(fixtures, 'runtime-health.unavailable').payload);
+  assert.equal(runtimeUnavailable.error.code, 'UNAVAILABLE_RUNTIME');
+  assert.equal(runtimeUnavailable.error.reasonCode, 'unavailable');
+
+  const projectConflict = apiModule.normalizeProjectActionResult(
+    providerFixture(fixtures, 'project-runtime.conflict').payload.data,
+    'switch',
+  );
+  assert.equal(projectConflict.action, 'switch');
+  assert.equal(projectConflict.ok, false);
+  assert.match(projectConflict.error, /already switching/);
+
+  const projectTimeout = apiModule.normalizeProjectActionResult(
+    providerFixture(fixtures, 'project-runtime.timeout').payload.data,
+    'switch',
+  );
+  assert.equal(projectTimeout.action, 'start');
+  assert.equal(projectTimeout.ok, false);
+  assert.match(projectTimeout.error, /did not become ready/);
+
+  const jobsQueued = apiModule.providerDataRecord(providerFixture(fixtures, 'jobs.queued').payload);
+  assert.equal(jobsQueued.jobs[0].status, 'queued');
+  const jobsUnavailable = apiModule.providerDataRecord(providerFixture(fixtures, 'jobs.unavailable').payload);
+  assert.equal(jobsUnavailable.error.reasonCode, 'unavailable');
+
+  const knowledge = apiModule.providerDataRecord(providerFixture(fixtures, 'knowledge.success').payload);
+  assert.equal(knowledge.items[0].id, 'knowledge-alpha');
+
+  const search = apiModule.normalizeSearchResponse(providerFixture(fixtures, 'search.success').payload);
+  assert.equal(search.items[0].title, 'Boundary rule');
+  assert.equal(search.mode, 'bm25');
+  const searchFallback = apiModule.normalizeSearchResponse(providerFixture(fixtures, 'search.compatibility-fallback').payload);
+  assert.equal(searchFallback.total, 0);
+  assert.equal(searchFallback.mode, 'legacy-fallback');
+
+  const guard = apiModule.providerDataRecord(providerFixture(fixtures, 'guard.success').payload);
+  assert.equal(guard.summary.warnings, 1);
+  const decision = apiModule.providerDataRecord(providerFixture(fixtures, 'decision-register.success').payload);
+  assert.equal(decision.decision.decisionId, 'decision-alpha');
+  const diagnostic = apiModule.providerDataRecord(providerFixture(fixtures, 'diagnostic.success').payload);
+  assert.equal(diagnostic.operation, 'diagnostic.read');
+
+  const hostManaged = apiModule.parseHostManagedUnavailable({
+    success: false,
+    error: { code: 'HOST_AGENT_MANAGED', message: 'Use the Codex host agent.' },
+  }, 501);
+  assert.equal(hostManaged.code, 'HOST_AGENT_MANAGED');
+  assert.equal(hostManaged.hostManaged, true);
+  assert.equal(hostManaged.unavailable, true);
+
+  const chatEvent = apiModule.projectProviderSseMessage(providerFixture(fixtures, 'sse.ai-chat.success').payload);
+  assert.equal(chatEvent.type, 'text:delta');
+  assert.equal(apiModule.projectSseTextDelta(chatEvent), 'Ready');
+  const scanEvent = apiModule.projectProviderSseMessage(providerFixture(fixtures, 'sse.module-scan.success').payload);
+  assert.equal(scanEvent.type, 'data:progress');
+  assert.equal(scanEvent.completed, 1);
+  assert.equal(scanEvent.total, 3);
+  const refineEvent = apiModule.projectProviderSseMessage(providerFixture(fixtures, 'sse.candidate-refine.success').payload);
+  assert.equal(refineEvent.type, 'data:preview');
+  assert.equal(refineEvent.candidateId, 'candidate-alpha');
 });
 
 test('project scope panel consumes Alembic ProjectScope API without fake source folders', () => {

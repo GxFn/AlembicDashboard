@@ -2,7 +2,8 @@
  * Alembic Dashboard API Client
  *
  * 直接调用 V3 RESTful API（/api/v1/*）。
- * 前端统一使用 V3 KnowledgeEntry 类型，不做字段映射。
+ * 前端统一使用 V3 KnowledgeEntry 类型；跨 provider 的响应差异只允许在
+ * 本文件的显式 adapter/view projection 中收束，不能在 UI 组件里散落猜字段。
  *
  * SSE 架构: Session + EventSource（POST 创建会话 → GET EventSource 消费事件）
  */
@@ -76,6 +77,136 @@ type CandidateInput = Partial<ExtractedRecipe & KnowledgeEntry> & {
 
 type UnknownRecord = Record<string, unknown>;
 
+export type DashboardProviderSurface =
+  | 'runtime-project'
+  | 'project-scope'
+  | 'jobs-events'
+  | 'knowledge-search'
+  | 'guard'
+  | 'decision-register'
+  | 'diagnostics'
+  | 'ai-host-managed-unavailable'
+  | 'artifacts'
+  | 'sse';
+
+export type DashboardAdapterDisposition =
+  | 'necessary-adapter'
+  | 'diagnostic-extension'
+  | 'compatibility-shim'
+  | 'deletion-candidate';
+
+export interface DashboardAdapterPolicy {
+  id: string;
+  surface: DashboardProviderSurface;
+  disposition: DashboardAdapterDisposition;
+  currentConsumer: string;
+  providerBranch: string;
+  cleanupTrigger: string;
+  fixtureRefs: string[];
+}
+
+export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
+  {
+    id: 'providerDataRecord',
+    surface: 'runtime-project',
+    disposition: 'necessary-adapter',
+    currentConsumer: 'route normalizers that consume D20 envelopes with success/data wrapping',
+    providerBranch: 'D20 closed route payloads with named data extension points',
+    cleanupTrigger: 'Remove only after every consumed route returns the direct provider payload without the success/data envelope.',
+    fixtureRefs: ['project-runtime.success', 'project-scope.success', 'job-snapshot.success', 'knowledge.success', 'search.success'],
+  },
+  {
+    id: 'firstString',
+    surface: 'jobs-events',
+    disposition: 'necessary-adapter',
+    currentConsumer: 'typed view-model normalizers for job events, runtime identity, project scope, and diagnostics',
+    providerBranch: 'D20 normalized payloads plus socket/rest recovery events that may omit optional view labels',
+    cleanupTrigger: 'Remove individual fallback keys only when accepted fixtures prove the canonical field is always present for that provider surface.',
+    fixtureRefs: ['job-event.visible', 'job-event.partial', 'project-runtime.success', 'diagnostic.success'],
+  },
+  {
+    id: 'firstRecord',
+    surface: 'runtime-project',
+    disposition: 'compatibility-shim',
+    currentConsumer: 'runtime boundary reader while daemon and project-info expose boundary details at different nesting points',
+    providerBranch: 'runtimeBoundary from daemon health or project-info capability metadata',
+    cleanupTrigger: 'Collapse to one field path after Alembic provider fixtures expose only one runtimeBoundary location.',
+    fixtureRefs: ['runtime-health.ready', 'runtime-health.partial'],
+  },
+  {
+    id: 'runtimeFileMonitor.compatibilityAliases',
+    surface: 'runtime-project',
+    disposition: 'compatibility-shim',
+    currentConsumer: 'Header runtime route badge and source label compatibility diagnostics',
+    providerBranch: 'fileMonitor compatibilityAliases retained for legacy source labels',
+    cleanupTrigger: 'Remove after Dashboard and Alembic provider fixture replay no longer require file monitor compatibilityAliases.',
+    fixtureRefs: ['runtime-health.partial'],
+  },
+  {
+    id: 'projectRuntimeDiagnostic.extraFields',
+    surface: 'diagnostics',
+    disposition: 'diagnostic-extension',
+    currentConsumer: 'RuntimeSourceOfTruthPanel diagnostic extra rows',
+    providerBranch: 'D20 named diagnostic extension fields outside the known source-of-truth keys',
+    cleanupTrigger: 'Keep as long as backend diagnostic providers expose named extension fields for troubleshooting.',
+    fixtureRefs: ['diagnostic.success', 'project-runtime.success'],
+  },
+  {
+    id: 'knowledgeSearchResponse',
+    surface: 'knowledge-search',
+    disposition: 'necessary-adapter',
+    currentConsumer: 'Recipes, candidates, command palette search, and knowledge graph entry displays',
+    providerBranch: 'D20 knowledge/search payloads with items, searchMeta, and compatibility fallback metadata',
+    cleanupTrigger: 'Keep as the typed search view-model projector; remove only duplicated inline search parsing.',
+    fixtureRefs: ['knowledge.success', 'search.success', 'search.compatibility-fallback'],
+  },
+  {
+    id: 'guardProviderRecords',
+    surface: 'guard',
+    disposition: 'necessary-adapter',
+    currentConsumer: 'GuardView rules, violation records, and report status tabs',
+    providerBranch: 'D20 guard report/rules/violations payloads and typed problem responses',
+    cleanupTrigger: 'Keep as long as GuardView needs stable rule/run defaults for empty or invalid-input provider states.',
+    fixtureRefs: ['guard.success', 'guard.invalid-input'],
+  },
+  {
+    id: 'decisionRegisterData',
+    surface: 'decision-register',
+    disposition: 'necessary-adapter',
+    currentConsumer: 'Decision register and scope-mismatch result displays',
+    providerBranch: 'D20 decision-register success and conflict problem payloads',
+    cleanupTrigger: 'Move into a dedicated decision-register projector when Dashboard adds a richer decision register view model.',
+    fixtureRefs: ['decision-register.success', 'decision-register.scope-mismatch'],
+  },
+  {
+    id: 'jobArtifactRefs',
+    surface: 'artifacts',
+    disposition: 'necessary-adapter',
+    currentConsumer: 'Jobs timeline details and persisted display snapshot artifact panels',
+    providerBranch: 'D20 job artifact refs and artifact-missing problem payloads',
+    cleanupTrigger: 'Keep; artifact refs are intentionally projected before the UI requests retained artifact content.',
+    fixtureRefs: ['job-snapshot.success', 'job-artifact.missing'],
+  },
+  {
+    id: 'hostManagedUnavailable',
+    surface: 'ai-host-managed-unavailable',
+    disposition: 'compatibility-shim',
+    currentConsumer: 'AI chat, candidate enrichment, candidate refine, and host-managed unavailable UI states',
+    providerBranch: 'D20 typed problem objects plus older host-managed boundary flags',
+    cleanupTrigger: 'Delete legacy flag readers after provider fixtures emit only canonical HOST_* problem codes.',
+    fixtureRefs: ['workflow.unavailable', 'sse.ai-chat.success'],
+  },
+  {
+    id: 'sseProjection',
+    surface: 'sse',
+    disposition: 'necessary-adapter',
+    currentConsumer: 'chat, module scan, and candidate refine stream consumers',
+    providerBranch: 'D20 SSE fixtures where event payload is dynamic at transport ingress only',
+    cleanupTrigger: 'Keep; UI components must consume projected primitives/view models rather than raw event payload bags.',
+    fixtureRefs: ['sse.ai-chat.success', 'sse.module-scan.success', 'sse.candidate-refine.success'],
+  },
+];
+
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -84,7 +215,7 @@ function asRuntimeRecord(value: unknown): UnknownRecord | null {
   return isRecord(value) ? value : null;
 }
 
-function providerDataRecord(value: unknown): UnknownRecord {
+export function providerDataRecord(value: unknown): UnknownRecord {
   const record = asRuntimeRecord(value) ?? {};
   const data = asRuntimeRecord(record.data);
   return record.success === true && data ? data : record;
@@ -1036,7 +1167,7 @@ function normalizeProjectHandoff(value: unknown): DashboardProjectRuntimeHandoff
   };
 }
 
-function normalizeProjectActionResult(value: unknown, fallbackAction: DashboardProjectActionResult['action']): DashboardProjectActionResult {
+export function normalizeProjectActionResult(value: unknown, fallbackAction: DashboardProjectActionResult['action']): DashboardProjectActionResult {
   const record = asRuntimeRecord(value) ?? {};
   return {
     action: firstString(record.action) ?? fallbackAction,
@@ -1952,7 +2083,7 @@ function readBoolean(record: Record<string, unknown> | null, key: string): boole
   return record?.[key] === true;
 }
 
-function parseHostManagedUnavailable(
+export function parseHostManagedUnavailable(
   payload: unknown,
   status?: number,
   fallbackMessage = 'This AI capability is managed by the host environment.',
@@ -2061,12 +2192,13 @@ export type SSEEventType =
   | 'tool:start' | 'tool:end'
   | 'text:start' | 'text:delta' | 'text:end'
   | 'data:progress' | 'data:preview'
+  | 'scan:result'
   | 'ping';
 
 export interface SSEEvent {
   type: SSEEventType;
-  // SSE events have dynamic payloads.
-  [key: string]: any;
+  // SSE payloads stay dynamic at transport ingress; adapters below project typed UI fields.
+  [key: string]: unknown;
 }
 
 /** AI 工具调用 */
@@ -2074,6 +2206,133 @@ export interface ToolCall {
   tool: string;
   args: Record<string, unknown>;
   result?: unknown;
+}
+
+export interface ChatStreamDoneProjection {
+  text: string;
+  toolCalls?: ToolCall[];
+  hasContext?: boolean;
+}
+
+export interface ScanStreamResultProjection {
+  recipes: ExtractedRecipe[];
+  scannedFiles: ScannedFile[];
+  message: string;
+  noAi: boolean;
+}
+
+export interface RefinePreviewDoneProjection {
+  candidateId: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  preview: Record<string, unknown> | null;
+}
+
+function sseString(event: SSEEvent, key: string): string | undefined {
+  const value = event[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function sseBoolean(event: SSEEvent, key: string): boolean | undefined {
+  const value = event[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function sseRecord(value: unknown): UnknownRecord | undefined {
+  return asRuntimeRecord(value) ?? undefined;
+}
+
+function sseToolCalls(value: unknown): ToolCall[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const calls = value
+    .map((item): ToolCall | null => {
+      const record = asRuntimeRecord(item);
+      const tool = firstString(record?.tool, record?.name);
+      if (!record || !tool) {
+        return null;
+      }
+      return {
+        tool,
+        args: asRuntimeRecord(record.args) ?? {},
+        result: record.result,
+      };
+    })
+    .filter((item): item is ToolCall => item !== null);
+  return calls.length > 0 ? calls : undefined;
+}
+
+export function projectSseTextDelta(event: SSEEvent): string {
+  return sseString(event, 'delta') ?? sseString(event, 'text') ?? '';
+}
+
+export function projectSseErrorMessage(event: SSEEvent, fallbackMessage: string): string {
+  return sseString(event, 'message') ?? fallbackMessage;
+}
+
+export function projectSseChatDone(
+  event: SSEEvent,
+  fallbackText = '',
+): ChatStreamDoneProjection {
+  return {
+    text: sseString(event, 'text') ?? fallbackText,
+    toolCalls: sseToolCalls(event.toolCalls),
+    hasContext: sseBoolean(event, 'hasContext'),
+  };
+}
+
+export function projectSseScanResult(event: SSEEvent): ScanStreamResultProjection {
+  return {
+    recipes: Array.isArray(event.recipes) ? event.recipes as ExtractedRecipe[] : [],
+    scannedFiles: Array.isArray(event.scannedFiles) ? event.scannedFiles as ScannedFile[] : [],
+    message: sseString(event, 'message') ?? '',
+    noAi: event.noAi === true,
+  };
+}
+
+export function projectSseRefineDone(event: SSEEvent, fallbackCandidateId: string): RefinePreviewDoneProjection {
+  return {
+    candidateId: sseString(event, 'candidateId') ?? fallbackCandidateId,
+    before: sseRecord(event.before) ?? {},
+    after: sseRecord(event.after) ?? {},
+    preview: sseRecord(event.preview) ?? null,
+  };
+}
+
+export function projectProviderSseMessage(value: unknown): SSEEvent | null {
+  const root = asRuntimeRecord(value);
+  const data = asRuntimeRecord(root?.data) ?? root;
+  if (!data) {
+    return null;
+  }
+
+  const rawType = firstString(data.type, root?.type);
+  if (rawType === 'text_delta') {
+    return {
+      type: 'text:delta',
+      delta: firstString(data.delta, data.text) ?? '',
+    };
+  }
+  if (rawType === 'progress') {
+    return {
+      type: 'data:progress',
+      completed: firstNumber(data.completed),
+      total: firstNumber(data.total),
+      message: firstString(data.message),
+    };
+  }
+  if (rawType === 'preview') {
+    return {
+      type: 'data:preview',
+      candidateId: firstString(data.candidateId),
+      preview: sseRecord(data.preview),
+    };
+  }
+  if (rawType === 'stream:done' || rawType === 'stream:error' || rawType === 'scan:result') {
+    return { ...data, type: rawType };
+  }
+  return null;
 }
 
 /** 知识图谱边 */
@@ -2182,6 +2441,154 @@ interface RawSearchResult {
   [key: string]: unknown;
 }
 
+function parseSearchContent(raw: unknown): KnowledgeContent {
+  if (!raw) {
+    return {} as KnowledgeContent;
+  }
+  if (typeof raw === 'object') {
+    return raw as KnowledgeContent;
+  }
+  try {
+    return JSON.parse(String(raw)) as KnowledgeContent;
+  } catch {
+    return { markdown: String(raw) };
+  }
+}
+
+export function normalizeSearchResponse(value: unknown): {
+  items: SearchResultItem[];
+  total: number;
+  mode?: string;
+  ranked?: boolean;
+} {
+  const data = providerDataRecord(value);
+  const searchMeta = asRuntimeRecord(data.searchMeta);
+  const items: SearchResultItem[] = recordArray(data.items).map((record) => ({
+    ...record,
+    title: firstString(record.title, record.name) ?? '',
+    content: parseSearchContent(record.content),
+    score: firstNumber(record.score, record.similarity) ?? 0,
+    qualityScore: firstNumber(record.qualityScore) ?? undefined,
+    usageCount: firstNumber(record.usageCount) ?? undefined,
+    authorityScore: firstNumber(record.authorityScore, record.authority) ?? undefined,
+    matchType: firstString(record.matchType) ?? undefined,
+  }));
+  return {
+    items,
+    total: firstNumber(data.totalResults, data.total) ?? items.length,
+    mode: firstString(data.mode, searchMeta?.actualMode) ?? undefined,
+    ranked: booleanOrNull(data.ranked) ?? undefined,
+  };
+}
+
+export interface GuardRuleProviderRecord {
+  message: string;
+  severity: string;
+  pattern: string;
+  languages: string[];
+  note?: string;
+  dimension?: 'file' | 'target' | 'project';
+  category?: 'safety' | 'correctness' | 'performance' | 'style' | '';
+  fixSuggestion?: string;
+  rationale?: string;
+  fixSuggestions?: string[];
+  sourceRecipe?: string;
+  [key: string]: unknown;
+}
+
+export interface GuardViolationProviderRecord {
+  ruleId: string;
+  message: string;
+  severity: string;
+  line: number;
+  snippet: string;
+  dimension?: 'file' | 'target' | 'project';
+  filePath?: string;
+  [key: string]: unknown;
+}
+
+export interface GuardRunProviderRecord {
+  id: string;
+  filePath: string;
+  triggeredAt: string;
+  violations: GuardViolationProviderRecord[];
+  [key: string]: unknown;
+}
+
+function normalizeGuardDimension(value: unknown): 'file' | 'target' | 'project' | undefined {
+  return value === 'file' || value === 'target' || value === 'project' ? value : undefined;
+}
+
+function normalizeGuardCategory(
+  value: unknown,
+): 'safety' | 'correctness' | 'performance' | 'style' | '' | undefined {
+  return value === 'safety' ||
+    value === 'correctness' ||
+    value === 'performance' ||
+    value === 'style' ||
+    value === ''
+    ? value
+    : undefined;
+}
+
+export function normalizeGuardRuleRecord(value: unknown): GuardRuleProviderRecord | null {
+  const record = asRuntimeRecord(value);
+  const id = firstString(record?.id);
+  const pattern = firstString(record?.pattern, id);
+  if (!record || !pattern) {
+    return null;
+  }
+  return {
+    ...record,
+    message: firstString(record.message) ?? pattern,
+    severity: firstString(record.severity) ?? 'warning',
+    pattern,
+    languages: firstStringArray(record.languages),
+    note: stringOrUndefined(record.note),
+    dimension: normalizeGuardDimension(record.dimension),
+    category: normalizeGuardCategory(record.category),
+    fixSuggestion: stringOrUndefined(record.fixSuggestion),
+    rationale: stringOrUndefined(record.rationale),
+    fixSuggestions: stringArray(record.fixSuggestions),
+    sourceRecipe: stringOrUndefined(record.sourceRecipe),
+  };
+}
+
+export function normalizeGuardViolationRecord(value: unknown): GuardViolationProviderRecord | null {
+  const record = asRuntimeRecord(value);
+  const ruleId = firstString(record?.ruleId, record?.id);
+  if (!record || !ruleId) {
+    return null;
+  }
+  return {
+    ...record,
+    ruleId,
+    message: firstString(record.message) ?? ruleId,
+    severity: firstString(record.severity) ?? 'warning',
+    line: firstNumber(record.line) ?? 0,
+    snippet: firstString(record.snippet) ?? '',
+    dimension: normalizeGuardDimension(record.dimension),
+    filePath: stringOrUndefined(record.filePath),
+  };
+}
+
+export function normalizeGuardRunRecord(value: unknown): GuardRunProviderRecord | null {
+  const record = asRuntimeRecord(value);
+  const id = firstString(record?.id, record?.runId);
+  if (!record || !id) {
+    return null;
+  }
+  return {
+    ...record,
+    id,
+    filePath: firstString(record.filePath) ?? '',
+    triggeredAt: firstString(record.triggeredAt, record.createdAt) ?? '',
+    violations: recordArray(record.violations)
+      .map(normalizeGuardViolationRecord)
+      .filter((violation): violation is GuardViolationProviderRecord => violation !== null),
+  };
+}
+
 /**
  * 统一 SSE 流消费器 — 从 fetch Response 中逐行读取 SSE events
  *
@@ -2239,16 +2646,17 @@ async function _consumeSSE(
         onEvent(evt);
 
         // text:delta — 拼接完整文本
-        if (evt.type === 'text:delta' && evt.delta) {
-          fullText += evt.delta;
+        const delta = projectSseTextDelta(evt);
+        if (evt.type === 'text:delta' && delta) {
+          fullText += delta;
         }
         // stream:done — 如果携带 text 则覆盖
-        else if (evt.type === 'stream:done' && evt.text) {
-          fullText = evt.text;
+        else if (evt.type === 'stream:done') {
+          fullText = projectSseChatDone(evt, fullText).text;
         }
         // stream:error — 抛出错误
         else if (evt.type === 'stream:error') {
-          throw new Error(evt.message || 'Stream error');
+          throw new Error(projectSseErrorMessage(evt, 'Stream error'));
         }
       } catch (e) {
         if (e instanceof SyntaxError) continue; // 非 JSON 行忽略
@@ -2443,12 +2851,7 @@ export const api = {
           onEvent(evt);
 
           if (evt.type === 'scan:result') {
-            finalResult = {
-              recipes: evt.recipes || [],
-              scannedFiles: (evt.scannedFiles || []) as ScannedFile[],
-              message: evt.message || '',
-              noAi: !!evt.noAi,
-            };
+            finalResult = projectSseScanResult(evt);
           }
 
           if (evt.type === 'stream:done') {
@@ -2460,7 +2863,7 @@ export const api = {
           if (evt.type === 'stream:error') {
             cleanup();
             resolved = true;
-            reject(new Error(evt.message || 'Scan stream error'));
+            reject(new Error(projectSseErrorMessage(evt, 'Scan stream error')));
           }
         } catch { /* ignore JSON parse errors */ }
       };
@@ -2558,12 +2961,7 @@ export const api = {
           onEvent(evt);
 
           if (evt.type === 'scan:result') {
-            finalResult = {
-              recipes: evt.recipes || [],
-              scannedFiles: (evt.scannedFiles || []) as ScannedFile[],
-              message: evt.message || '',
-              noAi: !!evt.noAi,
-            };
+            finalResult = projectSseScanResult(evt);
           }
 
           if (evt.type === 'stream:done') {
@@ -2575,7 +2973,7 @@ export const api = {
           if (evt.type === 'stream:error') {
             cleanup();
             resolved = true;
-            reject(new Error(evt.message || 'Scan folder stream error'));
+            reject(new Error(projectSseErrorMessage(evt, 'Scan folder stream error')));
           }
         } catch { /* ignore */ }
       };
@@ -3127,9 +3525,7 @@ export const api = {
       const fullText = await _consumeSSE(startRes, (evt) => {
         onEvent(evt);
         if (evt.type === 'stream:done') {
-          if (evt.text) finalResult.text = evt.text;
-          finalResult.toolCalls = evt.toolCalls;
-          finalResult.hasContext = evt.hasContext;
+          finalResult = projectSseChatDone(evt, finalResult.text);
         }
       });
       if (!finalResult.text && fullText) finalResult.text = fullText;
@@ -3167,17 +3563,14 @@ export const api = {
           onEvent(evt);
 
           // 累积 text:delta 文本
-          if (evt.type === 'text:delta' && evt.delta) {
-            fullText += evt.delta;
+          const delta = projectSseTextDelta(evt);
+          if (evt.type === 'text:delta' && delta) {
+            fullText += delta;
           }
 
           // 会话完成
           if (evt.type === 'stream:done') {
-            finalResult = {
-              text: evt.text || fullText,
-              toolCalls: evt.toolCalls,
-              hasContext: evt.hasContext,
-            };
+            finalResult = projectSseChatDone(evt, fullText);
             cleanup();
             resolved = true;
             resolve(finalResult);
@@ -3187,7 +3580,7 @@ export const api = {
           if (evt.type === 'stream:error') {
             cleanup();
             resolved = true;
-            reject(new Error(evt.message || 'Stream error'));
+            reject(new Error(projectSseErrorMessage(evt, 'Stream error')));
           }
         } catch {
           // 忽略 JSON 解析错误
@@ -3292,20 +3685,16 @@ export const api = {
           onEvent(evt);
 
           if (evt.type === 'stream:done') {
+            const done = projectSseRefineDone(evt, candidateId);
             cleanup();
             resolved = true;
-            resolve({
-              candidateId: (evt.candidateId as string) || candidateId,
-              before: (evt.before as Record<string, unknown>) || {},
-              after: (evt.after as Record<string, unknown>) || {},
-              preview: (evt.preview as Record<string, unknown>) || null,
-            });
+            resolve(done);
           }
 
           if (evt.type === 'stream:error') {
             cleanup();
             resolved = true;
-            reject(new Error((evt.message as string) || 'Refine stream error'));
+            reject(new Error(projectSseErrorMessage(evt, 'Refine stream error')));
           }
         } catch {
           // ignore parse errors
@@ -3359,13 +3748,6 @@ export const api = {
   ): Promise<{ items: SearchResultItem[]; total: number; mode?: string; ranked?: boolean }> {
     const { mode = 'auto', type, limit = 20, signal, context } = options;
 
-    // 解析 content JSON 字符串为对象
-    const parseContent = (raw: unknown): KnowledgeContent => {
-      if (!raw) return {} as KnowledgeContent;
-      if (typeof raw === 'object') return raw as KnowledgeContent;
-      try { return JSON.parse(String(raw)) as KnowledgeContent; } catch { return { markdown: String(raw) }; }
-    };
-
     // ── 有 context: POST /search/context-aware ──
     if (context) {
       const res = await http.post('/search/context-aware', {
@@ -3374,55 +3756,51 @@ export const api = {
         sessionHistory: context.sessionHistory || [],
       }, { signal }).catch(() => ({ data: { data: {} } }));
       const data = res.data?.data || {};
-      const items: SearchResultItem[] = (data.results || []).map((r: RawSearchResult) => {
-        const content = parseContent(r.content);
-        return {
-          title: (r.name || '').replace(/\.md$/, ''),
-          content,
-          score: r.similarity || 0,
-          qualityScore: r.qualityScore || 0,
-          usageCount: r.usageCount || 0,
-          authorityScore: r.authority || 0,
-          matchType: r.matchType,
-        };
+      const normalized = normalizeSearchResponse({
+        success: true,
+        data: {
+          items: data.results || [],
+          total: data.total,
+          mode: 'weighted',
+          ranked: true,
+        },
       });
-      return { items, total: data.total || items.length, mode: 'weighted', ranked: true };
+      return { ...normalized, mode: 'weighted', ranked: true };
     }
 
     // ── 无 context: GET /search ──
     const params = new URLSearchParams({ q: query, mode, limit: String(limit) });
     if (type) params.set('type', type);
     const res = await http.get(`/search?${params}`, { signal });
-    const data = res.data?.data || {};
-    const items: SearchResultItem[] = (data.items || []).map((r: RawSearchResult) => ({
-      ...r,
-      content: parseContent(r.content),
-    }));
-    return {
-      items,
-      total: data.totalResults || data.total || items.length,
-      mode: data.mode,
-      ranked: data.ranked,
-    };
+    return normalizeSearchResponse(res.data);
   },
 
   // ── Guard ───────────────────────────────────────────
 
-  async getGuardRules(): Promise<{ rules: Record<string, any>; projectLanguages: string[] }> {
+  async getGuardRules(): Promise<{ rules: Record<string, GuardRuleProviderRecord>; projectLanguages: string[] }> {
     const res = await http.get('/rules?limit=100');
     const data = res.data?.data || {};
-    const items: Array<{ id: string; [key: string]: unknown }> = data.data || data.items || [];
-    const rules: Record<string, Record<string, unknown>> = {};
-    for (const r of items) {
-      rules[r.id] = r;
+    const items = recordArray(data.data).length > 0 ? recordArray(data.data) : recordArray(data.items);
+    const rules: Record<string, GuardRuleProviderRecord> = {};
+    for (const item of items) {
+      const id = firstString(item.id);
+      const rule = normalizeGuardRuleRecord(item);
+      if (id && rule) {
+        rules[id] = rule;
+      }
     }
-    return { rules, projectLanguages: data.projectLanguages || [] };
+    return { rules, projectLanguages: firstStringArray(data.projectLanguages) };
   },
 
-  async getGuardViolations(): Promise<{ runs: any[] }> {
+  async getGuardViolations(): Promise<{ runs: GuardRunProviderRecord[] }> {
     const res = await http.get('/violations');
     const data = res.data?.data || {};
-    return { runs: data.data || data.items || [] };
+    const items = recordArray(data.data).length > 0 ? recordArray(data.data) : recordArray(data.items);
+    return {
+      runs: items
+        .map(normalizeGuardRunRecord)
+        .filter((run): run is GuardRunProviderRecord => run !== null),
+    };
   },
 
   async clearViolations(): Promise<void> {

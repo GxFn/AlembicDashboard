@@ -47,6 +47,16 @@ function truncateDisplay(value: string, maxLength = 40): string {
   return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
+function eventString(event: SSEEvent, key: string): string {
+  const value = event[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function eventNumber(event: SSEEvent, key: string): number {
+  const value = event[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 /** 将工具名转为人类可读标签（通过 i18n），未知工具保留原名 */
 function toolLabel(t: TFn, name: string): string {
   const key = `chatStream.tools.${name}`;
@@ -143,8 +153,12 @@ export function createStreamEventHandler(
   function onEvent(evt: SSEEvent) {
     switch (evt.type) {
       case 'step:start': {
-        const phaseLabel = evt.phase === 'user' ? '' : ` [${evt.phase}]`;
-        const stepLine = t('chatStream.stepProgress', { step: evt.step, maxSteps: evt.maxSteps }) + phaseLabel + '...';
+        const phase = eventString(evt, 'phase');
+        const phaseLabel = phase === 'user' || !phase ? '' : ` [${phase}]`;
+        const stepLine = t('chatStream.stepProgress', {
+          step: eventNumber(evt, 'step'),
+          maxSteps: eventNumber(evt, 'maxSteps'),
+        }) + phaseLabel + '...';
         const statusText = toolLogs.length > 0
           ? toolLogs.join('\n') + '\n\n' + stepLine
           : stepLine;
@@ -152,8 +166,8 @@ export function createStreamEventHandler(
         break;
       }
       case 'tool:start': {
-        const tool = typeof evt.tool === 'string' ? evt.tool : 'unknown';
-        const summary = toolSummary(t, tool, asToolEventArgs(evt.args));
+        const tool = eventString(evt, 'tool') || 'unknown';
+        const summary = toolSummary(t, tool, asToolEventArgs(evt['args']));
         toolLogs.push(`🔧 ${summary}...`);
         toolMeta.push({ summary });
         updateContent(toolLogs.join('\n'));
@@ -163,14 +177,16 @@ export function createStreamEventHandler(
         const lastIdx = toolLogs.length - 1;
         if (lastIdx >= 0) {
           const meta = toolMeta[lastIdx];
-          const summary = meta?.summary || toolSummary(t, typeof evt.tool === 'string' ? evt.tool : 'unknown');
-          if (evt.status === 'error' || evt.error) {
-            toolLogs[lastIdx] = `❌ ${summary} ${t('chatStream.toolFailed')} (${evt.duration}ms)`;
+          const summary = meta?.summary || toolSummary(t, eventString(evt, 'tool') || 'unknown');
+          const duration = eventNumber(evt, 'duration');
+          const resultSize = eventNumber(evt, 'resultSize');
+          if (eventString(evt, 'status') === 'error' || Boolean(evt['error'])) {
+            toolLogs[lastIdx] = `❌ ${summary} ${t('chatStream.toolFailed')} (${duration}ms)`;
           } else {
-            const sizeStr = evt.resultSize > 1000
-              ? `${(evt.resultSize / 1024).toFixed(1)}KB`
-              : t('chatStream.toolResultChars', { size: evt.resultSize });
-            toolLogs[lastIdx] = `✅ ${summary} → ${sizeStr} (${evt.duration}ms)`;
+            const sizeStr = resultSize > 1000
+              ? `${(resultSize / 1024).toFixed(1)}KB`
+              : t('chatStream.toolResultChars', { size: resultSize });
+            toolLogs[lastIdx] = `✅ ${summary} → ${sizeStr} (${duration}ms)`;
           }
           updateContent(toolLogs.join('\n'));
         }
@@ -181,7 +197,7 @@ export function createStreamEventHandler(
         break;
       }
       case 'text:delta': {
-        answerText += evt.delta || '';
+        answerText += eventString(evt, 'delta');
         const prefix = toolLogs.length > 0 ? toolLogs.join('\n') + '\n\n---\n\n' : '';
         updateContent(prefix + answerText);
         break;

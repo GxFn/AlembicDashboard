@@ -104,6 +104,19 @@ function cloneWithForbiddenProviderFields(value) {
   return clone;
 }
 
+function cloneWithRetiredProviderCompatibilityFields(value) {
+  const clone = cloneWithForbiddenProviderFields(value);
+  // CR3 test-only negative fixture. Owner: AlembicDashboard contract tests.
+  // Cleanup trigger: remove after Core runtime contracts drop the retired alias field.
+  const fileMonitor = clone.data?.capabilities?.fileMonitor ?? clone.capabilities?.fileMonitor;
+  if (isRecord(fileMonitor)) {
+    fileMonitor.compatibilityAliases = {
+      'ide-edit': 'host-edit',
+    };
+  }
+  return clone;
+}
+
 function assertNoForbiddenPublicFields(value, pathLabel = 'projection') {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertNoForbiddenPublicFields(item, `${pathLabel}[${index}]`));
@@ -840,46 +853,49 @@ test('dashboard replays accepted Alembic provider fixtures through executable no
   assert.deepEqual(normalizedFolders.folders.map((folder) => folder.path), ['src']);
 });
 
-test('dashboard keeps legacy source labels as display compatibility only', async () => {
+test('dashboard uses canonical host source labels without legacy IDE mappings', async () => {
   const labels = await importTranspiled('src/utils/sourceLabels.ts');
   const t = (key) => `translated:${key}`;
 
-  const legacy = labels.getSourceLabelInfo('ide-agent');
-  assert.equal(legacy.compatibility, true);
-  assert.equal(legacy.disposition, 'display-compatibility');
-  assert.match(legacy.compatibilityOwner, /AlembicDashboard display adapter/);
-  assert.match(legacy.cleanupTrigger, /provider fixtures/);
-  assert.equal(labels.formatSourceLabel('ide-agent', t), 'translated:sources.legacyIdeAgent');
+  const hostAgent = labels.getSourceLabelInfo('host-agent');
+  assert.equal(hostAgent.compatibility, undefined);
+  assert.equal(hostAgent.disposition, 'provider-source');
+  assert.equal(labels.formatSourceLabel('host-agent', t), 'translated:sources.hostAgent');
 
-  const current = labels.getSourceLabelInfo('host-agent');
-  assert.equal(current.compatibility, undefined);
-  assert.equal(current.disposition, 'provider-source');
+  const hostEdit = labels.getSourceLabelInfo('host-edit');
+  assert.equal(hostEdit.compatibility, undefined);
+  assert.equal(hostEdit.disposition, 'provider-source');
+  assert.equal(labels.formatSourceLabel('host-edit', t), 'translated:sources.hostEdit');
+
+  // CR3 test-only negative fixture for retired source labels.
+  // Owner: AlembicDashboard contract tests. Cleanup trigger: remove after
+  // source scans prove no provider or persisted fixture can emit these labels.
+  const retired = labels.getSourceLabelInfo('ide-agent');
+  assert.equal(retired.compatibility, undefined);
+  assert.equal(retired.disposition, 'unmapped-display');
+  assert.equal(labels.formatSourceLabel('ide-agent', t), 'ide-agent');
 
   const unknown = labels.getSourceLabelInfo('custom-importer');
   assert.equal(unknown.disposition, 'unmapped-display');
   assert.equal(labels.formatSourceLabel('custom-importer', t), 'custom-importer');
 });
 
-test('runtime boundary aliases are explicit diagnostic compatibility metadata', async () => {
+test('runtime boundary consumes canonical file monitor event sources only', async () => {
   const apiModule = await importTranspiled('src/api.ts');
-  const boundary = apiModule.normalizeRuntimeBoundary({}, {
+  const boundary = apiModule.normalizeRuntimeBoundary({}, cloneWithRetiredProviderCompatibilityFields({
     mode: 'daemon',
     projectRoot: '/workspace/alembic',
     capabilities: {
       fileMonitor: {
         available: true,
         acceptedEventSources: ['file-change'],
-        compatibilityAliases: {
-          'ide-edit': 'host-edit',
-        },
       },
     },
-  });
+  }));
 
-  assert.deepEqual(boundary.capabilities.fileMonitor.compatibilityAliases, { 'ide-edit': 'host-edit' });
-  assert.equal(boundary.capabilities.fileMonitor.compatibilityAliasPolicy.disposition, 'diagnostic-compatibility');
-  assert.equal(boundary.capabilities.fileMonitor.compatibilityAliasPolicy.owner, 'AlembicCore RuntimeContracts');
-  assert.ok(boundary.capabilities.fileMonitor.compatibilityAliasPolicy.validationRefs.includes('D13-D01'));
+  assert.deepEqual(boundary.capabilities.fileMonitor.acceptedEventSources, ['file-change']);
+  assert.equal('compatibilityAliases' in boundary.capabilities.fileMonitor, false);
+  assert.equal('compatibilityAliasPolicy' in boundary.capabilities.fileMonitor, false);
 });
 
 test('knowledge save uses a typed provider payload projector', async () => {
@@ -956,13 +972,22 @@ test('dashboard classifies D21 adapter fallbacks by provider surface', async () 
     'providerDataRecord',
     'firstString',
     'firstRecord',
-    'runtimeFileMonitor.compatibilityAliases',
     'projectRuntimeDiagnostic.extraFields',
     'hostManagedUnavailable',
     'sseProjection',
   ]) {
     assert.ok(ids.has(id), `adapter policy should classify ${id}`);
   }
+
+  // CR3 test-only negative assertions for retired Dashboard fallback policy ids.
+  // Owner: AlembicDashboard contract tests. Cleanup trigger: remove when the
+  // compatibility-removal ledger archives CR3 and no historical fixture replay is needed.
+  assert.equal([...ids].some((id) => id.includes('compatibilityAliases')), false);
+  assert.equal(
+    policies.some((policy) => policy.fixtureRefs.includes('search.compatibility-fallback')),
+    false,
+  );
+  assert.ok(policies.some((policy) => policy.fixtureRefs.includes('search.degraded')));
 
   for (const surface of [
     'runtime-project',
@@ -1038,9 +1063,9 @@ test('dashboard replays D20 provider fixtures through typed adapter projections'
   const search = apiModule.normalizeSearchResponse(providerFixture(fixtures, 'search.success').payload);
   assert.equal(search.items[0].title, 'Boundary rule');
   assert.equal(search.mode, 'bm25');
-  const searchFallback = apiModule.normalizeSearchResponse(providerFixture(fixtures, 'search.compatibility-fallback').payload);
-  assert.equal(searchFallback.total, 0);
-  assert.equal(searchFallback.mode, 'legacy-fallback');
+  const searchDegraded = apiModule.normalizeSearchResponse(providerFixture(fixtures, 'search.degraded').payload);
+  assert.equal(searchDegraded.total, 0);
+  assert.equal(searchDegraded.mode, 'legacy-fallback');
 
   const guard = apiModule.providerDataRecord(providerFixture(fixtures, 'guard.success').payload);
   assert.equal(guard.summary.warnings, 1);
@@ -1149,6 +1174,19 @@ test('dashboard replays D24 consumer scenarios with public projections and failu
         ['items.0.title', 'Boundary rule'],
         ['items.0.content.markdown', undefined],
         ['mode', 'bm25'],
+      ],
+    },
+    {
+      id: 'knowledge-search-degraded',
+      consumerScenario: 'Search and command palette consume canonical degraded search telemetry',
+      failureClassification: 'dashboard-adapter',
+      fixtureId: 'search.degraded',
+      producerContract: 'I22.search.get',
+      project: (payload) => apiModule.normalizeSearchResponse(payload),
+      expectedFields: [
+        ['items.0.title', undefined],
+        ['total', 0],
+        ['mode', 'legacy-fallback'],
       ],
     },
     {
@@ -1301,7 +1339,7 @@ test('dashboard routes D25 problem taxonomy without raw payload guessing', async
   assert.equal(agentProjection.message, 'Host runtime failed');
   assertNoForbiddenPublicFields(agentProjection, 'd25.agent');
 
-  const compatibility = apiModule.normalizeDashboardErrorProblem({
+  const legacyCodeOnlyProblem = apiModule.normalizeDashboardErrorProblem({
     success: false,
     error: {
       code: 'HOST_AGENT_MANAGED',
@@ -1309,13 +1347,7 @@ test('dashboard routes D25 problem taxonomy without raw payload guessing', async
       rawProviderPayload: { hidden: true },
     },
   }, 501);
-  assert.equal(compatibility.source, 'compatibility-fallback');
-  assert.equal(compatibility.reasonCode, 'host-failure');
-  assert.match(compatibility.compatibility.owner, /AlembicDashboard D25 error adapter/);
-  assert.match(compatibility.compatibility.cleanupTrigger, /stable failure taxonomy fields only/);
-  assert.deepEqual(compatibility.compatibility.matchedBy, ['code:HOST_AGENT_MANAGED']);
-  assert.equal(compatibility.privateDataSafe, false);
-  assertNoForbiddenPublicFields(compatibility, 'd25.compatibility');
+  assert.equal(legacyCodeOnlyProblem, null);
 
   const capabilityMismatch = providerFixture(fixtures, 'workflow.capability-mismatch');
   assert.equal(

@@ -92,7 +92,6 @@ export type DashboardProviderSurface =
 export type DashboardAdapterDisposition =
   | 'necessary-adapter'
   | 'diagnostic-extension'
-  | 'compatibility-shim'
   | 'deletion-candidate';
 
 export interface DashboardAdapterPolicy {
@@ -127,20 +126,11 @@ export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
   {
     id: 'firstRecord',
     surface: 'runtime-project',
-    disposition: 'compatibility-shim',
+    disposition: 'necessary-adapter',
     currentConsumer: 'runtime boundary reader while daemon and project-info expose boundary details at different nesting points',
     providerBranch: 'runtimeBoundary from daemon health or project-info capability metadata',
     cleanupTrigger: 'Collapse to one field path after Alembic provider fixtures expose only one runtimeBoundary location.',
     fixtureRefs: ['runtime-health.ready', 'runtime-health.partial'],
-  },
-  {
-    id: 'runtimeFileMonitor.compatibilityAliases',
-    surface: 'runtime-project',
-    disposition: 'compatibility-shim',
-    currentConsumer: 'Header runtime route badge and source label compatibility diagnostics',
-    providerBranch: 'fileMonitor compatibilityAliases retained for legacy source labels',
-    cleanupTrigger: 'Remove after Dashboard and Alembic provider fixture replay no longer require file monitor compatibilityAliases.',
-    fixtureRefs: ['runtime-health.partial'],
   },
   {
     id: 'projectRuntimeDiagnostic.extraFields',
@@ -156,9 +146,9 @@ export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
     surface: 'knowledge-search',
     disposition: 'necessary-adapter',
     currentConsumer: 'Recipes, candidates, command palette search, and knowledge graph entry displays',
-    providerBranch: 'D20 knowledge/search payloads with items, searchMeta, and compatibility fallback metadata',
+    providerBranch: 'D20 knowledge/search payloads with items, searchMeta, and canonical degraded telemetry',
     cleanupTrigger: 'Keep as the typed search view-model projector; remove only duplicated inline search parsing.',
-    fixtureRefs: ['knowledge.success', 'search.success', 'search.compatibility-fallback'],
+    fixtureRefs: ['knowledge.success', 'search.success', 'search.degraded'],
   },
   {
     id: 'guardProviderRecords',
@@ -190,9 +180,9 @@ export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
   {
     id: 'hostManagedUnavailable',
     surface: 'ai-host-managed-unavailable',
-    disposition: 'compatibility-shim',
+    disposition: 'necessary-adapter',
     currentConsumer: 'AI chat, candidate enrichment, candidate refine, and host-managed unavailable UI states',
-    providerBranch: 'D20 typed problem objects plus older host-managed boundary flags',
+    providerBranch: 'D20 typed problem objects plus host-managed boundary flags',
     cleanupTrigger: 'Delete legacy flag readers after provider fixtures emit only canonical HOST_* problem codes.',
     fixtureRefs: ['workflow.unavailable', 'sse.ai-chat.success'],
   },
@@ -298,14 +288,7 @@ export type DashboardFailureKind = (typeof DASHBOARD_KNOWN_FAILURE_KINDS)[number
 export type DashboardFailureProjectionSource =
   | 'provider-taxonomy'
   | 'mcp-taxonomy'
-  | 'agent-taxonomy'
-  | 'compatibility-fallback';
-
-export interface DashboardErrorCompatibilityPolicy {
-  owner: string;
-  cleanupTrigger: string;
-  matchedBy: string[];
-}
+  | 'agent-taxonomy';
 
 export interface DashboardErrorProblemProjection {
   agentBranch?: string;
@@ -330,14 +313,7 @@ export interface DashboardErrorProblemProjection {
   source: DashboardFailureProjectionSource;
   status?: number;
   taxonomyVersion?: number;
-  compatibility?: DashboardErrorCompatibilityPolicy;
 }
-
-export const DASHBOARD_ERROR_TAXONOMY_COMPATIBILITY = {
-  owner: 'AlembicDashboard D25 error adapter',
-  cleanupTrigger:
-    'Remove status/code fallback after accepted provider, MCP, and Agent surfaces emit stable failure taxonomy fields only.',
-} as const;
 
 function normalizeDashboardFailureKind(value: unknown): DashboardFailureKind | null {
   if (typeof value !== 'string') {
@@ -446,107 +422,6 @@ function firstProblemStringArray(records: UnknownRecord[], key: string): string[
   return [];
 }
 
-function dashboardFailureKindFromCompatibility(records: UnknownRecord[], status?: number) {
-  const code = firstProblemString(records, 'code') ?? firstProblemString(records, 'reason');
-  const normalizedCode = code?.trim().toUpperCase();
-  const matchedBy: string[] = [];
-
-  const codeKind = (() => {
-    switch (normalizedCode) {
-      case 'INVALID_INPUT':
-      case 'VALIDATION_ERROR':
-        return 'invalid-input';
-      case 'NOT_FOUND':
-      case 'ARTIFACT_MISSING':
-        return 'not-found';
-      case 'CONFLICT':
-      case 'PROJECT_RUNTIME_CONFLICT':
-        return 'conflict';
-      case 'PERMISSION_DENIED':
-      case 'FORBIDDEN':
-        return 'permission-denied';
-      case 'TIMEOUT':
-      case 'PROJECT_RUNTIME_TIMEOUT':
-        return 'timeout';
-      case 'CANCELLED':
-      case 'JOB_CANCELLED':
-        return 'cancelled';
-      case 'UNAVAILABLE':
-      case 'UNAVAILABLE_RUNTIME':
-      case 'LOCAL_AI_UNAVAILABLE':
-        return 'unavailable';
-      case 'DEGRADED':
-      case 'WORKFLOW_DEGRADED':
-        return 'degraded';
-      case 'PARTIAL':
-      case 'WORKFLOW_PARTIAL':
-        return 'partial';
-      case 'CAPABILITY_MISMATCH':
-        return 'capability-mismatch';
-      case 'NEEDS_CONFIRMATION':
-      case 'DECISION_REQUIRES_CONFIRMATION':
-        return 'needs-confirmation';
-      case 'PROVIDER_ERROR':
-        return 'provider-error';
-      case 'HOST_FAILURE':
-      case 'HOST_AI_MANAGED':
-      case 'HOST_AGENT_MANAGED':
-      case 'CODEX_HOST_AGENT_MANAGED':
-        return 'host-failure';
-      case 'INTERNAL_ERROR':
-        return 'internal-error';
-      default:
-        return null;
-    }
-  })();
-
-  if (codeKind) {
-    matchedBy.push(`code:${normalizedCode}`);
-    return { kind: codeKind as DashboardFailureKind, matchedBy };
-  }
-
-  switch (status) {
-    case 400:
-      matchedBy.push('status:400');
-      return { kind: 'invalid-input' as DashboardFailureKind, matchedBy };
-    case 401:
-    case 403:
-      matchedBy.push(`status:${status}`);
-      return { kind: 'permission-denied' as DashboardFailureKind, matchedBy };
-    case 404:
-      matchedBy.push('status:404');
-      return { kind: 'not-found' as DashboardFailureKind, matchedBy };
-    case 408:
-    case 504:
-      matchedBy.push(`status:${status}`);
-      return { kind: 'timeout' as DashboardFailureKind, matchedBy };
-    case 409:
-      matchedBy.push('status:409');
-      return { kind: 'conflict' as DashboardFailureKind, matchedBy };
-    case 412:
-      matchedBy.push('status:412');
-      return { kind: 'needs-confirmation' as DashboardFailureKind, matchedBy };
-    case 424:
-      matchedBy.push('status:424');
-      return { kind: 'host-failure' as DashboardFailureKind, matchedBy };
-    case 501:
-      matchedBy.push('status:501');
-      return { kind: 'capability-mismatch' as DashboardFailureKind, matchedBy };
-    case 502:
-      matchedBy.push('status:502');
-      return { kind: 'provider-error' as DashboardFailureKind, matchedBy };
-    case 503:
-      matchedBy.push('status:503');
-      return { kind: 'unavailable' as DashboardFailureKind, matchedBy };
-    default:
-      if (typeof status === 'number' && status >= 500) {
-        matchedBy.push(`status:${status}`);
-        return { kind: 'internal-error' as DashboardFailureKind, matchedBy };
-      }
-      return null;
-  }
-}
-
 function dashboardProblemSource(record: UnknownRecord, root: UnknownRecord): DashboardFailureProjectionSource {
   if (root.success === false && asRuntimeRecord(root.error) === record) {
     return 'provider-taxonomy';
@@ -586,27 +461,22 @@ export function normalizeDashboardErrorProblem(
         stableRecord.kind,
       )
     : null;
-  const fallback = stableKind ? null : dashboardFailureKindFromCompatibility(records, status);
-  const reasonCode = stableKind ?? fallback?.kind ?? null;
+  const reasonCode = stableKind;
 
-  if (!reasonCode) {
+  if (!stableRecord || !reasonCode) {
     return null;
   }
 
-  const source = stableRecord ? dashboardProblemSource(stableRecord, root) : 'compatibility-fallback';
-  const lookupRecords = stableRecord ? [stableRecord, ...records] : records;
+  const source = dashboardProblemSource(stableRecord, root);
+  const lookupRecords = [stableRecord, ...records];
   const message =
-    (stableRecord
-      ? firstString(stableRecord.message, stableRecord.publicMessage)
-      : undefined) ??
+    firstString(stableRecord.message, stableRecord.publicMessage) ??
     firstProblemString(records, 'message') ??
     firstProblemString(records, 'publicMessage') ??
     firstProblemString(lookupRecords, 'summary') ??
     reasonCode;
   const mcpStatus = firstDashboardFailureKind(firstProblemString(lookupRecords, 'mcpStatus')) ?? undefined;
-  const privateDataSafe = source === 'compatibility-fallback'
-    ? false
-    : firstProblemBoolean(lookupRecords, 'privateDataSafe') === true;
+  const privateDataSafe = firstProblemBoolean(lookupRecords, 'privateDataSafe') === true;
 
   return {
     agentBranch: firstProblemString(lookupRecords, 'agentBranch'),
@@ -634,12 +504,6 @@ export function normalizeDashboardErrorProblem(
     source,
     status: firstProblemNumber(lookupRecords, 'status') ?? status,
     taxonomyVersion: firstProblemNumber(lookupRecords, 'taxonomyVersion'),
-    compatibility: fallback
-      ? {
-          ...DASHBOARD_ERROR_TAXONOMY_COMPATIBILITY,
-          matchedBy: fallback.matchedBy,
-        }
-      : undefined,
   };
 }
 
@@ -698,23 +562,6 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
     typeof entry[1] === 'string'
   );
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-}
-
-function fileMonitorCompatibilityAliasPolicy(aliases: Record<string, string> | undefined) {
-  if (!aliases || Object.keys(aliases).length === 0) {
-    return undefined;
-  }
-  return {
-    disposition: 'diagnostic-compatibility' as const,
-    owner: 'AlembicCore RuntimeContracts',
-    cleanupTrigger:
-      'Remove after Dashboard and Alembic provider fixture replay no longer require file monitor compatibilityAliases.',
-    validationRefs: [
-      'D9-C02',
-      'D13-D01',
-      'runtime-boundary-fixture-replay',
-    ],
-  };
 }
 
 function firstNumber(...values: unknown[]): number | null {
@@ -1622,6 +1469,178 @@ async function postProjectAction(
   return result;
 }
 
+function runtimeBoundarySource(
+  daemonRuntimeBoundary: UnknownRecord | null,
+  daemonCapabilityRuntimeBoundary: UnknownRecord | null,
+  projectInfoRuntimeBoundary: UnknownRecord | null,
+  projectInfoCapabilityRuntimeBoundary: UnknownRecord | null,
+): string | null {
+  if (daemonRuntimeBoundary) {
+    return 'data.runtimeBoundary';
+  }
+  if (daemonCapabilityRuntimeBoundary) {
+    return 'capabilities.runtimeBoundary';
+  }
+  if (projectInfoRuntimeBoundary) {
+    return 'projectInfo.runtimeBoundary';
+  }
+  return projectInfoCapabilityRuntimeBoundary ? 'projectInfo.capabilities.runtimeBoundary' : null;
+}
+
+function normalizeRuntimeDaemon(runtimeDaemon: UnknownRecord | null): RuntimeBoundary['daemon'] {
+  if (!runtimeDaemon) {
+    return undefined;
+  }
+  return {
+    apiBaseUrl: firstString(runtimeDaemon.apiBaseUrl),
+    owner: firstString(runtimeDaemon.owner),
+    stateContract: firstString(runtimeDaemon.stateContract),
+  };
+}
+
+function normalizeRuntimeProjectIdentity(params: {
+  daemon: UnknownRecord;
+  projectInfo: UnknownRecord;
+  runtimeWorkspace: UnknownRecord | null;
+  serviceProjectIdentity: UnknownRecord | null;
+  serviceProjectScope: unknown;
+}): RuntimeBoundary['project'] {
+  const { daemon, projectInfo, runtimeWorkspace, serviceProjectIdentity, serviceProjectScope } = params;
+  const workspaceMode = firstString(runtimeWorkspace?.mode);
+  const projectRoot = firstString(daemon.projectRoot, runtimeWorkspace?.projectRoot, projectInfo.projectRoot) ?? '';
+  const dataRoot = firstString(daemon.dataRoot, runtimeWorkspace?.dataRoot, projectInfo.dataRoot, projectRoot) ?? '';
+  const dataRootSource = firstString(
+    daemon.dataRootSource,
+    runtimeWorkspace?.dataRootSource,
+    projectInfo.dataRootSource,
+    workspaceMode === 'ghost' ? 'ghost-registry' : null,
+    workspaceMode === 'standard' ? 'project-root' : null
+  ) ?? 'unknown';
+
+  return {
+    projectRoot,
+    dataRoot,
+    projectId: firstString(daemon.projectId, runtimeWorkspace?.projectId, projectInfo.projectId),
+    projectScope: normalizeProjectScopeSummary(serviceProjectScope) ??
+      normalizeProjectScopeSummary(daemon.projectScope) ??
+      normalizeProjectScopeSummary(runtimeWorkspace?.projectScope) ??
+      normalizeProjectScopeSummary(projectInfo.projectScope),
+    projectScopeId: firstString(
+      daemon.projectScopeId,
+      serviceProjectIdentity?.projectScopeId,
+      asRuntimeRecord(serviceProjectScope)?.projectScopeId,
+      runtimeWorkspace?.projectScopeId,
+      projectInfo.projectScopeId
+    ),
+    dataRootSource,
+    runtimeDir: firstString(daemon.runtimeDir, runtimeWorkspace?.runtimeDir, projectInfo.runtimeDir),
+    databasePath: firstString(daemon.databasePath, runtimeWorkspace?.databasePath, projectInfo.databasePath),
+    schemaMigrationVersion: firstString(daemon.schemaMigrationVersion, projectInfo.schemaMigrationVersion),
+    workspaceMode: workspaceMode ?? 'unknown',
+    workspaceContract: firstString(runtimeWorkspace?.contract),
+  };
+}
+
+function normalizeRuntimeCapabilities(params: {
+  apiAiCapability: UnknownRecord | null;
+  apiCapability: UnknownRecord | null;
+  dashboardCapability: UnknownRecord | null;
+  fileMonitorCapability: UnknownRecord | null;
+  jobsCapability: UnknownRecord | null;
+  projectScopeCapability: UnknownRecord | null;
+  runtimeApiAi: UnknownRecord | null;
+  runtimeDashboard: UnknownRecord | null;
+  runtimeDaemon: UnknownRecord | null;
+  runtimeFileMonitor: UnknownRecord | null;
+  runtimeJobs: UnknownRecord | null;
+  runtimeProjectScopeCapability: UnknownRecord | null;
+}): RuntimeBoundary['capabilities'] {
+  const {
+    apiAiCapability,
+    apiCapability,
+    dashboardCapability,
+    fileMonitorCapability,
+    jobsCapability,
+    projectScopeCapability,
+    runtimeApiAi,
+    runtimeDashboard,
+    runtimeDaemon,
+    runtimeFileMonitor,
+    runtimeJobs,
+    runtimeProjectScopeCapability,
+  } = params;
+
+  return {
+    api: apiCapability || runtimeDaemon
+      ? {
+          available: booleanOrNull(apiCapability?.available),
+          baseUrl: firstString(apiCapability?.baseUrl, runtimeDaemon?.apiBaseUrl),
+          healthPath: firstString(apiCapability?.healthPath),
+        }
+      : undefined,
+    dashboard: dashboardCapability || runtimeDashboard
+      ? {
+          available: firstBoolean(dashboardCapability?.available),
+          url: firstString(dashboardCapability?.url, runtimeDashboard?.url),
+          frontendOwner: firstString(runtimeDashboard?.frontendOwner),
+          handoff: firstString(runtimeDashboard?.handoff),
+          serverOwner: firstString(runtimeDashboard?.serverOwner),
+        }
+      : undefined,
+    fileMonitor: fileMonitorCapability || runtimeFileMonitor
+      ? {
+          available: firstBoolean(fileMonitorCapability?.available, runtimeFileMonitor?.available),
+          mode: firstString(fileMonitorCapability?.mode, runtimeFileMonitor?.mode, runtimeFileMonitor?.source),
+          endpoint: firstString(fileMonitorCapability?.endpoint, runtimeFileMonitor?.endpoint),
+          acceptedEventSources: firstStringArray(
+            fileMonitorCapability?.acceptedEventSources,
+            runtimeFileMonitor?.acceptedEventSources
+          ),
+          dispatcher: firstString(runtimeFileMonitor?.dispatcher),
+          longLivedOwner: firstString(runtimeFileMonitor?.longLivedOwner),
+        }
+      : undefined,
+    jobs: jobsCapability || runtimeJobs
+      ? {
+          available: firstBoolean(jobsCapability?.available),
+          kinds: firstStringArray(jobsCapability?.kinds, runtimeJobs?.kinds),
+          endpoints: stringRecord(jobsCapability?.endpoints) ?? stringRecord(runtimeJobs?.endpoints),
+          owner: firstString(runtimeJobs?.owner),
+          store: firstString(runtimeJobs?.store),
+        }
+      : undefined,
+    apiAi: apiAiCapability || runtimeApiAi
+      ? {
+          available: firstBoolean(apiAiCapability?.available, runtimeApiAi?.available),
+          configSource: firstString(apiAiCapability?.configSource, runtimeApiAi?.configSource) ?? 'unknown',
+          provider: firstString(apiAiCapability?.provider, runtimeApiAi?.provider),
+          model: firstString(apiAiCapability?.model, runtimeApiAi?.model),
+          owner: firstString(runtimeApiAi?.owner),
+          runtimeOwner: firstString(runtimeApiAi?.runtimeOwner),
+        }
+      : undefined,
+    projectScope: projectScopeCapability || runtimeProjectScopeCapability
+      ? {
+          available: firstBoolean(projectScopeCapability?.available, runtimeProjectScopeCapability?.available),
+          endpoints: stringRecord(projectScopeCapability?.endpoints) ?? stringRecord(runtimeProjectScopeCapability?.endpoints),
+          owner: firstString(projectScopeCapability?.owner, runtimeProjectScopeCapability?.owner),
+          source: firstString(projectScopeCapability?.source, runtimeProjectScopeCapability?.source),
+        }
+      : undefined,
+  };
+}
+
+function normalizeRuntimeHostAgentRoute(hostAgentRoute: UnknownRecord | null): RuntimeBoundary['hostAgentRoute'] {
+  if (!hostAgentRoute) {
+    return undefined;
+  }
+  return {
+    available: booleanOrNull(hostAgentRoute.available),
+    owner: firstString(hostAgentRoute.owner),
+    source: firstString(hostAgentRoute.source),
+  };
+}
+
 export function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealthValue: unknown): RuntimeBoundary {
   const projectInfo = asRuntimeRecord(projectInfoValue) ?? {};
   const daemon = asRuntimeRecord(daemonHealthValue) ?? {};
@@ -1639,15 +1658,12 @@ export function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealth
     projectInfoRuntimeBoundary,
     projectInfoCapabilityRuntimeBoundary
   );
-  const runtimeBoundarySource = daemonRuntimeBoundary
-    ? 'data.runtimeBoundary'
-    : daemonCapabilityRuntimeBoundary
-      ? 'capabilities.runtimeBoundary'
-      : projectInfoRuntimeBoundary
-        ? 'projectInfo.runtimeBoundary'
-        : projectInfoCapabilityRuntimeBoundary
-          ? 'projectInfo.capabilities.runtimeBoundary'
-          : null;
+  const source = runtimeBoundarySource(
+    daemonRuntimeBoundary,
+    daemonCapabilityRuntimeBoundary,
+    projectInfoRuntimeBoundary,
+    projectInfoCapabilityRuntimeBoundary
+  );
   const runtimeWorkspace = asRuntimeRecord(runtimeBoundary?.workspace);
   const runtimeDaemon = asRuntimeRecord(runtimeBoundary?.daemon);
   const runtimeDashboard = asRuntimeRecord(runtimeBoundary?.dashboard);
@@ -1661,7 +1677,6 @@ export function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealth
   const apiCapability = asRuntimeRecord(capabilities.api);
   const dashboardCapability = asRuntimeRecord(capabilities.dashboard);
   const fileMonitorCapability = asRuntimeRecord(capabilities.fileMonitor);
-  const fileMonitorCompatibilityAliases = stringRecord(fileMonitorCapability?.compatibilityAliases);
   const jobsCapability = asRuntimeRecord(capabilities.jobs);
   const apiAiCapability = asRuntimeRecord(capabilities.apiAi);
   const projectScopeCapability = asRuntimeRecord(capabilities.projectScope);
@@ -1670,122 +1685,38 @@ export function normalizeRuntimeBoundary(projectInfoValue: unknown, daemonHealth
     asRuntimeRecord(enhancement.hostAgentRoute) ??
     asRuntimeRecord(projectInfo.hostAgentRoute);
 
-  const workspaceMode = firstString(runtimeWorkspace?.mode);
-  const projectRoot = firstString(daemon.projectRoot, runtimeWorkspace?.projectRoot, projectInfo.projectRoot) ?? '';
-  const dataRoot = firstString(daemon.dataRoot, runtimeWorkspace?.dataRoot, projectInfo.dataRoot, projectRoot) ?? '';
-  const dataRootSource = firstString(
-    daemon.dataRootSource,
-    runtimeWorkspace?.dataRootSource,
-    projectInfo.dataRootSource,
-    workspaceMode === 'ghost' ? 'ghost-registry' : null,
-    workspaceMode === 'standard' ? 'project-root' : null
-  ) ?? 'unknown';
-
   return {
     owner: firstString(runtimeBoundary?.owner),
-    source: runtimeBoundarySource,
+    source,
     mode: firstString(daemon.mode, runtimeDaemon?.mode, projectInfo.runtimeMode) ?? 'unknown',
     route: firstString(enhancement.route, runtimeBoundary?.route, daemon.route, projectInfo.route) ?? 'unknown',
     apiVersion: firstString(enhancement.apiVersion),
     packageName: firstString(enhancement.packageName),
     version: firstString(enhancement.version, daemon.version, projectInfo.version),
     dashboardUrl: firstString(daemon.dashboardUrl, dashboardCapability?.url, runtimeDashboard?.url),
-    daemon: runtimeDaemon
-      ? {
-          apiBaseUrl: firstString(runtimeDaemon.apiBaseUrl),
-          owner: firstString(runtimeDaemon.owner),
-          stateContract: firstString(runtimeDaemon.stateContract),
-        }
-      : undefined,
-    project: {
-      projectRoot,
-      dataRoot,
-      projectId: firstString(daemon.projectId, runtimeWorkspace?.projectId, projectInfo.projectId),
-      projectScope: normalizeProjectScopeSummary(serviceProjectScope) ??
-        normalizeProjectScopeSummary(daemon.projectScope) ??
-        normalizeProjectScopeSummary(runtimeWorkspace?.projectScope) ??
-        normalizeProjectScopeSummary(projectInfo.projectScope),
-      projectScopeId: firstString(
-        daemon.projectScopeId,
-        serviceProjectIdentity?.projectScopeId,
-        asRuntimeRecord(serviceProjectScope)?.projectScopeId,
-        runtimeWorkspace?.projectScopeId,
-        projectInfo.projectScopeId
-      ),
-      dataRootSource,
-      runtimeDir: firstString(daemon.runtimeDir, runtimeWorkspace?.runtimeDir, projectInfo.runtimeDir),
-      databasePath: firstString(daemon.databasePath, runtimeWorkspace?.databasePath, projectInfo.databasePath),
-      schemaMigrationVersion: firstString(daemon.schemaMigrationVersion, projectInfo.schemaMigrationVersion),
-      workspaceMode: workspaceMode ?? 'unknown',
-      workspaceContract: firstString(runtimeWorkspace?.contract),
-    },
-    capabilities: {
-      api: apiCapability || runtimeDaemon
-        ? {
-            available: booleanOrNull(apiCapability?.available),
-            baseUrl: firstString(apiCapability?.baseUrl, runtimeDaemon?.apiBaseUrl),
-            healthPath: firstString(apiCapability?.healthPath),
-          }
-        : undefined,
-      dashboard: dashboardCapability || runtimeDashboard
-        ? {
-            available: firstBoolean(dashboardCapability?.available),
-            url: firstString(dashboardCapability?.url, runtimeDashboard?.url),
-            frontendOwner: firstString(runtimeDashboard?.frontendOwner),
-            handoff: firstString(runtimeDashboard?.handoff),
-            serverOwner: firstString(runtimeDashboard?.serverOwner),
-          }
-        : undefined,
-      fileMonitor: fileMonitorCapability || runtimeFileMonitor
-        ? {
-            available: firstBoolean(fileMonitorCapability?.available, runtimeFileMonitor?.available),
-            mode: firstString(fileMonitorCapability?.mode, runtimeFileMonitor?.mode, runtimeFileMonitor?.source),
-            endpoint: firstString(fileMonitorCapability?.endpoint, runtimeFileMonitor?.endpoint),
-            acceptedEventSources: firstStringArray(
-              fileMonitorCapability?.acceptedEventSources,
-              runtimeFileMonitor?.acceptedEventSources
-            ),
-            compatibilityAliases: fileMonitorCompatibilityAliases,
-            compatibilityAliasPolicy: fileMonitorCompatibilityAliasPolicy(fileMonitorCompatibilityAliases),
-            dispatcher: firstString(runtimeFileMonitor?.dispatcher),
-            longLivedOwner: firstString(runtimeFileMonitor?.longLivedOwner),
-          }
-        : undefined,
-      jobs: jobsCapability || runtimeJobs
-        ? {
-            available: firstBoolean(jobsCapability?.available),
-            kinds: firstStringArray(jobsCapability?.kinds, runtimeJobs?.kinds),
-            endpoints: stringRecord(jobsCapability?.endpoints) ?? stringRecord(runtimeJobs?.endpoints),
-            owner: firstString(runtimeJobs?.owner),
-            store: firstString(runtimeJobs?.store),
-          }
-        : undefined,
-      apiAi: apiAiCapability || runtimeApiAi
-        ? {
-            available: firstBoolean(apiAiCapability?.available, runtimeApiAi?.available),
-            configSource: firstString(apiAiCapability?.configSource, runtimeApiAi?.configSource) ?? 'unknown',
-            provider: firstString(apiAiCapability?.provider, runtimeApiAi?.provider),
-            model: firstString(apiAiCapability?.model, runtimeApiAi?.model),
-            owner: firstString(runtimeApiAi?.owner),
-            runtimeOwner: firstString(runtimeApiAi?.runtimeOwner),
-          }
-        : undefined,
-      projectScope: projectScopeCapability || runtimeProjectScopeCapability
-        ? {
-            available: firstBoolean(projectScopeCapability?.available, runtimeProjectScopeCapability?.available),
-            endpoints: stringRecord(projectScopeCapability?.endpoints) ?? stringRecord(runtimeProjectScopeCapability?.endpoints),
-            owner: firstString(projectScopeCapability?.owner, runtimeProjectScopeCapability?.owner),
-            source: firstString(projectScopeCapability?.source, runtimeProjectScopeCapability?.source),
-          }
-        : undefined,
-    },
-    hostAgentRoute: hostAgentRoute
-      ? {
-          available: booleanOrNull(hostAgentRoute.available),
-          owner: firstString(hostAgentRoute.owner),
-          source: firstString(hostAgentRoute.source),
-        }
-      : undefined,
+    daemon: normalizeRuntimeDaemon(runtimeDaemon),
+    project: normalizeRuntimeProjectIdentity({
+      daemon,
+      projectInfo,
+      runtimeWorkspace,
+      serviceProjectIdentity,
+      serviceProjectScope,
+    }),
+    capabilities: normalizeRuntimeCapabilities({
+      apiAiCapability,
+      apiCapability,
+      dashboardCapability,
+      fileMonitorCapability,
+      jobsCapability,
+      projectScopeCapability,
+      runtimeApiAi,
+      runtimeDashboard,
+      runtimeDaemon,
+      runtimeFileMonitor,
+      runtimeJobs,
+      runtimeProjectScopeCapability,
+    }),
+    hostAgentRoute: normalizeRuntimeHostAgentRoute(hostAgentRoute),
   };
 }
 
@@ -2628,7 +2559,7 @@ function hasLegacyHostManagedSignal(
   code: string | undefined,
   status: number | undefined,
 ): boolean {
-  const stableTaxonomyPresent = taxonomyProblem !== null && taxonomyProblem.source !== 'compatibility-fallback';
+  const stableTaxonomyPresent = taxonomyProblem !== null;
   return !stableTaxonomyPresent && (
     (typeof code === 'string' && HOST_MANAGED_UNAVAILABLE_CODES.has(code)) ||
     status === 501 ||

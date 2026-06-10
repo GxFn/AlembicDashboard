@@ -3,27 +3,10 @@ type TranslateFn = (key: string, vars?: Record<string, string | number>) => stri
 export interface SourceLabelInfo {
   labelKey: string;
   color: string;
-  disposition: 'provider-source' | 'display-compatibility' | 'unmapped-display';
-  compatibility?: boolean;
-  compatibilityOwner?: string;
-  cleanupTrigger?: string;
+  disposition: 'provider-source' | 'unmapped-display';
 }
 
 const DEFAULT_SOURCE_COLOR = 'text-[var(--fg-secondary)] bg-[var(--bg-subtle)] border-[var(--border-default)]';
-const DISPLAY_COMPATIBILITY_OWNER = 'AlembicDashboard display adapter';
-const DISPLAY_COMPATIBILITY_CLEANUP_TRIGGER =
-  'Remove after accepted provider fixtures and source scans no longer emit this legacy source label.';
-
-function displayCompatibilityLabel(labelKey: string, color: string): SourceLabelInfo {
-  return {
-    labelKey,
-    color,
-    disposition: 'display-compatibility',
-    compatibility: true,
-    compatibilityOwner: DISPLAY_COMPATIBILITY_OWNER,
-    cleanupTrigger: DISPLAY_COMPATIBILITY_CLEANUP_TRIGGER,
-  };
-}
 
 function providerSourceLabel(labelKey: string, color: string): SourceLabelInfo {
   return {
@@ -45,18 +28,6 @@ const SOURCE_LABELS: Record<string, SourceLabelInfo> = {
   'host-edit': providerSourceLabel(
     'sources.hostEdit',
     'text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/20',
-  ),
-  'ide-agent': displayCompatibilityLabel(
-    'sources.legacyIdeAgent',
-    'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
-  ),
-  'ide-edit': displayCompatibilityLabel(
-    'sources.legacyIdeEdit',
-    'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
-  ),
-  agent: displayCompatibilityLabel(
-    'sources.legacyAgent',
-    'text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/20',
   ),
   'bootstrap-scan': providerSourceLabel(
     'sources.bootstrapScan',

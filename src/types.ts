@@ -123,20 +123,11 @@ export interface RuntimeDashboardCapability {
   serverOwner?: string | null;
 }
 
-export interface RuntimeCompatibilityPolicy {
-  disposition: 'diagnostic-compatibility';
-  owner: string;
-  cleanupTrigger: string;
-  validationRefs: string[];
-}
-
 export interface RuntimeFileMonitorCapability {
   available: boolean | null;
   mode?: string | null;
   endpoint?: string | null;
   acceptedEventSources?: string[];
-  compatibilityAliases?: Record<string, string>;
-  compatibilityAliasPolicy?: RuntimeCompatibilityPolicy;
   dispatcher?: string | null;
   longLivedOwner?: string | null;
 }
@@ -812,8 +803,6 @@ export type ProposalSource =
   | 'host-agent'
   | 'alembic-agent'
   | 'host-edit'
-  | 'ide-agent'
-  | 'ide-edit'
   | 'metabolism'
   | 'decay-scan'
   | 'consolidation'

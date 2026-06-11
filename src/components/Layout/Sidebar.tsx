@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BadgeCheck, Boxes, Inbox, Shield, HelpCircle, LogOut, User, Moon, Sun, Library, ScrollText, Languages, Layers, Radio } from 'lucide-react';
+import { Activity, BadgeCheck, Boxes, Inbox, Shield, HelpCircle, LogOut, User, Moon, Sun, Library, ScrollText, Languages, Layers } from 'lucide-react';
 import { TabType } from '../../constants';
 import { useI18n } from '../../i18n';
 import { useTheme } from '../../theme';
@@ -85,8 +85,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     { tab: 'guard', icon: Shield, label: t('sidebar.guard') },
     { tab: 'skills', icon: ScrollText, label: t('sidebar.skills') },
     { tab: 'jobs', icon: Activity, label: t('sidebar.jobs') },
-    /* ── 参考 & 监控 ── */
-    { tab: 'signals', icon: Radio, label: 'Signals' },
     /* ── 辅助 ── */
     { tab: 'help', icon: HelpCircle, label: t('sidebar.help') },
   ];

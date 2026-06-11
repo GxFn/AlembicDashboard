@@ -41,7 +41,6 @@ import KnowledgeView from './components/Views/KnowledgeView';
 import SkillsView from './components/Views/SkillsView';
 import BootstrapProgressView from './components/Views/BootstrapProgressView';
 import JobsView from './components/Views/JobsView';
-import SignalReportView from './components/Views/SignalReportView';
 import RecipeEditor from './components/Modals/RecipeEditor';
 import CreateModal from './components/Modals/CreateModal';
 import SearchModal from './components/Modals/SearchModal';
@@ -1143,13 +1142,6 @@ const App: React.FC = () => {
       ) : activeTab === 'jobs' ? (
       <JobsView
         onOpenCandidates={() => navigateToTab('candidates')}
-        onOpenReports={(sessionId) => {
-          const params = new URLSearchParams({ view: 'reports', reportType: 'bootstrap' });
-          if (sessionId) {
-            params.set('session', sessionId);
-          }
-          navigateToTab('signals', { search: params.toString() });
-        }}
       />
       ) : activeTab === 'candidates' ? (
       <>
@@ -1251,8 +1243,6 @@ const App: React.FC = () => {
         onAddCustomFolder={handleAddCustomFolder}
         onRemoveCustomFolder={handleRemoveCustomFolder}
       />
-      ) : activeTab === 'signals' ? (
-      <SignalReportView />
       ) : activeTab === 'help' ? (
       <HelpView />
       ) : (

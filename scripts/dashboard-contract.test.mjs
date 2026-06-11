@@ -986,6 +986,70 @@ test('dashboard wiki page surfaces are removed', () => {
   assert.doesNotMatch(css, /wiki-reader/);
 });
 
+test('dashboard signal page surfaces are removed while core dashboard views remain', () => {
+  const app = read('src/App.tsx');
+  const constants = read('src/constants/index.ts');
+  const sidebar = read('src/components/Layout/Sidebar.tsx');
+  const commandPalette = read('src/components/Layout/CommandPalette.tsx');
+  const header = read('src/components/Layout/Header.tsx');
+  const jobs = read('src/components/Views/JobsView.tsx');
+  const api = read('src/api.ts');
+  const efficiency = read('src/utils/efficiency.ts');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+
+  for (const removedPath of [
+    'src/components/Views/SignalReportView.tsx',
+    'src/components/Panels/SignalMonitor.tsx',
+  ]) {
+    assert.equal(existsSync(path.join(root, removedPath)), false, `${removedPath} should be deleted`);
+  }
+
+  assert.doesNotMatch(app, /SignalReportView|activeTab === ['"]signals['"]|navigateToTab\(['"]signals['"]/);
+  assert.doesNotMatch(constants, /['"]signals['"]/);
+  assert.doesNotMatch(sidebar, /sidebar\.signals|tab:\s*['"]signals['"]|Radio/);
+  assert.doesNotMatch(commandPalette, /sidebar\.signals|^\s*signals:\s*Radio/m);
+  assert.doesNotMatch(header, /sidebar\.signals|['"]signals['"]:/);
+  assert.doesNotMatch(jobs, /onOpenReports|navigateToTab\(['"]signals['"]|reports:/);
+  assert.doesNotMatch(
+    api,
+    /getSignalTrace|getSignalStats|getReports|\/signals\/(?:trace|stats|reports)|listBootstrapReports|getBootstrapReportLatest|getBootstrapReport\(|diffBootstrapReports|SignalEntry|ReportEntry|BootstrapReportSummary|BootstrapReportDimension|interface BootstrapReport/,
+  );
+  assert.doesNotMatch(efficiency, /getReportEfficiency|getReportDimensionEfficiencies|BootstrapReport/);
+  assert.doesNotMatch(zh, /sidebar\.signals|signals:\s*\{|openMonitor|closeMonitor|信号 & 报告中心/);
+  assert.doesNotMatch(en, /sidebar\.signals|signals:\s*\{|openMonitor|closeMonitor|Signal & Report Center/);
+
+  for (const preservedView of [
+    'RecipesView',
+    'CandidatesView',
+    'KnowledgeView',
+    'GuardView',
+    'JobsView',
+    'BootstrapProgressView',
+    'SkillsView',
+  ]) {
+    assert.match(app, new RegExp(preservedView), `${preservedView} should remain mounted by App`);
+  }
+
+  for (const preservedTab of [
+    'recipes',
+    'candidates',
+    'knowledge',
+    'guard',
+    'jobs',
+    'skills',
+    'help',
+  ]) {
+    assert.match(constants, new RegExp(`['"]${preservedTab}['"]`), `${preservedTab} tab should remain valid`);
+  }
+
+  assert.match(api, /async listJobs/);
+  assert.match(api, /async listSkills/);
+  assert.match(api, /async knowledgeList/);
+  assert.match(api, /async getGuardReport/);
+  assert.match(api, /async promoteCandidateToRecipe/);
+});
+
 test('dashboard classifies D21 adapter fallbacks by provider surface', async () => {
   const api = read('src/api.ts');
   const apiModule = await importTranspiled('src/api.ts');

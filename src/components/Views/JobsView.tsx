@@ -84,7 +84,6 @@ interface TimelineDetailSelection {
 
 interface JobsViewProps {
   onOpenCandidates?: () => void;
-  onOpenReports?: (sessionId?: string) => void;
 }
 
 const STATUS_ORDER: DaemonJobRecord['status'][] = [
@@ -132,7 +131,6 @@ function labels(lang: string) {
     noFilteredJobs: zh ? '没有匹配的任务' : 'No matching jobs',
     cancel: zh ? '取消' : 'Cancel',
     candidates: zh ? '候选' : 'Candidates',
-    reports: zh ? '报告' : 'Reports',
     copied: zh ? 'Job ID 已复制' : 'Job ID copied',
     loadFailed: zh ? '任务列表加载失败' : 'Failed to load jobs',
     enqueueFailed: zh ? '任务启动失败' : 'Failed to start job',
@@ -272,7 +270,7 @@ function labels(lang: string) {
   };
 }
 
-const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) => {
+const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates }) => {
   const { lang } = useI18n();
   const text = labels(lang);
   const [jobs, setJobs] = useState<DaemonJobRecord[]>([]);
@@ -501,7 +499,6 @@ const JobsView: React.FC<JobsViewProps> = ({ onOpenCandidates, onOpenReports }) 
                 onOpenTimeline={() => setSelectedTimelineJobId(job.id)}
                 onOpenSnapshot={() => setSelectedSnapshotJobId(job.id)}
                 onOpenCandidates={onOpenCandidates}
-                onOpenReports={onOpenReports}
               />
             ))}
             {totalPages > 1 && (
@@ -594,7 +591,6 @@ function JobRow({
   onOpenSnapshot,
   onOpenTimeline,
   onOpenCandidates,
-  onOpenReports,
 }: {
   job: DaemonJobRecord;
   text: ReturnType<typeof labels>;
@@ -604,7 +600,6 @@ function JobRow({
   onOpenSnapshot: () => void;
   onOpenTimeline: () => void;
   onOpenCandidates?: () => void;
-  onOpenReports?: (sessionId?: string) => void;
 }) {
   const canCancel = job.status === 'queued' || job.status === 'running';
   const summaryChips = buildSummaryChips(job.summary);
@@ -615,7 +610,6 @@ function JobRow({
   const badgeIssue = isDuplicateStatusIssue(issue, visualStatus) ? null : issue;
   const blockIssue = issue?.reason ? issue : (isCancelledStatusIssue(issue, job) ? null : issue);
   const jobErrorText = formatEvidenceIssueReason(job.error);
-  const evidenceSessionId = job.progress?.sessionId || job.bootstrapSessionId;
   const snapshotSummary = normalizeJobDisplaySnapshotSummaryRef(job.displaySnapshot);
   const canOpenCandidates =
     onOpenCandidates &&
@@ -725,16 +719,6 @@ function JobRow({
           >
             <ExternalLink size={14} />
             {text.candidates}
-          </button>
-        )}
-        {onOpenReports && evidenceSessionId && (
-          <button
-            type="button"
-            onClick={() => onOpenReports(evidenceSessionId)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--fg-primary)]"
-          >
-            <FileText size={14} />
-            {text.reports}
           </button>
         )}
         {canCancel && (

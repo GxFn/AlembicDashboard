@@ -1,4 +1,4 @@
-import type { AgentEfficiencySummary, BootstrapReport, DaemonJobSummary } from '../api';
+import type { AgentEfficiencySummary, DaemonJobSummary } from '../api';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -61,33 +61,4 @@ export function normalizeEfficiencySummary(value: unknown): AgentEfficiencySumma
 
 export function getJobEfficiency(summary?: DaemonJobSummary): AgentEfficiencySummary | null {
   return normalizeEfficiencySummary(summary?.efficiency);
-}
-
-export function getReportEfficiency(report?: BootstrapReport | null): AgentEfficiencySummary | null {
-  if (!report) {
-    return null;
-  }
-
-  return (
-    normalizeEfficiencySummary(report.efficiency) ||
-    normalizeEfficiencySummary(report.totals?.efficiency) ||
-    normalizeEfficiencySummary(report.session?.efficiency)
-  );
-}
-
-export function getReportDimensionEfficiencies(
-  report?: BootstrapReport | null
-): Array<{ dimensionId: string; efficiency: AgentEfficiencySummary }> {
-  if (!report?.dimensions) {
-    return [];
-  }
-
-  return Object.entries(report.dimensions)
-    .map(([dimensionId, dimension]) => ({
-      dimensionId,
-      efficiency: normalizeEfficiencySummary(dimension.efficiency),
-    }))
-    .filter((entry): entry is { dimensionId: string; efficiency: AgentEfficiencySummary } =>
-      entry.efficiency !== null
-    );
 }

@@ -483,7 +483,6 @@ const TAB_LABELS: Record<TabType, string> = {
   panorama: 'sidebar.panorama',
   skills: 'sidebar.skills',
   jobs: 'sidebar.jobs',
-  signals: 'sidebar.signals',
   help: 'sidebar.help',
 };
 

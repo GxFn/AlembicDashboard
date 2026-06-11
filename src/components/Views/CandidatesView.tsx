@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileSearch, Box, Trash2, Edit3, Layers, Copy, Brain, Inbox, Sparkles, Clock, Code2, CheckCircle2, BarChart3, ArrowUpDown, Rocket, Wand2, Loader2, Globe, RefreshCw, RotateCcw, Info } from 'lucide-react';
+import { FileSearch, Box, Trash2, Edit3, Layers, Copy, Brain, Inbox, Clock, Code2, CheckCircle2, BarChart3, ArrowUpDown, Rocket, Loader2, Globe, RefreshCw, RotateCcw } from 'lucide-react';
 import { useDrawerWide } from '../../hooks/useDrawerWide';
 import { ProjectData, KnowledgeEntry, Recipe } from '../../types';
-import api, { isHostManagedUnavailable } from '../../api';
+import api from '../../api';
 import { notify } from '../../utils/notification';
 import { categoryConfigs } from '../../constants';
 import CodeBlock from '../Shared/LazyCodeBlock';
@@ -10,10 +10,7 @@ import { normalizeCode } from '../../utils/code';
 
 import Pagination from '../Shared/Pagination';
 import { ICON_SIZES } from '../../constants/icons';
-import { useGlobalChat } from '../Shared/GlobalChatDrawer';
 import PageOverlay from '../Shared/PageOverlay';
-import { useRefineSocket } from '../../hooks/useRefineSocket';
-import RefineProgressBar from './RefineProgressBar';
 import DrawerMeta from '../Shared/DrawerMeta';
 import type { BadgeItem, MetaItem } from '../Shared/DrawerMeta';
 import DrawerContent from '../Shared/DrawerContent';
@@ -200,27 +197,11 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
   const { t } = useI18n();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const { isWide: drawerWide, toggle: toggleDrawerWide } = useDrawerWide();
-  const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
-  const [refiningIds, ] = useState<Set<string>>(new Set());
-  const [enrichingAll, setEnrichingAll] = useState(false);
-  const [refining, ] = useState(false);
-  const globalChat = useGlobalChat();
-  const { refine: refineProgress, isRefining, isRefineDone, resetRefine } = useRefineSocket();
   const [targetPages, setTargetPages] = useState<Record<string, { page: number; pageSize: number }>>({});
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
-  /** 异步刷新后的候选覆盖——不触发整页刷新即可更新抽屉 */
-  const [candidateOverrides, setCandidateOverrides] = useState<Record<string, KnowledgeEntry>>({});
   const [filters, setFilters] = useState({
     sort: 'score-desc' as 'score-desc' | 'score-asc' | 'confidence-desc' | 'default',
   });
-  const [hostManagedCandidateAiMessage, setHostManagedCandidateAiMessage] = useState<string | null>(null);
-  const hostManagedCandidateAiUnavailable = Boolean(hostManagedCandidateAiMessage);
-
-  const showHostManagedCandidateAi = useCallback(() => {
-    const message = t('candidates.hostManagedUnavailableBody');
-    setHostManagedCandidateAiMessage(message);
-    notify(message, { title: t('candidates.hostManagedTitle'), type: 'info' });
-  }, [t]);
 
   const candidateEntries = data?.candidates ? Object.entries(data.candidates) : [];
   const sortedEntries = sortTargetNames(candidateEntries, isShellTarget, isSilentTarget, isPendingTarget);
@@ -270,144 +251,6 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
     });
     return { total, avgConfidence, withCode, sources };
   }, [effectiveTarget, data?.candidates]);
-
-  // ID → 标题 查找表 (用于将关联关系中的 UUID 解析为可读标题)
-  const titleLookup = useMemo(() => {
-    const map = new Map<string, string>();
-    // 全局 map (包含所有 lifecycle 的 entries)
-    if (data?.idTitleMap) {
-      for (const [id, title] of Object.entries(data.idTitleMap)) {
-        map.set(id, title);
-      }
-    }
-    // 本地候选补充
-    if (data?.candidates) {
-      for (const group of Object.values(data.candidates)) {
-        for (const item of group.items) {
-          if (item.id && item.title) map.set(item.id, item.title);
-        }
-      }
-    }
-    if (data?.recipes) {
-      for (const r of data.recipes) {
-        if (r.id && r.name) map.set(r.id, r.name.replace(/\.md$/i, ''));
-      }
-    }
-    return map;
-  }, [data?.idTitleMap, data?.candidates, data?.recipes]);
-
-  /** AI 补齐单个候选语义字段 */
-  const handleEnrichCandidate = useCallback(async (candidateId: string) => {
-    if (hostManagedCandidateAiUnavailable) {
-      showHostManagedCandidateAi();
-      return;
-    }
-    if (enrichingIds.has(candidateId)) return;
-    setEnrichingIds(prev => new Set(prev).add(candidateId));
-    try {
-      const result = await api.enrichCandidates([candidateId]);
-      if (result.hostManaged) {
-        showHostManagedCandidateAi();
-        return;
-      }
-      if (result.enriched > 0) {
-        notify(`${result.results?.[0]?.filledFields?.length || 0} ${t('candidates.approveSuccess')}`, { title: t('candidates.aiRefine') });
-      } else {
-        notify(t('recipes.noContent'), { title: t('candidates.aiRefine'), type: 'info' });
-      }
-      // 异步刷新抽屉内容（不刷新页面）
-      try {
-        const updated = await api.getCandidate(candidateId);
-        setCandidateOverrides(prev => ({ ...prev, [candidateId]: updated }));
-      } catch (_) {
-        // intentionally ignored: optional drawer refresh after enrichment; page-level data is already up-to-date
-      }
-    } catch (err: unknown) {
-      if (isHostManagedUnavailable(err)) {
-        showHostManagedCandidateAi();
-        return;
-      }
-      notify(getErrorMessage(err, t('common.operationFailed')), { title: t('common.operationFailed'), type: 'error' });
-    } finally {
-      setEnrichingIds(prev => { const next = new Set(prev); next.delete(candidateId); return next; });
-    }
-  }, [enrichingIds, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi, t]);
-
-  /** 批量 AI 补齐当前 Target 下所有候选 */
-  const handleEnrichAll = useCallback(async () => {
-    if (hostManagedCandidateAiUnavailable) {
-      showHostManagedCandidateAi();
-      return;
-    }
-    if (enrichingAll || !effectiveTarget || !data?.candidates?.[effectiveTarget]) return;
-    const items = data.candidates[effectiveTarget].items;
-    if (items.length === 0) return;
-    setEnrichingAll(true);
-    try {
-      let total = 0;
-      for (let i = 0; i < items.length; i += 20) {
-        const batch = items.slice(i, i + 20).map(c => c.id);
-        const result = await api.enrichCandidates(batch);
-        if (result.hostManaged) {
-          showHostManagedCandidateAi();
-          return;
-        }
-        total += result.enriched;
-      }
-      notify(`${total}/${items.length} ${t('candidates.batchDeleteDone', { count: total })}`, { title: t('candidates.aiRefine') });
-      onRefresh?.();
-    } catch (err: unknown) {
-      if (isHostManagedUnavailable(err)) {
-        showHostManagedCandidateAi();
-        return;
-      }
-      notify(getErrorMessage(err, t('common.operationFailed')), { title: t('common.operationFailed'), type: 'error' });
-    } finally {
-      setEnrichingAll(false);
-    }
-  }, [enrichingAll, effectiveTarget, data?.candidates, onRefresh, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi, t]);
-
-  /** 润色面板中某条候选已更新 — 局部刷新抽屉（不整页刷新） */
-  const handleCandidateUpdated = useCallback(async (candidateId: string) => {
-    try {
-      const updated = await api.getCandidate(candidateId);
-      setCandidateOverrides(prev => ({ ...prev, [candidateId]: updated }));
-    } catch (_) {
-      // intentionally ignored: best-effort drawer refresh; stale data is acceptable
-    }
-  }, []);
-
-  /** Phase 6: AI 润色所有 Bootstrap 候选 — 打开全局 AI Chat 润色模式 */
-  const handleRefineBootstrap = useCallback(() => {
-    if (hostManagedCandidateAiUnavailable) {
-      showHostManagedCandidateAi();
-      return;
-    }
-    if (!effectiveTarget || !data?.candidates?.[effectiveTarget]) return;
-    const items = data.candidates[effectiveTarget].items;
-    const ids = items.map(c => c.id);
-    globalChat.openRefine({
-      candidateIds: ids,
-      candidates: items,
-      onCandidateUpdated: handleCandidateUpdated,
-    });
-  }, [effectiveTarget, data?.candidates, globalChat, handleCandidateUpdated, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi]);
-
-  /** 单条候选润色 — 打开全局 AI Chat 润色模式 */
-  const handleRefineSingle = useCallback((candidateId: string) => {
-    if (hostManagedCandidateAiUnavailable) {
-      showHostManagedCandidateAi();
-      return;
-    }
-    if (!effectiveTarget || !data?.candidates?.[effectiveTarget]) return;
-    setExpandedId(candidateId);
-    const items = data.candidates[effectiveTarget].items;
-    globalChat.openRefine({
-      candidateIds: [candidateId],
-      candidates: items,
-      onCandidateUpdated: handleCandidateUpdated,
-    });
-  }, [effectiveTarget, data?.candidates, globalChat, handleCandidateUpdated, hostManagedCandidateAiUnavailable, showHostManagedCandidateAi]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -461,38 +304,6 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
               )}
             </>
           )}
-          {/* ── AI 补齐 ── */}
-          {stats && stats.total > 0 && (
-            <button
-              onClick={handleEnrichAll}
-              disabled={hostManagedCandidateAiUnavailable || enrichingAll || refining}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                hostManagedCandidateAiUnavailable || enrichingAll || refining
-                  ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
-                  : 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20'
-              }`}
-              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.enrichTitle')}
-            >
-              {enrichingAll ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-              {enrichingAll ? t('common.loading') : t('candidates.aiEnrich')}
-            </button>
-          )}
-          {/* ── AI 润色 ── */}
-          {stats && stats.total > 0 && (
-            <button
-              onClick={handleRefineBootstrap}
-              disabled={hostManagedCandidateAiUnavailable || refining || enrichingAll || isRefining}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                hostManagedCandidateAiUnavailable || refining || enrichingAll || isRefining
-                  ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
-                  : 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20'
-              }`}
-              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.refineTitle')}
-            >
-              {refining || isRefining ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {refining || isRefining ? t('common.loading') : t('candidates.aiRefine')}
-            </button>
-          )}
           {/* ── 统计指标 ── */}
           {globalStats && (
             <div className="flex items-center gap-2 text-xs">
@@ -524,32 +335,6 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
           )}
         </div>
       </div>
-
-      {hostManagedCandidateAiMessage && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 shadow-sm">
-          <Info size={16} className="mt-0.5 shrink-0 text-amber-600" />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold">{t('candidates.hostManagedTitle')}</p>
-            <p className="mt-0.5 text-xs leading-relaxed">{hostManagedCandidateAiMessage}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setHostManagedCandidateAiMessage(null)}
-            className="text-xs font-medium text-amber-700 hover:text-amber-900"
-          >
-            {t('common.close')}
-          </button>
-        </div>
-      )}
-
-      {/* ── AI 润色实时进度条 ── */}
-      {refineProgress && (
-        <RefineProgressBar
-          refine={refineProgress}
-          isRefineDone={isRefineDone}
-          onDismiss={() => { resetRefine(); onRefresh?.(); }}
-        />
-      )}
 
       {/* ── Target 切换标签栏 ── */}
       {candidateEntries.length > 0 && (
@@ -920,31 +705,6 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                               <Trash2 size={14} />
                             </button>
                             <div className="h-4 w-px bg-[var(--border-default)]" />
-                            {/* 功能按钮组 */}
-                            <button
-                              onClick={() => handleEnrichCandidate(cand.id)}
-                              disabled={hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id)}
-                              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.enrichTitleSingle')}
-                              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-medium ${
-                                hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id)
-                                  ? 'text-[var(--fg-muted)] cursor-not-allowed'
-                                  : 'text-amber-500 hover:text-amber-600 hover:bg-amber-500/10'
-                              }`}
-                            >
-                              {enrichingIds.has(cand.id) ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                            </button>
-                            <button
-                              onClick={() => handleRefineSingle(cand.id)}
-                              disabled={hostManagedCandidateAiUnavailable || refiningIds.has(cand.id)}
-                              title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.refineTitleSingle')}
-                              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-medium ${
-                                hostManagedCandidateAiUnavailable || refiningIds.has(cand.id)
-                                  ? 'text-[var(--fg-muted)] cursor-not-allowed'
-                                  : 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10'
-                              }`}
-                            >
-                              {refiningIds.has(cand.id) ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                            </button>
                             <button
                               onClick={() => onAuditCandidate(cand, targetName)}
                               className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors flex items-center gap-1"
@@ -998,8 +758,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
         const allItems = data.candidates[effectiveTarget].items;
         const rawCand = allItems.find(c => c.id === expandedId);
         if (!rawCand) return null;
-        // 优先使用异步刷新的覆盖数据
-        const cand = candidateOverrides[expandedId] || rawCand;
+        const cand = rawCand;
 
         const currentIndex = allItems.findIndex(c => c.id === expandedId);
         const hasPrev = currentIndex > 0;
@@ -1016,8 +775,6 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
         return (
           <PageOverlay className="z-30 flex justify-end" onClick={() => { setExpandedId(null); }}>
             <PageOverlay.Backdrop className="bg-black/20 dark:bg-black/40 backdrop-blur-sm" />
-
-            {/* ── 润色已迁移到 GlobalChatDrawer ── */}
 
             <Drawer.Panel size={drawerWide ? 'lg' : 'md'}>
               {/* ── 面板头部 ── */}
@@ -1099,56 +856,6 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                   labels={{ section: t('candidates.qualityDimensions'), completeness: t('recipes.qualityCompleteness'), adaptation: t('recipes.qualityAdaptation'), documentation: t('recipes.qualityDocumentation') }}
                 />
 
-                {/* 6. AI 润色增强信息 */}
-                {(() => {
-                  const allRelations = cand.relations ? Object.entries(cand.relations).flatMap(([type, arr]) => (Array.isArray(arr) ? arr.map((r: any) => ({ ...r, type })) : [])) : [];
-                  const hasEnhanced = cand.agentNotes || cand.aiInsight || allRelations.length > 0;
-                  if (!hasEnhanced) return null;
-                  return (
-                    <div className="px-6 py-4 border-b border-[var(--border-default)]">
-                      <label className="text-[10px] font-bold text-[var(--fg-muted)] uppercase mb-2 block flex items-center gap-1.5">
-                        <Sparkles size={11} className="text-emerald-400" /> {t('candidates.refineEnhanced')}
-                      </label>
-                      <div className="bg-emerald-50/30 border border-emerald-100 rounded-xl p-4 space-y-2.5 text-xs">
-                        {cand.aiInsight && (
-                          <div>
-                            <span className="text-[10px] text-[var(--fg-muted)] font-bold">{t('candidates.viewDetail')}:</span>
-                            <p className="text-sm text-[var(--fg-primary)] leading-relaxed mt-0.5">{cand.aiInsight}</p>
-                          </div>
-                        )}
-                        {cand.agentNotes && cand.agentNotes.length > 0 && (
-                          <div>
-                            <span className="text-[10px] text-[var(--fg-muted)] font-bold">{t('candidates.agentNotes')}</span>
-                            <ul className="mt-1 space-y-0.5">
-                              {cand.agentNotes.map((note: string, i: number) => (
-                                <li key={i} className="flex items-start gap-1.5 text-[var(--fg-secondary)]">
-                                  <span className="text-emerald-400 mt-0.5">•</span>{note}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {allRelations.length > 0 && (
-                          <div>
-                            <span className="text-[10px] text-[var(--fg-muted)] font-bold">{t('recipes.relations')}:</span>
-                            <div className="mt-1 space-y-1">
-                              {allRelations.map((rel: any, i: number) => (
-                                <div key={i} className="flex items-start gap-1.5 text-[var(--fg-secondary)]">
-                                  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 shrink-0 uppercase">
-                                    {rel.type}
-                                  </span>
-                                  <span className="font-medium text-[var(--fg-primary)]">{titleLookup.get(rel.target) || rel.target}</span>
-                                  {rel.description && <span className="text-[var(--fg-muted)]">— {rel.description}</span>}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
                 {/* 8. Code / 标准用法 */}
                 <DrawerContent.CodePattern label={t('knowledge.codePattern')} code={cand.content?.pattern} language={cand.language} />
 
@@ -1168,31 +875,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
               </Drawer.Body>
 
               {/* ── 面板底部操作栏 ── */}
-              <Drawer.Footer>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleEnrichCandidate(cand.id)}
-                    disabled={hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id)}
-                    title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.enrichTitleBottom')}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                      hostManagedCandidateAiUnavailable || enrichingIds.has(cand.id) ? 'text-[var(--fg-muted)] cursor-not-allowed' : 'text-amber-600 hover:bg-amber-50 border border-amber-200'
-                    }`}
-                  >
-                    {enrichingIds.has(cand.id) ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                    {t('candidates.enrichShort')}
-                  </button>
-                  <button
-                    onClick={() => handleRefineSingle(cand.id)}
-                    disabled={hostManagedCandidateAiUnavailable || refiningIds.has(cand.id)}
-                    title={hostManagedCandidateAiUnavailable ? t('candidates.hostManagedTitle') : t('candidates.refineTitleBottom')}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                      hostManagedCandidateAiUnavailable || refiningIds.has(cand.id) ? 'text-[var(--fg-muted)] cursor-not-allowed' : 'text-emerald-600 hover:bg-emerald-50 border border-emerald-200'
-                    }`}
-                  >
-                    {refiningIds.has(cand.id) ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                    {t('candidates.refineShort')}
-                  </button>
-                </div>
+              <Drawer.Footer className="justify-end">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => { onAuditCandidate(cand, effectiveTarget!); setExpandedId(null); }}
@@ -1222,10 +905,6 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
           </PageOverlay>
         );
       })()}
-
-      {/* ═══ 双栏对比弹窗 — 已迁移到详情抽屉内的并列抽屉 ═══ */}
-
-      {/* ═══ 润色面板已迁移到 GlobalChatDrawer ═══ */}
     </div>
   );
 };

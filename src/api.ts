@@ -181,7 +181,7 @@ export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
     id: 'hostManagedUnavailable',
     surface: 'ai-host-managed-unavailable',
     disposition: 'necessary-adapter',
-    currentConsumer: 'AI chat, candidate enrichment, candidate refine, and host-managed unavailable UI states',
+    currentConsumer: 'AI chat and host-managed unavailable UI states',
     providerBranch: 'D20 typed problem objects plus host-managed boundary flags',
     cleanupTrigger: 'Delete legacy flag readers after provider fixtures emit only canonical HOST_* problem codes.',
     fixtureRefs: ['workflow.unavailable', 'sse.ai-chat.success'],
@@ -190,10 +190,10 @@ export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
     id: 'sseProjection',
     surface: 'sse',
     disposition: 'necessary-adapter',
-    currentConsumer: 'chat, module scan, and candidate refine stream consumers',
+    currentConsumer: 'chat and module scan stream consumers',
     providerBranch: 'D20 SSE fixtures where event payload is dynamic at transport ingress only',
     cleanupTrigger: 'Keep; UI components must consume projected primitives/view models rather than raw event payload bags.',
-    fixtureRefs: ['sse.ai-chat.success', 'sse.module-scan.success', 'sse.candidate-refine.success'],
+    fixtureRefs: ['sse.ai-chat.success', 'sse.module-scan.success'],
   },
 ];
 
@@ -2687,13 +2687,6 @@ export interface ScanStreamResultProjection {
   noAi: boolean;
 }
 
-export interface RefinePreviewDoneProjection {
-  candidateId: string;
-  before: Record<string, unknown>;
-  after: Record<string, unknown>;
-  preview: Record<string, unknown> | null;
-}
-
 function sseString(event: SSEEvent, key: string): string | undefined {
   const value = event[key];
   return typeof value === 'string' ? value : undefined;
@@ -2754,15 +2747,6 @@ export function projectSseScanResult(event: SSEEvent): ScanStreamResultProjectio
     scannedFiles: Array.isArray(event.scannedFiles) ? event.scannedFiles as ScannedFile[] : [],
     message: sseString(event, 'message') ?? '',
     noAi: event.noAi === true,
-  };
-}
-
-export function projectSseRefineDone(event: SSEEvent, fallbackCandidateId: string): RefinePreviewDoneProjection {
-  return {
-    candidateId: sseString(event, 'candidateId') ?? fallbackCandidateId,
-    before: sseRecord(event.before) ?? {},
-    after: sseRecord(event.after) ?? {},
-    preview: sseRecord(event.preview) ?? null,
   };
 }
 
@@ -3796,68 +3780,6 @@ export const api = {
     return { recipe: entry, candidate: entry };
   },
 
-  /** AI 语义字段补全 — 对候选批量补充缺失字段 */
-  async enrichCandidates(candidateIds: string[]): Promise<{
-    enriched: number;
-    total: number;
-    results: Array<{ id: string; enriched: boolean; filledFields?: string[]; skipped?: boolean; reason?: string }>;
-    hostManaged?: boolean;
-    unavailable?: boolean;
-    message?: string;
-  }> {
-    try {
-      const res = await http.post('/candidates/enrich', { candidateIds });
-      const fallback = { enriched: 0, total: 0, results: [] };
-      const data = (res.data?.data || fallback) as typeof fallback & {
-        hostManaged?: boolean;
-        unavailable?: boolean;
-        message?: string;
-      };
-      const hostManaged = parseHostManagedUnavailable(res.data, res.status, data.message);
-      return {
-        ...data,
-        hostManaged: data.hostManaged === true || Boolean(hostManaged),
-        unavailable: data.unavailable === true || hostManaged?.unavailable,
-        message: data.message || hostManaged?.message,
-      };
-    } catch (err: unknown) {
-      throwHostManagedFromError(err, 'Candidate enrichment is managed by the host environment.');
-    }
-  },
-
-  /** ② 内容润色 — 对 Bootstrap 候选进行 AI 精炼（支持自定义提示词） */
-  async bootstrapRefine(candidateIds?: string[], userPrompt?: string, dryRun?: boolean): Promise<{ refined: number; total: number; errors: unknown[]; results: unknown[] }> {
-    try {
-      const res = await http.post('/candidates/bootstrap-refine', { candidateIds, userPrompt, dryRun }, { timeout: 300000 });
-      throwHostManagedIfPayload(res.data, res.status, 'Candidate refinement is managed by the host environment.');
-      return res.data?.data || { refined: 0, total: 0, errors: [], results: [] };
-    } catch (err: unknown) {
-      throwHostManagedFromError(err, 'Candidate refinement is managed by the host environment.');
-    }
-  },
-
-  /** 对话式润色 — 预览：单条候选 dryRun，返回 before/after 对比 */
-  async refinePreview(candidateId: string, userPrompt?: string): Promise<{ candidateId: string; before: Record<string, unknown>; after: Record<string, unknown>; preview: Record<string, unknown> }> {
-    try {
-      const res = await http.post('/candidates/refine-preview', { candidateId, userPrompt }, { timeout: 120000 });
-      throwHostManagedIfPayload(res.data, res.status, 'Candidate refine preview is managed by the host environment.');
-      return res.data?.data || {};
-    } catch (err: unknown) {
-      throwHostManagedFromError(err, 'Candidate refine preview is managed by the host environment.');
-    }
-  },
-
-  /** 对话式润色 — 应用：确认写入变更（优先传 preview 避免二次 AI 调用） */
-  async refineApply(candidateId: string, userPrompt?: string, preview?: Record<string, unknown>): Promise<{ refined: number; total: number; candidate: KnowledgeEntry }> {
-    try {
-      const res = await http.post('/candidates/refine-apply', { candidateId, userPrompt, preview }, { timeout: 120000 });
-      throwHostManagedIfPayload(res.data, res.status, 'Candidate refine apply requires a host-generated preview.');
-      return res.data?.data || {};
-    } catch (err: unknown) {
-      throwHostManagedFromError(err, 'Candidate refine apply requires a host-generated preview.');
-    }
-  },
-
   /** 获取全量知识图谱（边 + 节点标签） */
   async getKnowledgeGraph(limit = 500): Promise<{ edges: GraphEdge[]; nodeLabels: Record<string, string>; nodeTypes: Record<string, string>; nodeCategories: Record<string, string> }> {
     const res = await http.get(`/search/graph/all?limit=${limit}`);
@@ -4091,99 +4013,6 @@ export const api = {
           signal.addEventListener('abort', onAbort, { once: true });
         }
       }
-    });
-  },
-
-  /**
-   * 润色预览 (SSE) — 统一协议 v2
-   * 不再推送 JSON 碎片，改为进度事件 + 最终结构化结果
-   *
-   * 事件类型:
-   *   - stream:start   — 会话开始
-   *   - data:progress   — AI 润色进度 { stage, message }
-   *   - stream:done     — 完成 { candidateId, before, after, preview }
-   *   - stream:error    — 错误 { message }
-   *
-   * @param candidateId  候选条目 ID
-   * @param userPrompt   用户润色指令
-   * @param onEvent      每收到一个 SSE 事件的回调（前端根据 type 处理进度 UI）
-   * @param signal       可选 AbortSignal
-   * @returns            { candidateId, before, after, preview }
-   */
-  async refinePreviewStream(
-    candidateId: string,
-    userPrompt: string,
-    onEvent: (event: SSEEvent) => void,
-    signal?: AbortSignal,
-  ): Promise<{ candidateId: string; before: Record<string, unknown>; after: Record<string, unknown>; preview: Record<string, unknown> | null }> {
-    // Step 1: POST 创建流式润色会话
-    const startRes = await fetch('/api/v1/candidates/refine-preview-stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ candidateId, userPrompt }),
-      signal,
-    });
-    const contentType = startRes.headers.get('content-type') || '';
-    if (!startRes.ok) {
-      const errorData = contentType.includes('application/json') ? await readJsonSafely(startRes) : null;
-      throwHostManagedIfPayload(errorData, startRes.status, 'Candidate refine preview is managed by the host environment.');
-      throw new Error(`Refine stream start failed: ${startRes.status}`);
-    }
-    const startData = await readJsonSafely(startRes);
-    throwHostManagedIfPayload(startData, startRes.status, 'Candidate refine preview is managed by the host environment.');
-    const startRecord = asRecord(startData);
-    const startPayload = asRecord(startRecord?.data) || startRecord;
-    const sessionId = readString(startPayload, 'sessionId');
-    if (!sessionId) throw new Error(`No sessionId returned: ${JSON.stringify(startData)}`);
-
-    // Step 2: EventSource 消费 SSE 事件
-    return new Promise((resolve, reject) => {
-      const esUrl = `/api/v1/candidates/refine-preview/events/${sessionId}`;
-      const es = new EventSource(esUrl);
-      let resolved = false;
-
-      function cleanup() { es.close(); }
-
-      // 如果外部 signal 触发 abort，关闭 EventSource
-      if (signal) {
-        signal.addEventListener('abort', () => {
-          cleanup();
-          if (!resolved) {
-            resolved = true;
-            reject(new DOMException('Aborted', 'AbortError'));
-          }
-        }, { once: true });
-      }
-
-      es.onmessage = (e) => {
-        try {
-          const evt: SSEEvent = JSON.parse(e.data);
-          onEvent(evt);
-
-          if (evt.type === 'stream:done') {
-            const done = projectSseRefineDone(evt, candidateId);
-            cleanup();
-            resolved = true;
-            resolve(done);
-          }
-
-          if (evt.type === 'stream:error') {
-            cleanup();
-            resolved = true;
-            reject(new Error(projectSseErrorMessage(evt, 'Refine stream error')));
-          }
-        } catch {
-          // ignore parse errors
-        }
-      };
-
-      es.onerror = () => {
-        cleanup();
-        if (!resolved) {
-          resolved = true;
-          reject(new Error('Refine EventSource connection lost'));
-        }
-      };
     });
   },
 

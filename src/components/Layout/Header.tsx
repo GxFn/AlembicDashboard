@@ -485,7 +485,6 @@ const TAB_LABELS: Record<TabType, string> = {
   jobs: 'sidebar.jobs',
   wiki: 'sidebar.repoWiki',
   signals: 'sidebar.signals',
-  ai: 'sidebar.aiAssistant',
   help: 'sidebar.help',
 };
 

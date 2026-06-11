@@ -1,13 +1,7 @@
 import React from 'react';
-import { useGlobalChat } from './GlobalChatDrawer';
 
 /* ═══════════════════════════════════════════════════════════
- * PageOverlay — 感知 AI Chat 面板的全局遮罩容器
- *
- * 当 AI Chat 面板打开时:
- *   - 遮罩层 right 偏移 420px（AI Chat 宽度）
- *   - 蒙层不覆盖 AI Chat 面板
- *   - 抽屉 / 弹窗以页面内容右侧为基准
+ * PageOverlay — 全局遮罩容器
  *
  * ── z-index 层级规范 ──────────────────────────────────
  *
@@ -31,8 +25,6 @@ export const Z_DRAWER   = 'z-30';
 export const Z_MODAL    = 'z-40';
 export const Z_TOAST    = 'z-50';
 
-const CHAT_PANEL_WIDTH = 420; // 与 GlobalChatPanel w-[420px] 保持一致
-
 interface PageOverlayProps {
   children: React.ReactNode;
   onClick?: (e: React.MouseEvent) => void;
@@ -49,12 +41,10 @@ const Backdrop: React.FC<{ className?: string }> = ({ className = 'bg-black/20 b
 const PageOverlay: React.FC<PageOverlayProps> & { Backdrop: typeof Backdrop } = ({
   children, onClick, className = '', style,
 }) => {
-  const { isOpen: chatOpen } = useGlobalChat();
-
   return (
     <div
       className={`fixed inset-0 overflow-hidden ${className}`}
-      style={{ right: chatOpen ? CHAT_PANEL_WIDTH : 0, ...style }}
+      style={style}
       onClick={onClick}
     >
       {children}

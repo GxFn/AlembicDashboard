@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Activity, Plus, Settings, FileText, Bookmark, FolderOpen, Clock, Library, Shield, Layers, BookOpen, MessageSquare, HelpCircle, BrainCircuit, Radio } from 'lucide-react';
+import { Activity, Plus, Settings, FileText, Bookmark, FolderOpen, Clock, Library, Shield, Layers, BookOpen, HelpCircle, BrainCircuit, Radio } from 'lucide-react';
 import { Dialog, DialogContent } from '../ui/Dialog';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator, CommandShortcut } from '../ui/Command';
 import { TabType } from '../../constants';
@@ -18,7 +18,6 @@ const TAB_ICON_MAP: Record<TabType, React.ElementType> = {
   jobs: Activity,
   wiki: FileText,
   signals: Radio,
-  ai: MessageSquare,
   help: HelpCircle,
 };
 
@@ -33,7 +32,6 @@ const TAB_LABEL_MAP: Record<TabType, string> = {
   jobs: 'sidebar.jobs',
   wiki: 'sidebar.repoWiki',
   signals: 'sidebar.signals',
-  ai: 'sidebar.aiAssistant',
   help: 'sidebar.help',
 };
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import ts from 'typescript';
@@ -929,33 +929,35 @@ test('knowledge save uses a typed provider payload projector', async () => {
   assert.match(api, /knowledgeCreate\(data: KnowledgeCreatePayload\)/);
 });
 
-test('chat stream summarizes tool args without retaining raw payload bags', async () => {
-  const hook = read('src/hooks/useChatStream.ts');
-  const stream = await importTranspiled('src/hooks/useChatStream.ts');
-  const t = (key, vars) => {
-    if (key === 'chatStream.andNFiles') {
-      return ` +${vars.n - 1}`;
-    }
-    return key;
-  };
+test('dashboard chat page and drawer surfaces are removed', () => {
+  const app = read('src/App.tsx');
+  const constants = read('src/constants/index.ts');
+  const sidebar = read('src/components/Layout/Sidebar.tsx');
+  const commandPalette = read('src/components/Layout/CommandPalette.tsx');
+  const header = read('src/components/Layout/Header.tsx');
+  const pageOverlay = read('src/components/Shared/PageOverlay.tsx');
+  const api = read('src/api.ts');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
 
-  const summary = stream.toolSummary(t, 'read_project_file', {
-    filePath: '/workspace/AlembicDashboard/src/App.tsx',
-    secretToken: 'sk-redacted',
-    nested: { raw: 'do-not-render' },
-  });
-  assert.equal(summary, 'read_project_file: App.tsx');
-  assert.doesNotMatch(summary, /secret|raw|workspace|\\{|"|sk-redacted/);
+  for (const removedPath of [
+    'src/components/Views/AiChatView.tsx',
+    'src/components/Shared/GlobalChatDrawer.tsx',
+    'src/hooks/useChatStream.ts',
+    'src/hooks/useChatTopics.ts',
+  ]) {
+    assert.equal(existsSync(path.join(root, removedPath)), false, `${removedPath} should be deleted`);
+  }
 
-  const searchSummary = stream.toolSummary(t, 'search_project_code', {
-    patterns: ['first-pattern', 'second-pattern', 'third-pattern'],
-  });
-  assert.equal(searchSummary, 'search_project_code: first-pattern, second-pattern ...');
-
-  assert.doesNotMatch(hook, /Record<string, any>/);
-  assert.doesNotMatch(hook, /toolMeta: Array<\{ tool: string; args/);
-  assert.match(hook, /toolMeta: Array<\{ summary: string \}>/);
-  assert.match(hook, /asToolEventArgs\(evt\['args'\]\)/);
+  assert.doesNotMatch(app, /AiChatView|activeTab === ['"]ai['"]/);
+  assert.doesNotMatch(constants, /['"]ai['"]/);
+  assert.doesNotMatch(sidebar, /sidebar\.aiAssistant|MessageSquare/);
+  assert.doesNotMatch(commandPalette, /sidebar\.aiAssistant|MessageSquare/);
+  assert.doesNotMatch(header, /sidebar\.aiAssistant/);
+  assert.doesNotMatch(pageOverlay, /GlobalChat|CHAT_PANEL_WIDTH|chatOpen/);
+  assert.doesNotMatch(api, /async chatStream|async chat\(|\/api\/v1\/ai\/chat|projectSseChatDone|ChatStreamDoneProjection/);
+  assert.doesNotMatch(zh, /aiChat:|globalChat:|chatStream:|chatAgent|roleChatAgent|openAiChat|closeAiChat/);
+  assert.doesNotMatch(en, /aiChat:|globalChat:|chatStream:|chatAgent|roleChatAgent|openAiChat|closeAiChat/);
 });
 
 test('dashboard classifies D21 adapter fallbacks by provider surface', async () => {

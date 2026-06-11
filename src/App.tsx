@@ -37,7 +37,6 @@ import CandidatesView from './components/Views/CandidatesView';
 import ModuleExplorerView from './components/Views/ModuleExplorerView';
 import GuardView from './components/Views/GuardView';
 import PanoramaView from './components/Views/PanoramaView';
-import AiChatView from './components/Views/AiChatView';
 import KnowledgeView from './components/Views/KnowledgeView';
 import SkillsView from './components/Views/SkillsView';
 import BootstrapProgressView from './components/Views/BootstrapProgressView';
@@ -212,7 +211,6 @@ const App: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createPath, setCreatePath] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
-  // chatHistory / userInput / isAiThinking 已迁移到 GlobalChatDrawer
   const [semanticResults, setSemanticResults] = useState<any[] | null>(null);
   const [searchAction, setSearchAction] = useState<{ q: string; path: string } | null>(null);
   const [isSavingRecipe, setIsSavingRecipe] = useState(false);
@@ -223,8 +221,6 @@ const App: React.FC = () => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const trickleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // chatAbortControllerRef 已迁移到 GlobalChatDrawer
-
   // 搜索变化时 Recipes 列表重置到第一页；刷新数据（fetchData）不重置页码
   useEffect(() => {
   setRecipePage(1);
@@ -1006,8 +1002,6 @@ const App: React.FC = () => {
   }
   };
 
-  // handleChat 已迁移到 GlobalChatDrawer
-
   // Filters
   const filteredRecipes = (data?.recipes || []).filter(s => {
   // 语义搜索结果优先
@@ -1265,7 +1259,7 @@ const App: React.FC = () => {
       ) : activeTab === 'help' ? (
       <HelpView />
       ) : (
-      <AiChatView />
+      <HelpView />
       )}
       </motion.div>
       </AnimatePresence>

@@ -181,19 +181,19 @@ export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
     id: 'hostManagedUnavailable',
     surface: 'ai-host-managed-unavailable',
     disposition: 'necessary-adapter',
-    currentConsumer: 'AI chat and host-managed unavailable UI states',
+    currentConsumer: 'host-managed unavailable UI states',
     providerBranch: 'D20 typed problem objects plus host-managed boundary flags',
     cleanupTrigger: 'Delete legacy flag readers after provider fixtures emit only canonical HOST_* problem codes.',
-    fixtureRefs: ['workflow.unavailable', 'sse.ai-chat.success'],
+    fixtureRefs: ['workflow.unavailable'],
   },
   {
     id: 'sseProjection',
     surface: 'sse',
     disposition: 'necessary-adapter',
-    currentConsumer: 'chat and module scan stream consumers',
+    currentConsumer: 'module scan stream consumers',
     providerBranch: 'D20 SSE fixtures where event payload is dynamic at transport ingress only',
     cleanupTrigger: 'Keep; UI components must consume projected primitives/view models rather than raw event payload bags.',
-    fixtureRefs: ['sse.ai-chat.success', 'sse.module-scan.success'],
+    fixtureRefs: ['sse.module-scan.success'],
   },
 ];
 
@@ -2667,19 +2667,6 @@ export interface SSEEvent {
   [key: string]: unknown;
 }
 
-/** AI 工具调用 */
-export interface ToolCall {
-  tool: string;
-  args: Record<string, unknown>;
-  result?: unknown;
-}
-
-export interface ChatStreamDoneProjection {
-  text: string;
-  toolCalls?: ToolCall[];
-  hasContext?: boolean;
-}
-
 export interface ScanStreamResultProjection {
   recipes: ExtractedRecipe[];
   scannedFiles: ScannedFile[];
@@ -2692,34 +2679,8 @@ function sseString(event: SSEEvent, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function sseBoolean(event: SSEEvent, key: string): boolean | undefined {
-  const value = event[key];
-  return typeof value === 'boolean' ? value : undefined;
-}
-
 function sseRecord(value: unknown): UnknownRecord | undefined {
   return asRuntimeRecord(value) ?? undefined;
-}
-
-function sseToolCalls(value: unknown): ToolCall[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-  const calls = value
-    .map((item): ToolCall | null => {
-      const record = asRuntimeRecord(item);
-      const tool = firstString(record?.tool, record?.name);
-      if (!record || !tool) {
-        return null;
-      }
-      return {
-        tool,
-        args: asRuntimeRecord(record.args) ?? {},
-        result: record.result,
-      };
-    })
-    .filter((item): item is ToolCall => item !== null);
-  return calls.length > 0 ? calls : undefined;
 }
 
 export function projectSseTextDelta(event: SSEEvent): string {
@@ -2728,17 +2689,6 @@ export function projectSseTextDelta(event: SSEEvent): string {
 
 export function projectSseErrorMessage(event: SSEEvent, fallbackMessage: string): string {
   return sseString(event, 'message') ?? fallbackMessage;
-}
-
-export function projectSseChatDone(
-  event: SSEEvent,
-  fallbackText = '',
-): ChatStreamDoneProjection {
-  return {
-    text: sseString(event, 'text') ?? fallbackText,
-    toolCalls: sseToolCalls(event.toolCalls),
-    hasContext: sseBoolean(event, 'hasContext'),
-  };
 }
 
 export function projectSseScanResult(event: SSEEvent): ScanStreamResultProjection {
@@ -3112,7 +3062,7 @@ async function _consumeSSE(
         }
         // stream:done — 如果携带 text 则覆盖
         else if (evt.type === 'stream:done') {
-          fullText = projectSseChatDone(evt, fullText).text;
+          fullText = sseString(evt, 'text') ?? fullText;
         }
         // stream:error — 抛出错误
         else if (evt.type === 'stream:error') {
@@ -3861,161 +3811,6 @@ export const api = {
     return res.data?.data || { provider, model };
   },
 
-  async chat(
-    prompt: string,
-    history: Array<{ role: string; content: string }>,
-    signal?: AbortSignal,
-  ): Promise<{ text: string; hasContext?: boolean }> {
-    const res = await http.post('/ai/chat', { prompt, history }, { signal });
-    const data = res.data?.data || {};
-    return { text: data.reply || data.text || '', hasContext: data.hasContext };
-  },
-
-  /**
-   * 流式 AI 对话 (SSE) — 统一协议 v2
-   *
-   * 事件类型（按时间顺序）:
-   *   - stream:start  — 会话开始
-   *   - step:start    — 新推理步骤 { step, maxSteps, phase }
-   *   - tool:start    — 工具调用开始 { id, tool, args }
-   *   - tool:end      — 工具调用结束 { tool, status, resultSize?, duration?, error? }
-   *   - text:start    — 文本流开始 { id, role }
-   *   - text:delta    — 文本分块 { id, delta }  ← 逐块推送，前端可逐字渲染
-   *   - text:end      — 文本流结束 { id }
-   *   - step:end      — 推理步骤结束 { step }
-   *   - stream:done   — 全部完成 { text, toolCalls, hasContext }
-   *   - stream:error  — 错误 { message }
-   *
-   * @param prompt       用户消息
-   * @param history      对话历史
-   * @param onEvent      每收到一个 SSE 事件的回调（前端根据 type 分别处理）
-   * @param signal       可选 AbortSignal
-   * @returns            { text, toolCalls, hasContext }
-   */
-  async chatStream(
-    prompt: string,
-    history: Array<{ role: string; content: string }>,
-    onEvent: (event: SSEEvent) => void,
-    signal?: AbortSignal,
-    /** UI language preference — forwarded to Agent for reply language control */
-    lang?: 'zh' | 'en',
-  ): Promise<{ text: string; toolCalls?: ToolCall[]; hasContext?: boolean }> {
-
-    // ── Step 1: POST 启动对话 ──
-    const startRes = await fetch('/api/v1/ai/chat/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history, ...(lang ? { lang } : {}) }),
-      signal,
-    });
-    const contentType = startRes.headers.get('content-type') || '';
-
-    if (!startRes.ok) {
-      const errorData = contentType.includes('application/json') ? await readJsonSafely(startRes) : null;
-      throwHostManagedIfPayload(errorData, startRes.status, 'AI chat is managed by the host environment.');
-      throw new Error(`Chat start failed: ${startRes.status}`);
-    }
-
-    // ── 兼容检测: 旧后端返回 text/event-stream, 新后端返回 JSON ──
-    if (contentType.includes('text/event-stream')) {
-      // 旧后端 — 直接用 fetch ReadableStream 消费 SSE（降级模式）
-      let finalResult: { text: string; toolCalls?: ToolCall[]; hasContext?: boolean } = { text: '' };
-      const fullText = await _consumeSSE(startRes, (evt) => {
-        onEvent(evt);
-        if (evt.type === 'stream:done') {
-          finalResult = projectSseChatDone(evt, finalResult.text);
-        }
-      });
-      if (!finalResult.text && fullText) finalResult.text = fullText;
-      return finalResult;
-    }
-
-    // ── 新后端: 获取 sessionId → EventSource ──
-    const startData = await readJsonSafely(startRes);
-    throwHostManagedIfPayload(startData, startRes.status, 'AI chat is managed by the host environment.');
-    const startRecord = asRecord(startData);
-    const startPayload = asRecord(startRecord?.data) || startRecord;
-    const sessionId = readString(startPayload, 'sessionId');
-    if (!sessionId) throw new Error(`No sessionId returned: ${JSON.stringify(startData)}`);
-
-    // ── Step 2: 通过 EventSource 消费 SSE 事件 ──
-    return new Promise<{ text: string; toolCalls?: ToolCall[]; hasContext?: boolean }>((resolve, reject) => {
-      const esUrl = `/api/v1/ai/chat/events/${sessionId}`;
-      const es = new EventSource(esUrl);
-      let fullText = '';
-      let finalResult: { text: string; toolCalls?: ToolCall[]; hasContext?: boolean } = { text: '' };
-      let resolved = false;
-
-      function cleanup() {
-        es.close();
-      }
-
-      es.onmessage = (e) => {
-        try {
-          const evt: SSEEvent = JSON.parse(e.data);
-
-          // 跳过内部的 stream:start（EventSource 基础设施事件）
-          if (evt.type === 'stream:start') return;
-
-          // 交付事件给上层回调
-          onEvent(evt);
-
-          // 累积 text:delta 文本
-          const delta = projectSseTextDelta(evt);
-          if (evt.type === 'text:delta' && delta) {
-            fullText += delta;
-          }
-
-          // 会话完成
-          if (evt.type === 'stream:done') {
-            finalResult = projectSseChatDone(evt, fullText);
-            cleanup();
-            resolved = true;
-            resolve(finalResult);
-          }
-
-          // 会话错误
-          if (evt.type === 'stream:error') {
-            cleanup();
-            resolved = true;
-            reject(new Error(projectSseErrorMessage(evt, 'Stream error')));
-          }
-        } catch {
-          // 忽略 JSON 解析错误
-        }
-      };
-
-      es.onerror = () => {
-        if (!resolved) {
-          cleanup();
-          if (fullText) {
-            resolved = true;
-            resolve({ text: fullText });
-          } else {
-            resolved = true;
-            reject(new Error('EventSource connection failed'));
-          }
-        }
-      };
-
-      // 处理 AbortSignal
-      if (signal) {
-        const onAbort = () => {
-          if (!resolved) {
-            cleanup();
-            resolved = true;
-            reject(new DOMException('The operation was aborted.', 'AbortError'));
-          }
-        };
-        if (signal.aborted) {
-          onAbort();
-        } else {
-          signal.addEventListener('abort', onAbort, { once: true });
-        }
-      }
-    });
-  },
-
   async summarizeCode(code: string, language: string): Promise<Record<string, unknown>> {
     const res = await http.post('/ai/summarize', { code, language });
     return res.data?.data || res.data || {};
@@ -4160,7 +3955,7 @@ export const api = {
     return res.data?.data || {};
   },
 
-  /** AI 生成 Skill 内容（通过 ChatAgent 对话） */
+  /** AI 生成 Skill 内容（通过 API AI 能力） */
   async aiGenerateSkill(prompt: string): Promise<{ reply: string; hasContext?: boolean }> {
     const systemPrompt = `你是一个 Alembic Skill 文档生成助手。用户会描述他们想创建的 Skill，你需要生成完整的 SKILL.md 内容。
 

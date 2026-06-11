@@ -77,8 +77,6 @@ for (const filePath of textFiles) {
 
 const anyBudgets = new Map([
   ['src/components/Shared/MarkdownWithHighlight.tsx', 0],
-  ['src/components/Shared/GlobalChatDrawer.tsx', 0],
-  ['src/hooks/useChatTopics.ts', 0],
   ['src/api.ts', 3],
 ]);
 

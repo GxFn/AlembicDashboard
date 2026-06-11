@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BadgeCheck, Boxes, Inbox, Shield, MessageSquare, HelpCircle, LogOut, User, Moon, Sun, Library, ScrollText, BookOpen, Languages, Layers, Radio } from 'lucide-react';
+import { Activity, BadgeCheck, Boxes, Inbox, Shield, HelpCircle, LogOut, User, Moon, Sun, Library, ScrollText, BookOpen, Languages, Layers, Radio } from 'lucide-react';
 import { TabType } from '../../constants';
 import { useI18n } from '../../i18n';
 import { useTheme } from '../../theme';
@@ -89,13 +89,12 @@ const Sidebar: React.FC<SidebarProps> = ({
     { tab: 'wiki', icon: BookOpen, label: t('sidebar.repoWiki') },
     { tab: 'signals', icon: Radio, label: 'Signals' },
     /* ── 辅助 ── */
-    { tab: 'ai', icon: MessageSquare, label: t('sidebar.aiAssistant') },
     { tab: 'help', icon: HelpCircle, label: t('sidebar.help') },
   ];
 
-  /* 分组：主导航与辅助导航 (AI + Help) */
-  const mainNav = navItems.slice(0, navItems.length - 2);
-  const auxNav = navItems.slice(navItems.length - 2);
+  /* 分组：主导航与辅助导航 */
+  const mainNav = navItems.slice(0, navItems.length - 1);
+  const auxNav = navItems.slice(navItems.length - 1);
 
   return (
     <TooltipProvider>

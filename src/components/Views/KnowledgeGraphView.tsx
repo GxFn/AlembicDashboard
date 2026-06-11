@@ -419,7 +419,7 @@ const KnowledgeGraphView: React.FC = () => {
     } catch (err: unknown) {
       setDiscoverIsError(true);
       const msg = getErrorMessage(err, t('knowledgeGraph.unknownError'));
-      if (msg.includes('ChatAgent') || msg.includes('AI Provider')) {
+      if (msg.includes('AI Provider')) {
         setDiscoverResult(t('knowledgeGraph.discoverAiUnavailable', { error: msg }));
       } else {
         setDiscoverResult(t('knowledgeGraph.discoverStartFailed', { error: msg }));

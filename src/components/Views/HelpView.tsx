@@ -121,11 +121,6 @@ const HelpView: React.FC = () => {
                     <td className="px-4 py-3 border-b">{t('help.codexHostAgentResp')}</td>
                     <td className="px-4 py-3 border-b text-xs" dangerouslySetInnerHTML={{ __html: t('help.codexHostAgentCap') }} />
                   </tr>
-                  <tr className="hover:bg-[var(--bg-subtle)]">
-                    <td className="px-4 py-3 font-medium text-purple-700">{t('help.roleChatAgent')}</td>
-                    <td className="px-4 py-3">{t('help.chatAgentResp')}</td>
-                    <td className="px-4 py-3 text-xs" dangerouslySetInnerHTML={{ __html: t('help.chatAgentCap') }} />
-                  </tr>
                 </tbody>
               </table>
             </div>
@@ -178,13 +173,13 @@ const HelpView: React.FC = () => {
               <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
                 <h4 className="font-semibold text-indigo-900 mb-2 flex items-center gap-2">
                   <ArrowRightLeft size={ICON_SIZES.lg} />
-                  {t('help.chatAgentLabel')}
+                  {t('help.apiAiLabel')}
                 </h4>
-                <p className="text-indigo-800 text-sm mb-3">{t('help.chatAgentDesc')}</p>
+                <p className="text-indigo-800 text-sm mb-3">{t('help.apiAiDesc')}</p>
                 <ul className="text-indigo-700 text-xs space-y-1 list-disc list-inside">
-                  <li dangerouslySetInnerHTML={{ __html: t('help.chatAgentCompBullet1') }} />
-                  <li dangerouslySetInnerHTML={{ __html: t('help.chatAgentCompBullet2') }} />
-                  <li dangerouslySetInnerHTML={{ __html: t('help.chatAgentCompBullet3') }} />
+                  <li dangerouslySetInnerHTML={{ __html: t('help.apiAiCompBullet1') }} />
+                  <li dangerouslySetInnerHTML={{ __html: t('help.apiAiCompBullet2') }} />
+                  <li dangerouslySetInnerHTML={{ __html: t('help.apiAiCompBullet3') }} />
                 </ul>
               </div>
               {/* 6. Search Pipeline */}

@@ -16,7 +16,6 @@ const TAB_ICON_MAP: Record<TabType, React.ElementType> = {
   panorama: Layers,
   skills: BookOpen,
   jobs: Activity,
-  wiki: FileText,
   signals: Radio,
   help: HelpCircle,
 };
@@ -30,7 +29,6 @@ const TAB_LABEL_MAP: Record<TabType, string> = {
   panorama: 'sidebar.panorama',
   skills: 'sidebar.skills',
   jobs: 'sidebar.jobs',
-  wiki: 'sidebar.repoWiki',
   signals: 'sidebar.signals',
   help: 'sidebar.help',
 };

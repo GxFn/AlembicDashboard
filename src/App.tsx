@@ -41,7 +41,6 @@ import KnowledgeView from './components/Views/KnowledgeView';
 import SkillsView from './components/Views/SkillsView';
 import BootstrapProgressView from './components/Views/BootstrapProgressView';
 import JobsView from './components/Views/JobsView';
-import WikiView from './components/Views/WikiView';
 import SignalReportView from './components/Views/SignalReportView';
 import RecipeEditor from './components/Modals/RecipeEditor';
 import CreateModal from './components/Modals/CreateModal';
@@ -1110,7 +1109,7 @@ const App: React.FC = () => {
       candidateCount={candidateCount}
     />
 
-    <div className={`min-h-0 flex-1 ${activeTab === 'wiki' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden p-4 xl:p-6 2xl:p-8'}`}>
+    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 xl:p-6 2xl:p-8">
       <AnimatePresence mode="wait">
       <motion.div
         key={activeTab}
@@ -1252,8 +1251,6 @@ const App: React.FC = () => {
         onAddCustomFolder={handleAddCustomFolder}
         onRemoveCustomFolder={handleRemoveCustomFolder}
       />
-      ) : activeTab === 'wiki' ? (
-      <WikiView />
       ) : activeTab === 'signals' ? (
       <SignalReportView />
       ) : activeTab === 'help' ? (

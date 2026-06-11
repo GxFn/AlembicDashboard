@@ -483,22 +483,6 @@ const HelpView: React.FC = () => {
                 <li dangerouslySetInnerHTML={{ __html: t('help.featureTaskGraphBullet4') }} />
               </ul>
             </div>
-            {/* Wiki Doc Generation */}
-            <div className="border border-[var(--border-default)] rounded-lg p-5 hover:shadow-lg transition-shadow">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-9 h-9 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
-                  <FileCode size={ICON_SIZES.lg} className="text-rose-600" />
-                </div>
-                <h3 className="font-semibold text-[var(--fg-primary)]">{t('help.wikiDocGen')}</h3>
-              </div>
-              <p className="text-[var(--fg-secondary)] text-xs mb-3">{t('help.wikiDocGenDesc')}</p>
-              <ul className="text-[var(--fg-secondary)] text-sm space-y-2 list-disc list-inside">
-                <li dangerouslySetInnerHTML={{ __html: t('help.wikiDocBullet1') }} />
-                <li dangerouslySetInnerHTML={{ __html: t('help.wikiDocBullet2') }} />
-                <li dangerouslySetInnerHTML={{ __html: t('help.wikiDocBullet3') }} />
-                <li dangerouslySetInnerHTML={{ __html: t('help.wikiDocBullet4') }} />
-              </ul>
-            </div>
             {/* Data Sync */}
             <div className="border border-[var(--border-default)] rounded-lg p-5 hover:shadow-lg transition-shadow">
               <div className="flex items-center gap-3 mb-2">

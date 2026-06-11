@@ -960,6 +960,32 @@ test('dashboard chat page and drawer surfaces are removed', () => {
   assert.doesNotMatch(en, /aiChat:|globalChat:|chatStream:|chatAgent|roleChatAgent|openAiChat|closeAiChat/);
 });
 
+test('dashboard wiki page surfaces are removed', () => {
+  const app = read('src/App.tsx');
+  const constants = read('src/constants/index.ts');
+  const sidebar = read('src/components/Layout/Sidebar.tsx');
+  const commandPalette = read('src/components/Layout/CommandPalette.tsx');
+  const header = read('src/components/Layout/Header.tsx');
+  const api = read('src/api.ts');
+  const help = read('src/components/Views/HelpView.tsx');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+  const css = read('src/index.css');
+
+  assert.equal(existsSync(path.join(root, 'src/components/Views/WikiView.tsx')), false, 'WikiView page should be deleted');
+
+  assert.doesNotMatch(app, /WikiView|activeTab === ['"]wiki['"]/);
+  assert.doesNotMatch(constants, /['"]wiki['"]/);
+  assert.doesNotMatch(sidebar, /sidebar\.repoWiki|tab:\s*['"]wiki['"]|BookOpen/);
+  assert.doesNotMatch(commandPalette, /sidebar\.repoWiki|^\s*wiki:\s*FileText/m);
+  assert.doesNotMatch(header, /sidebar\.repoWiki|['"]wiki['"]:/);
+  assert.doesNotMatch(api, /\/wiki\/|wikiGenerate|wikiUpdate|wikiAbort|wikiStatus|wikiFiles|wikiFileContent/);
+  assert.doesNotMatch(help, /wikiDocGen|wikiDocBullet/);
+  assert.doesNotMatch(zh, /repoWiki|wiki:\s*\{|wikiDocGen|wikiDocBullet|wikiGenerating|aiBadge/);
+  assert.doesNotMatch(en, /repoWiki|wiki:\s*\{|wikiDocGen|wikiDocBullet|wikiGenerating|aiBadge/);
+  assert.doesNotMatch(css, /wiki-reader/);
+});
+
 test('dashboard classifies D21 adapter fallbacks by provider surface', async () => {
   const api = read('src/api.ts');
   const apiModule = await importTranspiled('src/api.ts');

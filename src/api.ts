@@ -4133,59 +4133,6 @@ Skill 文档格式要求：
     return res.data?.data || { quality: {} };
   },
 
-  // ── Wiki ──────────────────────────────────────────────
-
-  /** 触发 Wiki 全量生成 */
-  async wikiGenerate(): Promise<void> {
-    await http.post('/wiki/generate');
-  },
-
-  /** 触发 Wiki 增量更新 */
-  async wikiUpdate(): Promise<void> {
-    await http.post('/wiki/update');
-  },
-
-  /** 中止 Wiki 生成 */
-  async wikiAbort(): Promise<void> {
-    await http.post('/wiki/abort');
-  },
-
-  /** 获取 Wiki 状态 */
-  async wikiStatus(): Promise<{
-    task: {
-      status: 'idle' | 'running' | 'done' | 'error';
-      phase?: string;
-      progress?: number;
-      message?: string;
-      startedAt?: number;
-      finishedAt?: number;
-      result?: unknown;
-      error?: string;
-    };
-    wiki?: {
-      exists: boolean;
-      generatedAt?: string;
-      filesCount?: number;
-      version?: string;
-      hasChanges?: boolean;
-    };
-  }> {
-    const res = await http.get('/wiki/status');
-    return res.data?.data || { task: { status: 'idle' } };
-  },
-
-  /** 列出 Wiki 文件 */
-  async wikiFiles(): Promise<{ files: Array<{ path: string; name: string; size: number; modifiedAt: string }>; exists: boolean }> {
-    const res = await http.get('/wiki/files');
-    return res.data?.data || { files: [], exists: false };
-  },
-
-  /** 读取 Wiki 文件内容 */
-  async wikiFileContent(filePath: string): Promise<{ path: string; content: string; size: number }> {
-    const res = await http.get(`/wiki/file/${filePath}`);
-    return res.data?.data || { path: filePath, content: '', size: 0 };
-  },
-
   // ── Language preference ──────
 
   /** 获取服务端默认 UI 语言 */

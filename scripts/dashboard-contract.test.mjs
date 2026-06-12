@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import ts from 'typescript';
@@ -1601,4 +1601,48 @@ test('project scope panel falls back to current project folder name when scope i
   assert.match(panel, /folderName \|\| runtimeBoundary\?\.project\.projectId/);
   assert.match(panel, /summary\?\.displayName \?\? projectDisplayNameFromRuntime\(runtimeBoundary\)/);
   assert.doesNotMatch(panel, /summary\?\.displayName \?\? runtimeBoundary\?\.project\.projectId/);
+});
+
+test('network transport primitives stay pinned to the declared census (AD6 inflow/outflow audit)', () => {
+  // Declared transport seams (docs/declared-effects.md): api.ts owns the HTTP
+  // client + SSE streams; lib/socket.ts owns the socket.io singleton.
+  const declaredTransportModules = ['src/api.ts', 'src/lib/socket.ts'];
+  // Known stray transport sites recorded as AD6 FINDINGS (api-consolidation
+  // candidates, controller-routed): direct axios/fetch calls outside api.ts.
+  // This is an exact ratchet — a NEW transport site fails the test, and
+  // consolidating a stray away requires deleting its row here (explicit).
+  const knownStrayFindings = ['src/hooks/useAuth.ts', 'src/hooks/usePermission.ts', 'src/i18n/index.tsx'];
+
+  const transportPatterns = [
+    /\bfetch\s*\(/,
+    /\bXMLHttpRequest\b/,
+    /new\s+EventSource\s*\(/,
+    /new\s+WebSocket\s*\(/,
+    /\bsendBeacon\b/,
+    /from\s+['"]axios['"]/,
+    /from\s+['"]socket\.io-client['"]/,
+  ];
+
+  const sourceDir = path.join(root, 'src');
+  const sourceFilesWithTransport = [];
+  const walkSrc = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walkSrc(fullPath);
+      } else if (/\.(ts|tsx)$/.test(entry.name)) {
+        const text = readFileSync(fullPath, 'utf8');
+        if (transportPatterns.some((pattern) => pattern.test(text))) {
+          sourceFilesWithTransport.push(path.relative(root, fullPath).replaceAll(path.sep, '/'));
+        }
+      }
+    }
+  };
+  walkSrc(sourceDir);
+
+  assert.deepEqual(
+    sourceFilesWithTransport.sort(),
+    [...declaredTransportModules, ...knownStrayFindings].sort(),
+    'transport primitives appeared outside the declared census — update docs/declared-effects.md and route the finding before changing this pin',
+  );
 });

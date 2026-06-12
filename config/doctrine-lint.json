@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "description": "AD6 side-effect doctrine lint config (AlembicDashboard, scaled from the Alembic leg). Enforces the AD0 doctrine's two machine-checkable pattern classes over src/: (A) module-scope mutable `let` bindings outside the managed-lifecycle idiom (`let _x: T | null = null` accessor slots are the sanctioned shape — src/lib/socket.ts's socket slot matches it), and (B) module-scope EMPTY new Map()/new Set() accumulators (literal-seeded const lookups are immutable and exempt by construction). REACT EXEMPTION RULE: module scope means column-0 declarations only — React component/hook state (useState/useRef/useReducer) lives inside function bodies, is framework-managed, and is structurally exempt by the scope rule itself, not by name matching. Blessed entries carry owner/reason/cleanupTrigger (layer-contract idiom); the lint is blocking in npm run check via scripts/lint-doctrine.mjs.",
+  "scanRoot": "src",
+  "blessedEntries": [
+    {
+      "file": "src/components/Shared/MermaidBlock.tsx",
+      "binding": "idCounter",
+      "reason": "Module-scope render-id counter producing unique mermaid container ids; predates AD6. React useId is the framework-managed replacement.",
+      "owner": "AlembicDashboard window",
+      "cleanupTrigger": "UI cleanup wave: replace with React useId (or a ref-scoped counter) and drop the module binding"
+    },
+    {
+      "file": "src/components/Shared/MermaidBlock.tsx",
+      "binding": "lastTheme",
+      "reason": "Module-scope memo deduplicating mermaid.initialize() calls per theme switch; predates AD6.",
+      "owner": "AlembicDashboard window",
+      "cleanupTrigger": "UI cleanup wave: fold into a managed null-slot or move initialization into the theme provider"
+    }
+  ]
+}

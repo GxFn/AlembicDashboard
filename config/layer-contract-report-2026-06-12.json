@@ -1,0 +1,302 @@
+{
+  "kind": "dashboard-layer-report",
+  "sourceFiles": 80,
+  "areas": [
+    "App",
+    "api",
+    "components",
+    "constants",
+    "generated",
+    "hooks",
+    "i18n",
+    "knowledgePayload",
+    "lib",
+    "main",
+    "runtimeDiagnosticsPanelModel",
+    "theme",
+    "types",
+    "utils"
+  ],
+  "runtimeEdges": {
+    "App -> api": 1,
+    "App -> components": 18,
+    "App -> constants": 1,
+    "App -> hooks": 3,
+    "App -> i18n": 2,
+    "App -> knowledgePayload": 1,
+    "App -> types": 1,
+    "App -> utils": 3,
+    "api -> generated": 1,
+    "api -> types": 2,
+    "components -> api": 20,
+    "components -> constants": 23,
+    "components -> hooks": 6,
+    "components -> i18n": 27,
+    "components -> lib": 19,
+    "components -> runtimeDiagnosticsPanelModel": 1,
+    "components -> theme": 4,
+    "components -> types": 5,
+    "components -> utils": 42,
+    "hooks -> api": 2,
+    "hooks -> lib": 2,
+    "hooks -> utils": 3,
+    "main -> App": 1,
+    "main -> i18n": 1,
+    "main -> theme": 1
+  },
+  "typeOnlyEdges": {
+    "api -> generated": 2,
+    "api -> knowledgePayload": 1,
+    "api -> types": 1,
+    "components -> api": 1,
+    "components -> hooks": 1,
+    "components -> types": 4,
+    "hooks -> api": 1,
+    "knowledgePayload -> types": 1,
+    "runtimeDiagnosticsPanelModel -> types": 1,
+    "types -> generated": 2,
+    "utils -> api": 3
+  },
+  "runtimeEdgeFiles": {
+    "App -> api": [
+      "src/App.tsx (./api)"
+    ],
+    "App -> components": [
+      "src/App.tsx (./components/Views/LoginView)",
+      "src/App.tsx (./components/Layout/Sidebar)",
+      "src/App.tsx (./components/Layout/Header)",
+      "src/App.tsx (./components/Layout/CommandPalette)",
+      "src/App.tsx (./components/Views/RecipesView)",
+      "src/App.tsx (./components/Views/HelpView)",
+      "src/App.tsx (./components/Views/CandidatesView)",
+      "src/App.tsx (./components/Views/ModuleExplorerView)",
+      "src/App.tsx (./components/Views/GuardView)",
+      "src/App.tsx (./components/Views/PanoramaView)",
+      "src/App.tsx (./components/Views/KnowledgeView)",
+      "src/App.tsx (./components/Views/SkillsView)",
+      "src/App.tsx (./components/Views/BootstrapProgressView)",
+      "src/App.tsx (./components/Views/JobsView)",
+      "src/App.tsx (./components/Modals/RecipeEditor)",
+      "src/App.tsx (./components/Modals/CreateModal)",
+      "src/App.tsx (./components/Modals/SearchModal)",
+      "src/App.tsx (./components/Modals/LlmConfigModal)"
+    ],
+    "App -> constants": [
+      "src/App.tsx (./constants)"
+    ],
+    "App -> hooks": [
+      "src/App.tsx (./hooks/useAuth)",
+      "src/App.tsx (./hooks/usePermission)",
+      "src/App.tsx (./hooks/useBootstrapSocket)"
+    ],
+    "App -> i18n": [
+      "src/App.tsx (./i18n)",
+      "src/App.tsx (./i18n/locales/zh)"
+    ],
+    "App -> knowledgePayload": [
+      "src/App.tsx (./knowledgePayload)"
+    ],
+    "App -> types": [
+      "src/App.tsx (./types)"
+    ],
+    "App -> utils": [
+      "src/App.tsx (./utils/notification)",
+      "src/App.tsx (./utils)",
+      "src/App.tsx (./utils/error)"
+    ],
+    "api -> generated": [
+      "src/api.ts (./generated/api-types)"
+    ],
+    "api -> types": [
+      "src/api.ts (./types)",
+      "src/api.ts (./types)"
+    ],
+    "components -> api": [
+      "src/components/Charts/TokenUsageChart.tsx (../../api)",
+      "src/components/Layout/CommandPalette.tsx (../../api)",
+      "src/components/Layout/Header.tsx (../../api)",
+      "src/components/Layout/ProjectScopePanel.tsx (../../api)",
+      "src/components/Modals/LlmConfigModal.tsx (../../api)",
+      "src/components/Modals/RecipeEditor.tsx (../../api)",
+      "src/components/Modals/SearchModal.tsx (../../api)",
+      "src/components/Panels/AuditLogPanel.tsx (../../api)",
+      "src/components/Views/CandidatesView.tsx (../../api)",
+      "src/components/Views/ContextAwareSearchPanel.tsx (../../api)",
+      "src/components/Views/DepGraphView.tsx (../../api)",
+      "src/components/Views/EvolutionPanel.tsx (../../api)",
+      "src/components/Views/GuardView.tsx (../../api)",
+      "src/components/Views/JobsView.tsx (../../api)",
+      "src/components/Views/KnowledgeGraphView.tsx (../../api)",
+      "src/components/Views/KnowledgeView.tsx (../../api)",
+      "src/components/Views/ModuleExplorerView.tsx (../../api)",
+      "src/components/Views/PanoramaView.tsx (../../api)",
+      "src/components/Views/RecipesView.tsx (../../api)",
+      "src/components/Views/SkillsView.tsx (../../api)"
+    ],
+    "components -> constants": [
+      "src/components/Layout/CommandPalette.tsx (../../constants)",
+      "src/components/Layout/Header.tsx (../../constants)",
+      "src/components/Layout/Sidebar.tsx (../../constants)",
+      "src/components/Modals/CreateModal.tsx (../../constants/icons)",
+      "src/components/Modals/LlmConfigModal.tsx (../../constants/icons)",
+      "src/components/Modals/RecipeEditor.tsx (../../constants/icons)",
+      "src/components/Modals/SearchModal.tsx (../../constants/icons)",
+      "src/components/Shared/Pagination.tsx (../../constants/icons)",
+      "src/components/Views/CandidatesView.tsx (../../constants)",
+      "src/components/Views/CandidatesView.tsx (../../constants/icons)",
+      "src/components/Views/ContextAwareSearchPanel.tsx (../../constants/icons)",
+      "src/components/Views/DepGraphView.tsx (../../constants/icons)",
+      "src/components/Views/GuardView.tsx (../../constants)",
+      "src/components/Views/GuardView.tsx (../../constants/icons)",
+      "src/components/Views/HelpView.tsx (../../constants/icons)",
+      "src/components/Views/KnowledgeGraphView.tsx (../../constants/icons)",
+      "src/components/Views/KnowledgeView.tsx (../../constants)",
+      "src/components/Views/LoginView.tsx (../../constants/icons)",
+      "src/components/Views/ModuleExplorerView.tsx (../../constants/icons)",
+      "src/components/Views/RecipesView.tsx (../../constants)",
+      "src/components/Views/RecipesView.tsx (../../constants/icons)",
+      "src/components/Views/ScanResultCard.tsx (../../constants)",
+      "src/components/Views/ScanResultCard.tsx (../../constants/icons)"
+    ],
+    "components -> hooks": [
+      "src/components/Views/BootstrapProgressView.tsx (../../hooks/useJobProcessEvents)",
+      "src/components/Views/CandidatesView.tsx (../../hooks/useDrawerWide)",
+      "src/components/Views/JobsView.tsx (../../hooks/useJobProcessEvents)",
+      "src/components/Views/JobsView.tsx (../../hooks/useDrawerWide)",
+      "src/components/Views/KnowledgeView.tsx (../../hooks/useDrawerWide)",
+      "src/components/Views/RecipesView.tsx (../../hooks/useDrawerWide)"
+    ],
+    "components -> i18n": [
+      "src/components/Charts/TokenUsageChart.tsx (../../i18n)",
+      "src/components/Layout/CommandPalette.tsx (../../i18n)",
+      "src/components/Layout/Header.tsx (../../i18n)",
+      "src/components/Layout/ProjectScopePanel.tsx (../../i18n)",
+      "src/components/Layout/Sidebar.tsx (../../i18n)",
+      "src/components/Modals/CreateModal.tsx (../../i18n)",
+      "src/components/Modals/LlmConfigModal.tsx (../../i18n)",
+      "src/components/Modals/RecipeEditor.tsx (../../i18n)",
+      "src/components/Modals/SearchModal.tsx (../../i18n)",
+      "src/components/Shared/MermaidBlock.tsx (../../i18n)",
+      "src/components/Shared/Pagination.tsx (../../i18n)",
+      "src/components/Views/BootstrapProgressView.tsx (../../i18n)",
+      "src/components/Views/CandidatesView.tsx (../../i18n)",
+      "src/components/Views/ContextAwareSearchPanel.tsx (../../i18n)",
+      "src/components/Views/DepGraphView.tsx (../../i18n)",
+      "src/components/Views/EvolutionPanel.tsx (../../i18n)",
+      "src/components/Views/GuardView.tsx (../../i18n)",
+      "src/components/Views/HelpView.tsx (../../i18n)",
+      "src/components/Views/JobsView.tsx (../../i18n)",
+      "src/components/Views/KnowledgeGraphView.tsx (../../i18n)",
+      "src/components/Views/KnowledgeView.tsx (../../i18n)",
+      "src/components/Views/LoginView.tsx (../../i18n)",
+      "src/components/Views/ModuleExplorerView.tsx (../../i18n)",
+      "src/components/Views/PanoramaView.tsx (../../i18n)",
+      "src/components/Views/RecipesView.tsx (../../i18n)",
+      "src/components/Views/ScanResultCard.tsx (../../i18n)",
+      "src/components/Views/SkillsView.tsx (../../i18n)"
+    ],
+    "components -> lib": [
+      "src/components/Layout/Drawer.tsx (../../lib/utils)",
+      "src/components/Layout/Header.tsx (../../lib/socket)",
+      "src/components/Layout/Header.tsx (../../lib/utils)",
+      "src/components/Layout/ProjectScopePanel.tsx (../../lib/utils)",
+      "src/components/Layout/Sidebar.tsx (../../lib/utils)",
+      "src/components/Views/BootstrapProgressView.tsx (../../lib/utils)",
+      "src/components/Views/EvolutionPanel.tsx (../../lib/utils)",
+      "src/components/Views/JobsView.tsx (../../lib/utils)",
+      "src/components/Views/RecipesView.tsx (../../lib/utils)",
+      "src/components/ui/Accordion.tsx (../../lib/utils)",
+      "src/components/ui/Badge.tsx (../../lib/utils)",
+      "src/components/ui/Button.tsx (../../lib/utils)",
+      "src/components/ui/Card.tsx (../../lib/utils)",
+      "src/components/ui/Command.tsx (../../lib/utils)",
+      "src/components/ui/Dialog.tsx (../../lib/utils)",
+      "src/components/ui/DropdownMenu.tsx (../../lib/utils)",
+      "src/components/ui/Select.tsx (../../lib/utils)",
+      "src/components/ui/Skeleton.tsx (../../lib/utils)",
+      "src/components/ui/Tooltip.tsx (../../lib/utils)"
+    ],
+    "components -> runtimeDiagnosticsPanelModel": [
+      "src/components/Layout/Header.tsx (../../runtimeDiagnosticsPanelModel)"
+    ],
+    "components -> theme": [
+      "src/components/Layout/Sidebar.tsx (../../theme)",
+      "src/components/Shared/MermaidBlock.tsx (../../theme)",
+      "src/components/Views/DepGraphView.tsx (../../theme)",
+      "src/components/Views/KnowledgeGraphView.tsx (../../theme)"
+    ],
+    "components -> types": [
+      "src/components/Modals/RecipeEditor.tsx (../../types)",
+      "src/components/Views/CandidatesView.tsx (../../types)",
+      "src/components/Views/ModuleExplorerView.tsx (../../types)",
+      "src/components/Views/RecipesView.tsx (../../types)",
+      "src/components/Views/ScanResultCard.tsx (../../types)"
+    ],
+    "components -> utils": [
+      "src/components/Charts/TokenUsageChart.tsx (../../utils/error)",
+      "src/components/Charts/TokenUsageChart.tsx (../../utils/sourceLabels)",
+      "src/components/Layout/Header.tsx (../../utils/notification)",
+      "src/components/Layout/Header.tsx (../../utils/error)",
+      "src/components/Layout/ProjectScopePanel.tsx (../../utils/notification)",
+      "src/components/Layout/ProjectScopePanel.tsx (../../utils/error)",
+      "src/components/Modals/LlmConfigModal.tsx (../../utils/error)",
+      "src/components/Modals/RecipeEditor.tsx (../../utils/error)",
+      "src/components/Shared/CodeBlock.tsx (../../utils/code)",
+      "src/components/Shared/CodeBlock.tsx (../../utils/code)",
+      "src/components/Shared/MermaidBlock.tsx (../../utils/error)",
+      "src/components/Views/BootstrapProgressView.tsx (../../utils/jobProcessEvents)",
+      "src/components/Views/BootstrapProgressView.tsx (../../utils/evidenceStatus)",
+      "src/components/Views/CandidatesView.tsx (../../utils/notification)",
+      "src/components/Views/CandidatesView.tsx (../../utils/code)",
+      "src/components/Views/CandidatesView.tsx (../../utils/error)",
+      "src/components/Views/CandidatesView.tsx (../../utils/sourceLabels)",
+      "src/components/Views/DepGraphView.tsx (../../utils/error)",
+      "src/components/Views/EvolutionPanel.tsx (../../utils/notification)",
+      "src/components/Views/EvolutionPanel.tsx (../../utils/error)",
+      "src/components/Views/EvolutionPanel.tsx (../../utils/sourceLabels)",
+      "src/components/Views/GuardView.tsx (../../utils/notification)",
+      "src/components/Views/GuardView.tsx (../../utils/error)",
+      "src/components/Views/JobsView.tsx (../../utils/notification)",
+      "src/components/Views/JobsView.tsx (../../utils/error)",
+      "src/components/Views/JobsView.tsx (../../utils/efficiency)",
+      "src/components/Views/JobsView.tsx (../../utils/jobProcessEvents)",
+      "src/components/Views/JobsView.tsx (../../utils/evidenceStatus)",
+      "src/components/Views/KnowledgeGraphView.tsx (../../utils/error)",
+      "src/components/Views/KnowledgeView.tsx (../../utils/notification)",
+      "src/components/Views/KnowledgeView.tsx (../../utils/error)",
+      "src/components/Views/KnowledgeView.tsx (../../utils/sourceLabels)",
+      "src/components/Views/KnowledgeView.tsx (../../utils/code)",
+      "src/components/Views/ModuleExplorerView.tsx (../../utils/notification)",
+      "src/components/Views/ModuleExplorerView.tsx (../../utils/error)",
+      "src/components/Views/PanoramaView.tsx (../../utils/error)",
+      "src/components/Views/RecipesView.tsx (../../utils/notification)",
+      "src/components/Views/RecipesView.tsx (../../utils/error)",
+      "src/components/Views/RecipesView.tsx (../../utils/sourceLabels)",
+      "src/components/Views/ScanResultCard.tsx (../../utils/sourceLabels)",
+      "src/components/Views/SkillsView.tsx (../../utils/error)",
+      "src/components/Views/SkillsView.tsx (../../utils/notification)"
+    ],
+    "hooks -> api": [
+      "src/hooks/useBootstrapSocket.ts (../api)",
+      "src/hooks/useJobProcessEvents.ts (../api)"
+    ],
+    "hooks -> lib": [
+      "src/hooks/useBootstrapSocket.ts (../lib/socket)",
+      "src/hooks/useJobProcessEvents.ts (../lib/socket)"
+    ],
+    "hooks -> utils": [
+      "src/hooks/useAuth.ts (../utils/error)",
+      "src/hooks/useJobProcessEvents.ts (../utils/jobProcessEvents)",
+      "src/hooks/useJobProcessEvents.ts (../utils/error)"
+    ],
+    "main -> App": [
+      "src/main.tsx (./App)"
+    ],
+    "main -> i18n": [
+      "src/main.tsx (./i18n)"
+    ],
+    "main -> theme": [
+      "src/main.tsx (./theme)"
+    ]
+  }
+}

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "check:api-types-drift": "node scripts/check-generated-api-types.mjs",
     "check:space-boundary": "node scripts/check-space-boundary.mjs",
-    "check": "npm run lint && npm run check:api-types-drift && npm run check:space-boundary && npm run test && npm run typecheck && npm run build",
+    "check:layer-contract": "node scripts/lint-layer-contract.mjs",
+    "check": "npm run lint && npm run check:api-types-drift && npm run check:space-boundary && npm run check:layer-contract && npm run test && npm run typecheck && npm run build",
     "build:check": "npm run build",
     "build": "tsc && vite build",
     "preview": "vite preview"

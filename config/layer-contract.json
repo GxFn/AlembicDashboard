@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "description": "Machine-readable AlembicDashboard light conventions contract (P2 AD3, scaled-down Core CO2 pattern). Codifies the AS-IS src/ cross-area runtime import graph derived on 2026-06-12 via scripts/lint-layer-contract.mjs --report at baseline f5ccb9d (25 runtime edges, 18 type-only bridges over 14 areas) — the contract records reality; redesigns go through controller-decided waves. Enforced by scripts/lint-layer-contract.mjs as a blocking step in npm run check. Areas are the real census: each top-level src/ directory plus each top-level src/*.ts(x) module (named by file stem). Imports resolve through relative specifiers only (no path aliases exist); package imports are the AD1 space-boundary gate's jurisdiction.",
+  "typeOnlyImportsExempt": true,
+  "typeOnlyNote": "import type / export type imports are type bridges and do not create runtime coupling; runtime imports must follow allowedRuntimeImports. Observed bridges include utils -> api (problem-projection types) and types -> generated (wire-contract aliases).",
+  "layerRationale": [
+    "main is the composition entry: it mounts App inside the i18n and theme providers and imports nothing else.",
+    "App is the root view orchestrator: it consumes components, hooks, api, and the shared leaves; nothing imports App except main.",
+    "components (views) consume state/services below them (api, hooks, runtimeDiagnosticsPanelModel, i18n, theme, constants, lib, utils, types); nothing imports components except App.",
+    "api owns HTTP transport plus the normalizer seam and is the only runtime consumer of generated; views never import generated directly.",
+    "Leaves import nothing at runtime: types, generated, constants, lib, utils, i18n, theme, knowledgePayload, runtimeDiagnosticsPanelModel (the latter two are single-module builder/view-model areas consumed from above)."
+  ],
+  "normalizerSeam": "Cross-provider response variance is absorbed only in api.ts explicit adapters/normalizers (and the utils/error helpers they delegate to): normalizers absorb runtime nulls and shape variance, never contract drift — contract drift is the generated-artifact drift gate's job. UI components consume normalized projections via api/types and must not guess raw payload fields; structurally enforced by this matrix (only api may runtime-import generated; components reach data through api).",
+  "charterCrossCheck": "AD2 charter (zero-dependency UI consumer of the HTTP contract via generated types; projection only, no business logic): the observed matrix matches — api is the single transport/normalization owner, generated is a leaf consumed only by api (runtime) and types (type bridges), views are projection layers on top. No contradiction found 2026-06-12.",
+  "areas": [
+    "App",
+    "api",
+    "components",
+    "constants",
+    "generated",
+    "hooks",
+    "i18n",
+    "knowledgePayload",
+    "lib",
+    "main",
+    "runtimeDiagnosticsPanelModel",
+    "theme",
+    "types",
+    "utils"
+  ],
+  "allowedRuntimeImports": {
+    "App": ["api", "components", "constants", "hooks", "i18n", "knowledgePayload", "types", "utils"],
+    "api": ["generated", "types"],
+    "components": ["api", "constants", "hooks", "i18n", "lib", "runtimeDiagnosticsPanelModel", "theme", "types", "utils"],
+    "constants": [],
+    "generated": [],
+    "hooks": ["api", "lib", "utils"],
+    "i18n": [],
+    "knowledgePayload": [],
+    "lib": [],
+    "main": ["App", "i18n", "theme"],
+    "runtimeDiagnosticsPanelModel": [],
+    "theme": [],
+    "types": [],
+    "utils": []
+  },
+  "exactEdgeExceptions": [],
+  "exactEdgeExceptionsContract": "Each entry requires {fromFile, toArea, owner, reason, cleanupTrigger}; entries missing any field do not bless an edge. Empty today — the observed runtime graph is a clean downward DAG with no inversions.",
+  "cycleFindings": [],
+  "cycleFindingsNote": "No runtime area cycles observed at baseline f5ccb9d; if one appears it is recorded here with a blessed minority side and an owned cleanup trigger, never silently refactored (AD3 stop clause).",
+  "reportRef": "config/layer-contract-report-2026-06-12.json"
+}

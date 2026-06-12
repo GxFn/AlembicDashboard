@@ -12,7 +12,8 @@
     "check:space-boundary": "node scripts/check-space-boundary.mjs",
     "check:layer-contract": "node scripts/lint-layer-contract.mjs",
     "check:doctrine": "node scripts/lint-doctrine.mjs",
-    "check": "npm run lint && npm run check:api-types-drift && npm run check:space-boundary && npm run check:layer-contract && npm run check:doctrine && npm run test && npm run typecheck && npm run build",
+    "check:naming": "node scripts/lint-naming.mjs",
+    "check": "npm run lint && npm run check:api-types-drift && npm run check:space-boundary && npm run check:layer-contract && npm run check:doctrine && npm run check:naming && npm run test && npm run typecheck && npm run build",
     "build:check": "npm run build",
     "build": "tsc && vite build",
     "preview": "vite preview"

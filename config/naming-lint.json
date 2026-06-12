@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "description": "SN1 naming lint config (AlembicDashboard). Codifies the SN0 §1 dominant conventions as per-artifact-type filename patterns: React components PascalCase.tsx; hooks useX camelCase; src code modules camelCase (helpers) or PascalCase (model/presenter/class positions) with kebab/snake forbidden; index.ts(x) barrels allowed everywhere (dominant idiom); scripts and configs kebab-case (.test.mjs suffix allowed). The SN0 two exempt families (Drizzle migrations, Agent .profile.ts) do not occur in this repo; the repo-local exempt family is src/generated/ (committed codegen artifacts keep their generator-given kebab names, guarded by the api-types drift gate). Exceptions require {file, owner, reason}; entries missing a field do not exempt.",
+  "rules": [
+    { "scope": "src/components", "filePattern": "\\.tsx$", "namePattern": "^[A-Z][A-Za-z0-9]*\\.tsx$", "label": "React components are PascalCase.tsx" },
+    { "scope": "src/hooks", "filePattern": "\\.(ts|tsx)$", "namePattern": "^use[A-Z][A-Za-z0-9]*\\.ts$", "label": "hooks are useX.ts camelCase" },
+    { "scope": "src", "filePattern": "\\.(ts|tsx)$", "namePattern": "^[a-zA-Z][A-Za-z0-9]*(\\.d)?\\.(ts|tsx)$", "label": "src modules are camelCase or PascalCase (no kebab/snake)" },
+    { "scope": "scripts", "filePattern": "\\.(mjs|cjs|js)$", "namePattern": "^[a-z0-9]+(-[a-z0-9]+)*(\\.test)?\\.(mjs|cjs|js)$", "label": "scripts are kebab-case" },
+    { "scope": "config", "filePattern": "\\.json$", "namePattern": "^[a-z0-9]+(-[a-z0-9]+)*\\.json$", "label": "configs are kebab-case" }
+  ],
+  "barrelNames": ["index.ts", "index.tsx"],
+  "exemptScopes": [
+    { "scope": "src/generated", "reason": "committed codegen artifacts keep generator-given names (api-types.ts + pin); byte-guarded by the drift gate" }
+  ],
+  "exceptions": []
+}

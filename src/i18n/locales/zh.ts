@@ -1221,7 +1221,7 @@ export const zh = {
     mcpCapabilitiesDesc: '服务能力清单（Agent 自发现）',
     mcpGuardDesc: 'code=单文件审查 / files=批量审查',
     mcpSubmitDesc: '提交候选 / 批量 / 保存文档',
-    mcpEnrichDesc: 'AI 润色 / 校验 / 查重',
+    mcpCandidateAdminDesc: '候选校验 / 查重',
     mcpLifecycleDesc: '批量生命周期操作',
     mcpSearchDesc: 'mode 路由 auto / keyword / weighted / semantic / context',
     mcpKnowledgeDesc: 'operation 路由 list / get / insights / confirm_usage',

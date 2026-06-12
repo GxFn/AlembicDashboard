@@ -635,114 +635,38 @@ export interface GuardAuditSummary {
 
 /* ═══════════════════════════════════════════
  *  V3 Knowledge Entry — 统一知识实体
+ *  Contract source: src/generated/api-types.ts (committed copy of the
+ *  Alembic-side generated artifact, IC2/P0 §8). The former hand-copied
+ *  interfaces were retired; runtime nulls are absorbed by api.ts
+ *  normalizers, contract drift is caught by the generated artifact +
+ *  drift gate, not by re-widening these types.
  * ═══════════════════════════════════════════ */
 
-export type KnowledgeLifecycle = 'pending' | 'staging' | 'active' | 'evolving' | 'decaying' | 'deprecated';
-export type KnowledgeKind = 'rule' | 'pattern' | 'fact';
+export type {
+  KnowledgeLifecycle,
+  KnowledgeKind,
+} from './generated/api-types';
 
-export interface KnowledgeContent {
-  pattern?: string;
-  markdown?: string;
-  rationale?: string;
-  steps?: Array<{ title?: string; description?: string; code?: string }>;
-  codeChanges?: Array<{ file: string; before: string; after: string; explanation: string }>;
-  verification?: { method?: string; expectedResult?: string; testCode?: string } | null;
-}
+import type {
+  KnowledgeConstraintsWire,
+  KnowledgeContentWire,
+  KnowledgeEntryWire,
+  KnowledgeKind,
+  KnowledgeQualityWire,
+  KnowledgeReasoningWire,
+  KnowledgeRelationsWire,
+  KnowledgeStatsWire,
+} from './generated/api-types';
 
-export interface KnowledgeReasoning {
-  whyStandard: string;
-  sources: string[];
-  confidence: number;
-  qualitySignals?: Record<string, unknown>;
-  alternatives?: string[];
-}
-
-export interface KnowledgeQuality {
-  completeness: number;
-  adaptation: number;
-  documentation: number;
-  overall: number;
-  grade: string;
-}
-
-export interface KnowledgeStats {
-  views: number;
-  adoptions: number;
-  applications: number;
-  guardHits: number;
-  searchHits: number;
-  authority: number;
-}
-
-export interface KnowledgeConstraints {
-  guards?: Array<{ id?: string; type?: string; pattern: string; severity: string; message?: string; fixSuggestion?: string }>;
-  boundaries?: string[];
-  preconditions?: string[];
-  sideEffects?: string[];
-}
-
-export interface KnowledgeRelations {
-  inherits?: Array<{ target: string; description?: string }>;
-  extends?: Array<{ target: string; description?: string }>;
-  dependsOn?: Array<{ target: string; description?: string }>;
-  conflicts?: Array<{ target: string; description?: string }>;
-  related?: Array<{ target: string; description?: string }>;
-  implements?: Array<{ target: string; description?: string }>;
-  calls?: Array<{ target: string; description?: string }>;
-  dataFlow?: Array<{ target: string; description?: string }>;
-  [key: string]: Array<{ target: string; description?: string }> | undefined;
-}
+export type KnowledgeContent = KnowledgeContentWire;
+export type KnowledgeReasoning = KnowledgeReasoningWire;
+export type KnowledgeQuality = KnowledgeQualityWire;
+export type KnowledgeStats = KnowledgeStatsWire;
+export type KnowledgeConstraints = KnowledgeConstraintsWire;
+export type KnowledgeRelations = KnowledgeRelationsWire;
 
 /** V3 统一知识条目（API 返回的 wire format — 全 camelCase） */
-export interface KnowledgeEntry {
-  id: string;
-  title: string;
-  trigger: string;
-  description: string;
-  lifecycle: KnowledgeLifecycle;
-  lifecycleHistory?: Array<{ from: string; to: string; at: number; by?: string }>;
-  autoApprovable?: boolean;
-  language: string;
-  /** Bootstrap / rescan dimension id, e.g. architecture. */
-  dimensionId?: string;
-  category: string;
-  kind: KnowledgeKind;
-  knowledgeType: string;
-  complexity: string;
-  scope?: string;
-  difficulty?: string;
-  tags: string[];
-  // ── Delivery fields ──
-  doClause?: string;
-  dontClause?: string;
-  whenClause?: string;
-  coreCode?: string;
-  topicHint?: string;
-  // ── Structured sub-objects ──
-  content: KnowledgeContent;
-  relations: KnowledgeRelations;
-  constraints: KnowledgeConstraints;
-  reasoning: KnowledgeReasoning;
-  quality: KnowledgeQuality;
-  stats: KnowledgeStats;
-  headers: string[];
-  headerPaths?: string[];
-  moduleName?: string;
-  includeHeaders?: boolean;
-  agentNotes?: string[] | null;
-  aiInsight?: string | null;
-  reviewedBy?: string | null;
-  reviewedAt?: number | null;
-  rejectionReason?: string | null;
-  source: string;
-  sourceFile?: string | null;
-  sourceCandidateId?: string | null;
-  createdBy: string;
-  createdAt: number;
-  updatedAt: number;
-  publishedAt?: number | null;
-  publishedBy?: string | null;
-}
+export type KnowledgeEntry = KnowledgeEntryWire;
 
 /** 知识条目列表分页响应 */
 export interface KnowledgePaginatedResponse {
@@ -809,6 +733,9 @@ export type ProposalSource =
   | 'relevance-audit'
   | 'file-change'
   | 'rescan-evolution';
+// Still hand-maintained: generated api-types v1 carries the evolution-proposal
+// route row but no proposal enums, so this cannot import from the artifact yet
+// (pB2 recorded deviation — needs an Alembic-side generator extension).
 export type ProposalStatus = 'pending' | 'observing' | 'executed' | 'rejected' | 'expired';
 
 export interface ProposalRecord {

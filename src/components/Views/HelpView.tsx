@@ -600,7 +600,7 @@ const HelpView: React.FC = () => {
                   <tr><td className="px-3 py-2 border-b font-medium">agent</td><td className="px-3 py-2 border-b"><code>wiki_plan</code> / <code>wiki_finalize</code></td><td className="px-3 py-2 border-b">{t('help.mcpWikiPlanDesc')} · {t('help.mcpWikiFinalizeDesc')}</td></tr>
                   <tr><td className="px-3 py-2 border-b font-medium">agent</td><td className="px-3 py-2 border-b"><code>task</code></td><td className="px-3 py-2 border-b">{t('help.mcpTaskDesc')}</td></tr>
                   <tr className="bg-amber-50/30"><td colSpan={3} className="px-3 py-1.5 border-b font-semibold text-amber-700 text-xs">{t('help.mcpAdminLayerHeader')}</td></tr>
-                  <tr><td className="px-3 py-2 border-b font-medium">admin</td><td className="px-3 py-2 border-b"><code>enrich_candidates</code> / <code>validate_candidate</code> / <code>check_duplicate</code></td><td className="px-3 py-2 border-b">{t('help.mcpEnrichDesc')}</td></tr>
+                  <tr><td className="px-3 py-2 border-b font-medium">admin</td><td className="px-3 py-2 border-b"><code>validate_candidate</code> / <code>check_duplicate</code></td><td className="px-3 py-2 border-b">{t('help.mcpCandidateAdminDesc')}</td></tr>
                   <tr><td className="px-3 py-2 font-medium">admin</td><td className="px-3 py-2"><code>knowledge_lifecycle</code></td><td className="px-3 py-2">{t('help.mcpLifecycleDesc')}</td></tr>
                 </tbody>
               </table>

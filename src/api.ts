@@ -9,6 +9,8 @@
  */
 
 import axios from 'axios';
+import { DASHBOARD_FAILURE_KINDS } from './generated/api-types';
+import type { DashboardFailureKind, DashboardProblemDetail } from './generated/api-types';
 import type { KnowledgeCreatePayload } from './knowledgePayload';
 import type {
   Recipe,
@@ -258,62 +260,44 @@ function dashboardPublicRecord(value: unknown): UnknownRecord | undefined {
   return asRuntimeRecord(stripPrivateProviderFields(value)) ?? undefined;
 }
 
-export const DASHBOARD_D25_REQUIRED_FAILURE_KINDS = [
-  'invalid-input',
-  'not-found',
-  'conflict',
-  'permission-denied',
-  'timeout',
-  'cancelled',
-  'unavailable',
-  'degraded',
-  'partial',
-  'capability-mismatch',
-  'needs-confirmation',
-  'provider-error',
-  'host-failure',
-  'internal-error',
-] as const;
-
-const DASHBOARD_KNOWN_FAILURE_KINDS = [
-  ...DASHBOARD_D25_REQUIRED_FAILURE_KINDS,
+// Failure-kind vocabulary comes from the generated contract artifact; the
+// D25 requirement keeps only the user-routable kinds (diagnostics-only kinds
+// stay out of the required projection matrix).
+const DASHBOARD_DIAGNOSTIC_ONLY_FAILURE_KINDS: ReadonlySet<DashboardFailureKind> = new Set<DashboardFailureKind>([
   'schema-drift',
   'sensitive-leak',
-] as const;
+]);
 
-const DASHBOARD_FAILURE_KIND_SET = new Set<string>(DASHBOARD_KNOWN_FAILURE_KINDS);
+export const DASHBOARD_D25_REQUIRED_FAILURE_KINDS: readonly DashboardFailureKind[] =
+  DASHBOARD_FAILURE_KINDS.filter((kind) => !DASHBOARD_DIAGNOSTIC_ONLY_FAILURE_KINDS.has(kind));
 
-export type DashboardFailureKind = (typeof DASHBOARD_KNOWN_FAILURE_KINDS)[number];
+const DASHBOARD_FAILURE_KIND_SET = new Set<string>(DASHBOARD_FAILURE_KINDS);
+
+export type { DashboardFailureKind } from './generated/api-types';
 
 export type DashboardFailureProjectionSource =
   | 'provider-taxonomy'
   | 'mcp-taxonomy'
   | 'agent-taxonomy';
 
-export interface DashboardErrorProblemProjection {
-  agentBranch?: string;
+/**
+ * Dashboard-normalized projection of the wire problem envelope. The field
+ * vocabulary and types come from the generated DashboardProblemDetail; the
+ * normalizer only guarantees the fields listed in the intersection below and
+ * adds the Dashboard-local provenance tag `source` (which taxonomy surface
+ * the projection was recovered from).
+ */
+export type DashboardErrorProblemProjection = Partial<
+  Omit<DashboardProblemDetail, 'artifactRefs' | 'detailRefs' | 'dashboardState' | 'message' | 'privateDataSafe' | 'reasonCode'>
+> & {
   artifactRefs: string[];
-  canonicalHttpStatus?: number;
-  code?: string;
-  dashboardState: DashboardFailureKind;
-  detailExposureClass?: string;
   detailRefs: string[];
-  exposureClass?: string;
-  failureId?: string;
-  failureStatus?: string;
-  mcpErrorCode?: string;
-  mcpStatus?: DashboardFailureKind;
+  dashboardState: DashboardFailureKind;
   message: string;
   privateDataSafe: boolean;
-  problemClass?: string;
   reasonCode: DashboardFailureKind;
-  refPolicy?: string;
-  retryPolicy?: string;
-  retryable?: boolean;
   source: DashboardFailureProjectionSource;
-  status?: number;
-  taxonomyVersion?: number;
-}
+};
 
 function normalizeDashboardFailureKind(value: unknown): DashboardFailureKind | null {
   if (typeof value !== 'string') {
@@ -2156,7 +2140,8 @@ function toRecipe(r: RawKnowledgeRecord): Recipe {
     language: r.language || '',
     description: r.description || '',
     status: r.lifecycle || r.status || 'pending',
-    kind: r.kind || undefined,
+    // Wire kind is string; the Recipe view keeps the closed union and treats unknown kinds as absent.
+    kind: r.kind === 'rule' || r.kind === 'pattern' || r.kind === 'fact' ? r.kind : undefined,
     knowledgeType: r.knowledgeType || undefined,
     // v2Content removed — content is now the V3 structured object
     relations: (r.relations ?? null) as Recipe['relations'],
@@ -2851,7 +2836,8 @@ function parseSearchContent(raw: unknown): KnowledgeContent {
   try {
     return JSON.parse(String(raw)) as KnowledgeContent;
   } catch {
-    return { markdown: String(raw) };
+    // Plain-text payload: fill the full wire shape so the markdown survives as content.
+    return { pattern: '', markdown: String(raw), rationale: '', steps: [], codeChanges: [], verification: null };
   }
 }
 
@@ -3099,8 +3085,9 @@ export const api = {
     const activeEntries = allEntries.filter((e) => e.lifecycle === 'active' || e.lifecycle === 'evolving');
     const recipes = activeEntries.map(toRecipe);
 
-    // Candidates = pending + staging（两者都需要人工审核）
-    const CANDIDATE_STATES = new Set(['pending', 'staging']);
+    // Candidates = pending + staging（两者都需要人工审核）。字面量绑定到生成的
+    // KnowledgeLifecycle 联合：契约中生命周期改名时这里在编译期失败，而不是静默漏数据。
+    const CANDIDATE_STATES: ReadonlySet<string> = new Set<KnowledgeLifecycle>(['pending', 'staging']);
     const rawEntries = allEntries.filter((e) => CANDIDATE_STATES.has(e.lifecycle));
     const candidates: ProjectData['candidates'] = {};
     for (const entry of rawEntries) {

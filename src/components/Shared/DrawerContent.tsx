@@ -295,7 +295,8 @@ const Steps: React.FC<StepsProps> = ({ label, steps }) => {
  * 9. Constraints (guards / boundaries / preconditions / sideEffects)
  * ══════════════════════════════════════════════════════════ */
 export interface ConstraintsData {
-  guards?: Array<{ pattern: string; severity: string; message?: string }>;
+  // pattern is string | null on the wire (generated contract); the view renders null as empty.
+  guards?: Array<{ pattern: string | null; severity: string; message?: string }>;
   boundaries?: string[];
   preconditions?: string[];
   sideEffects?: string[];

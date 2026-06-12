@@ -1224,7 +1224,7 @@ export const en: DeepString<typeof zh> = {
     mcpCapabilitiesDesc: 'Service capabilities list (Agent self-discovery)',
     mcpGuardDesc: 'code=single file audit / files=batch audit',
     mcpSubmitDesc: 'Submit candidate / batch / save document',
-    mcpEnrichDesc: 'AI enrich / validate / dedup',
+    mcpCandidateAdminDesc: 'Candidate validate / dedup',
     mcpLifecycleDesc: 'Batch lifecycle operations',
     mcpSearchDesc: 'mode routes auto / keyword / weighted / semantic / context',
     mcpKnowledgeDesc: 'operation routes list / get / insights / confirm_usage',

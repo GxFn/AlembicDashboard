@@ -11,20 +11,53 @@ function read(relativePath) {
   return readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-async function importTranspiled(relativePath) {
+const transpiledFileCache = new Map();
+
+function resolveRelativeImport(importerRelativePath, specifier) {
+  const joined = path
+    .normalize(path.join(path.dirname(importerRelativePath), specifier))
+    .replaceAll(path.sep, '/');
+  for (const candidate of [`${joined}.ts`, `${joined}.tsx`, joined, `${joined}/index.ts`]) {
+    if (existsSync(path.join(root, candidate))) {
+      return candidate;
+    }
+  }
+  assert.fail(`Cannot resolve relative import ${specifier} from ${importerRelativePath}`);
+}
+
+function transpileToTempFile(relativePath) {
+  const cached = transpiledFileCache.get(relativePath);
+  if (cached) {
+    return cached;
+  }
   const source = read(relativePath);
-  const output = ts.transpileModule(source, {
+  let output = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
       target: ts.ScriptTarget.ES2022,
       jsx: ts.JsxEmit.ReactJSX,
     },
   }).outputText;
+  // Type-only imports are erased by the transpile; surviving relative imports are
+  // runtime dependencies (e.g. src/generated/api-types.ts) and must be rewritten to
+  // point at their own transpiled copies, because the temp module lives outside src/.
+  output = output.replace(
+    /(from\s*|import\s*\(?\s*)(["'])(\.{1,2}\/[^"']+)\2/g,
+    (_match, prefix, quote, specifier) => {
+      const depTempFile = transpileToTempFile(resolveRelativeImport(relativePath, specifier));
+      return `${prefix}${quote}${pathToFileURL(depTempFile).href}${quote}`;
+    },
+  );
   const tempDir = path.join(root, 'node_modules', '.tmp', 'dashboard-contract');
   mkdirSync(tempDir, { recursive: true });
   const tempFile = path.join(tempDir, `${relativePath.replace(/[^A-Za-z0-9._-]+/g, '-')}-${Date.now()}.mjs`);
   writeFileSync(tempFile, output);
-  return import(pathToFileURL(tempFile).href);
+  transpiledFileCache.set(relativePath, tempFile);
+  return tempFile;
+}
+
+async function importTranspiled(relativePath) {
+  return import(pathToFileURL(transpileToTempFile(relativePath)).href);
 }
 
 async function importAlembicProviderContracts() {
@@ -1345,17 +1378,19 @@ test('dashboard routes D25 problem taxonomy without raw payload guessing', async
   const apiModule = await importTranspiled('src/api.ts');
   const errorUtils = await importTranspiled('src/utils/error.ts');
   const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
+  // Key order mirrors DASHBOARD_FAILURE_KINDS from the generated contract artifact
+  // (minus the diagnostics-only kinds), which now defines the D25 required list.
   const fixtureByKind = {
     'invalid-input': 'guard.invalid-input',
+    unavailable: 'workflow.unavailable',
+    'capability-mismatch': 'workflow.capability-mismatch',
     'not-found': 'route.not-found',
     conflict: 'project-runtime.conflict',
     'permission-denied': 'route.permission-denied',
     timeout: 'project-runtime.timeout',
     cancelled: 'jobs.cancelled-problem',
-    unavailable: 'workflow.unavailable',
-    degraded: 'workflow.degraded',
     partial: 'workflow.partial',
-    'capability-mismatch': 'workflow.capability-mismatch',
+    degraded: 'workflow.degraded',
     'needs-confirmation': 'decision-register.needs-confirmation',
     'provider-error': 'workflow.provider-error',
     'host-failure': 'workflow.host-failure',

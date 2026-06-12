@@ -33,7 +33,8 @@ export interface KnowledgeCreatePayload {
   whenClause: string;
   topicHint: string;
   coreCode: string;
-  content: KnowledgeContent;
+  // Builder-side shape: scan extraction may have any subset of the wire content fields.
+  content: PartialObject<KnowledgeContent>;
   reasoning: PartialObject<KnowledgeReasoning>;
   quality: PartialObject<KnowledgeQuality>;
   constraints: KnowledgeConstraints | Record<string, never>;

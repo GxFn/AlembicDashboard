@@ -9,7 +9,7 @@
 //
 // Areas are the real src/ census: each top-level directory under src/ is an
 // area; each top-level src/*.ts(x) module is its own area named by file stem
-// (api, types, App, main, knowledgePayload, runtimeDiagnosticsPanelModel).
+// (api, types, App, main, KnowledgePayload, RuntimeDiagnosticsPanelModel).
 // Imports resolve through relative specifiers only — this repo has no path
 // aliases (tsconfig paths is unset) and package imports are the AD1 gate's
 // jurisdiction. `import type` / `export type ... from` edges are type bridges

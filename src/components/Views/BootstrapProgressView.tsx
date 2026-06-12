@@ -24,7 +24,7 @@ import {
   getProcessEventSemanticCategory,
   getProcessEventSemanticKind,
   pickKeyProcessEvents,
-} from '../../utils/jobProcessEvents';
+} from '../../utils/JobProcessEvents';
 import type { JobProcessDeveloperView } from '../../api';
 import {
   type EvidenceIssue,
@@ -32,7 +32,7 @@ import {
   formatEvidenceIssueLabel,
   formatEvidenceIssueReason,
   getEvidenceIssueToneClass,
-} from '../../utils/evidenceStatus';
+} from '../../utils/EvidenceStatus';
 
 /* ═══════════════════════════════════════════════════════
  *  Icon & Color mapping

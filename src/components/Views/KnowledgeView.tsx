@@ -15,7 +15,7 @@ import type {
 import api from '../../api';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
-import { formatSourceLabel } from '../../utils/sourceLabels';
+import { formatSourceLabel } from '../../utils/SourceLabels';
 import { categoryConfigs } from '../../constants';
 import { normalizeCode } from '../../utils/code';
 import Pagination from '../Shared/Pagination';

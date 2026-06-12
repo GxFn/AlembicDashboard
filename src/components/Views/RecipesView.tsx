@@ -11,7 +11,7 @@ import type { BadgeItem, MetaItem } from '../Shared/DrawerMeta';
 import DrawerContent from '../Shared/DrawerContent';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
-import { formatSourceLabel } from '../../utils/sourceLabels';
+import { formatSourceLabel } from '../../utils/SourceLabels';
 import { ICON_SIZES } from '../../constants/icons';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';

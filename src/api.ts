@@ -11,7 +11,7 @@
 import axios from 'axios';
 import { DASHBOARD_FAILURE_KINDS } from './generated/api-types';
 import type { DashboardFailureKind, DashboardProblemDetail } from './generated/api-types';
-import type { KnowledgeCreatePayload } from './knowledgePayload';
+import type { KnowledgeCreatePayload } from './KnowledgePayload';
 import type {
   Recipe,
   RecipeStats,

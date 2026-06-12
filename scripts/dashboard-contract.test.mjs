@@ -422,7 +422,7 @@ test('projects runtime diagnostics fixture preserves source-of-truth details thr
 });
 
 test('runtime diagnostics panel model exposes operation, service, write-policy, failure, and extra-field rows', async () => {
-  const { buildRuntimeDiagnosticExtraRows, buildRuntimeDiagnosticsFieldRows } = await importTranspiled('src/runtimeDiagnosticsPanelModel.ts');
+  const { buildRuntimeDiagnosticExtraRows, buildRuntimeDiagnosticsFieldRows } = await importTranspiled('src/RuntimeDiagnosticsPanelModel.ts');
   const rows = buildRuntimeDiagnosticsFieldRows({
     readiness: { reasonCode: 'needs-runtime-control', status: 'blocked' },
     route: '/api/v1/projects',
@@ -511,7 +511,7 @@ test('bootstrap dimension completion does not refresh content mid-run', () => {
 test('jobs process timeline consumes typed events contract', () => {
   const api = read('src/api.ts');
   const hook = read('src/hooks/useJobProcessEvents.ts');
-  const eventUtils = read('src/utils/jobProcessEvents.ts');
+  const eventUtils = read('src/utils/JobProcessEvents.ts');
   const jobs = read('src/components/Views/JobsView.tsx');
   const bootstrap = read('src/components/Views/BootstrapProgressView.tsx');
 
@@ -650,7 +650,7 @@ test('jobs process timeline consumes typed events contract', () => {
 });
 
 test('jobs process terminal readability rules are enforced in the DOM contract', () => {
-  const eventUtils = read('src/utils/jobProcessEvents.ts');
+  const eventUtils = read('src/utils/JobProcessEvents.ts');
   const jobs = read('src/components/Views/JobsView.tsx');
 
   assert.match(eventUtils, /JOB_PROCESS_EVENT_CONTENT_COLLAPSE_LINE_LIMIT = 10/);
@@ -820,7 +820,7 @@ test('socket process events share REST content normalization', () => {
 test('dashboard replays accepted Alembic provider fixtures through executable normalizers', async () => {
   const provider = await importAlembicProviderContracts();
   const apiModule = await importTranspiled('src/api.ts');
-  const eventUtils = await importTranspiled('src/utils/jobProcessEvents.ts');
+  const eventUtils = await importTranspiled('src/utils/JobProcessEvents.ts');
   const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
   const eventContracts = provider.ALEMBIC_PROVIDER_EVENT_CONTRACTS;
   const routeContracts = provider.ALEMBIC_PROVIDER_ROUTE_CONTRACTS;
@@ -887,7 +887,7 @@ test('dashboard replays accepted Alembic provider fixtures through executable no
 });
 
 test('dashboard uses canonical host source labels without legacy IDE mappings', async () => {
-  const labels = await importTranspiled('src/utils/sourceLabels.ts');
+  const labels = await importTranspiled('src/utils/SourceLabels.ts');
   const t = (key) => `translated:${key}`;
 
   const hostAgent = labels.getSourceLabelInfo('host-agent');
@@ -934,7 +934,7 @@ test('runtime boundary consumes canonical file monitor event sources only', asyn
 test('knowledge save uses a typed provider payload projector', async () => {
   const app = read('src/App.tsx');
   const api = read('src/api.ts');
-  const payload = await importTranspiled('src/knowledgePayload.ts');
+  const payload = await importTranspiled('src/KnowledgePayload.ts');
   const projected = payload.buildKnowledgeCreatePayload({
     title: 'Typed boundary',
     description: 'No wide bag',

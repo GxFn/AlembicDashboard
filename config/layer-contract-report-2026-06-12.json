@@ -3,37 +3,37 @@
   "sourceFiles": 80,
   "areas": [
     "App",
+    "KnowledgePayload",
+    "RuntimeDiagnosticsPanelModel",
     "api",
     "components",
     "constants",
     "generated",
     "hooks",
     "i18n",
-    "knowledgePayload",
     "lib",
     "main",
-    "runtimeDiagnosticsPanelModel",
     "theme",
     "types",
     "utils"
   ],
   "runtimeEdges": {
+    "App -> KnowledgePayload": 1,
     "App -> api": 1,
     "App -> components": 18,
     "App -> constants": 1,
     "App -> hooks": 3,
     "App -> i18n": 2,
-    "App -> knowledgePayload": 1,
     "App -> types": 1,
     "App -> utils": 3,
     "api -> generated": 1,
     "api -> types": 2,
+    "components -> RuntimeDiagnosticsPanelModel": 1,
     "components -> api": 20,
     "components -> constants": 23,
     "components -> hooks": 6,
     "components -> i18n": 27,
     "components -> lib": 19,
-    "components -> runtimeDiagnosticsPanelModel": 1,
     "components -> theme": 4,
     "components -> types": 5,
     "components -> utils": 42,
@@ -45,19 +45,22 @@
     "main -> theme": 1
   },
   "typeOnlyEdges": {
+    "KnowledgePayload -> types": 1,
+    "RuntimeDiagnosticsPanelModel -> types": 1,
+    "api -> KnowledgePayload": 1,
     "api -> generated": 2,
-    "api -> knowledgePayload": 1,
     "api -> types": 1,
     "components -> api": 1,
     "components -> hooks": 1,
     "components -> types": 4,
     "hooks -> api": 1,
-    "knowledgePayload -> types": 1,
-    "runtimeDiagnosticsPanelModel -> types": 1,
     "types -> generated": 2,
     "utils -> api": 3
   },
   "runtimeEdgeFiles": {
+    "App -> KnowledgePayload": [
+      "src/App.tsx (./KnowledgePayload)"
+    ],
     "App -> api": [
       "src/App.tsx (./api)"
     ],
@@ -93,9 +96,6 @@
       "src/App.tsx (./i18n)",
       "src/App.tsx (./i18n/locales/zh)"
     ],
-    "App -> knowledgePayload": [
-      "src/App.tsx (./knowledgePayload)"
-    ],
     "App -> types": [
       "src/App.tsx (./types)"
     ],
@@ -110,6 +110,9 @@
     "api -> types": [
       "src/api.ts (./types)",
       "src/api.ts (./types)"
+    ],
+    "components -> RuntimeDiagnosticsPanelModel": [
+      "src/components/Layout/Header.tsx (../../RuntimeDiagnosticsPanelModel)"
     ],
     "components -> api": [
       "src/components/Charts/TokenUsageChart.tsx (../../api)",
@@ -216,9 +219,6 @@
       "src/components/ui/Skeleton.tsx (../../lib/utils)",
       "src/components/ui/Tooltip.tsx (../../lib/utils)"
     ],
-    "components -> runtimeDiagnosticsPanelModel": [
-      "src/components/Layout/Header.tsx (../../runtimeDiagnosticsPanelModel)"
-    ],
     "components -> theme": [
       "src/components/Layout/Sidebar.tsx (../../theme)",
       "src/components/Shared/MermaidBlock.tsx (../../theme)",
@@ -234,7 +234,7 @@
     ],
     "components -> utils": [
       "src/components/Charts/TokenUsageChart.tsx (../../utils/error)",
-      "src/components/Charts/TokenUsageChart.tsx (../../utils/sourceLabels)",
+      "src/components/Charts/TokenUsageChart.tsx (../../utils/SourceLabels)",
       "src/components/Layout/Header.tsx (../../utils/notification)",
       "src/components/Layout/Header.tsx (../../utils/error)",
       "src/components/Layout/ProjectScopePanel.tsx (../../utils/notification)",
@@ -244,35 +244,35 @@
       "src/components/Shared/CodeBlock.tsx (../../utils/code)",
       "src/components/Shared/CodeBlock.tsx (../../utils/code)",
       "src/components/Shared/MermaidBlock.tsx (../../utils/error)",
-      "src/components/Views/BootstrapProgressView.tsx (../../utils/jobProcessEvents)",
-      "src/components/Views/BootstrapProgressView.tsx (../../utils/evidenceStatus)",
+      "src/components/Views/BootstrapProgressView.tsx (../../utils/JobProcessEvents)",
+      "src/components/Views/BootstrapProgressView.tsx (../../utils/EvidenceStatus)",
       "src/components/Views/CandidatesView.tsx (../../utils/notification)",
       "src/components/Views/CandidatesView.tsx (../../utils/code)",
       "src/components/Views/CandidatesView.tsx (../../utils/error)",
-      "src/components/Views/CandidatesView.tsx (../../utils/sourceLabels)",
+      "src/components/Views/CandidatesView.tsx (../../utils/SourceLabels)",
       "src/components/Views/DepGraphView.tsx (../../utils/error)",
       "src/components/Views/EvolutionPanel.tsx (../../utils/notification)",
       "src/components/Views/EvolutionPanel.tsx (../../utils/error)",
-      "src/components/Views/EvolutionPanel.tsx (../../utils/sourceLabels)",
+      "src/components/Views/EvolutionPanel.tsx (../../utils/SourceLabels)",
       "src/components/Views/GuardView.tsx (../../utils/notification)",
       "src/components/Views/GuardView.tsx (../../utils/error)",
       "src/components/Views/JobsView.tsx (../../utils/notification)",
       "src/components/Views/JobsView.tsx (../../utils/error)",
       "src/components/Views/JobsView.tsx (../../utils/efficiency)",
-      "src/components/Views/JobsView.tsx (../../utils/jobProcessEvents)",
-      "src/components/Views/JobsView.tsx (../../utils/evidenceStatus)",
+      "src/components/Views/JobsView.tsx (../../utils/JobProcessEvents)",
+      "src/components/Views/JobsView.tsx (../../utils/EvidenceStatus)",
       "src/components/Views/KnowledgeGraphView.tsx (../../utils/error)",
       "src/components/Views/KnowledgeView.tsx (../../utils/notification)",
       "src/components/Views/KnowledgeView.tsx (../../utils/error)",
-      "src/components/Views/KnowledgeView.tsx (../../utils/sourceLabels)",
+      "src/components/Views/KnowledgeView.tsx (../../utils/SourceLabels)",
       "src/components/Views/KnowledgeView.tsx (../../utils/code)",
       "src/components/Views/ModuleExplorerView.tsx (../../utils/notification)",
       "src/components/Views/ModuleExplorerView.tsx (../../utils/error)",
       "src/components/Views/PanoramaView.tsx (../../utils/error)",
       "src/components/Views/RecipesView.tsx (../../utils/notification)",
       "src/components/Views/RecipesView.tsx (../../utils/error)",
-      "src/components/Views/RecipesView.tsx (../../utils/sourceLabels)",
-      "src/components/Views/ScanResultCard.tsx (../../utils/sourceLabels)",
+      "src/components/Views/RecipesView.tsx (../../utils/SourceLabels)",
+      "src/components/Views/ScanResultCard.tsx (../../utils/SourceLabels)",
       "src/components/Views/SkillsView.tsx (../../utils/error)",
       "src/components/Views/SkillsView.tsx (../../utils/notification)"
     ],
@@ -286,7 +286,7 @@
     ],
     "hooks -> utils": [
       "src/hooks/useAuth.ts (../utils/error)",
-      "src/hooks/useJobProcessEvents.ts (../utils/jobProcessEvents)",
+      "src/hooks/useJobProcessEvents.ts (../utils/JobProcessEvents)",
       "src/hooks/useJobProcessEvents.ts (../utils/error)"
     ],
     "main -> App": [

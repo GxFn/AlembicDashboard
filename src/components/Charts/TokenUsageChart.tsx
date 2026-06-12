@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import api from '../../api';
 import { useI18n } from '../../i18n';
 import { getErrorMessage } from '../../utils/error';
-import { formatSourceLabel } from '../../utils/sourceLabels';
+import { formatSourceLabel } from '../../utils/SourceLabels';
 
 interface DailyRow {
   date: string;

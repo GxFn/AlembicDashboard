@@ -18,7 +18,7 @@ import { TabType, validTabs } from './constants';
 import { isShellTarget, isSilentTarget, isPendingTarget, getWritePermissionErrorMsg, getSaveErrorMsg } from './utils';
 import { getErrorMessage, isAbortError, isTimeoutError, isAiError, isAxiosCancel } from './utils/error';
 import api from './api';
-import { buildKnowledgeCreatePayload } from './knowledgePayload';
+import { buildKnowledgeCreatePayload } from './KnowledgePayload';
 import { useAuth } from './hooks/useAuth';
 import { usePermission } from './hooks/usePermission';
 import { useBootstrapSocket } from './hooks/useBootstrapSocket';

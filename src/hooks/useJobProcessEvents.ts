@@ -10,7 +10,7 @@ import {
   mergeProcessEvents,
   readJobProcessEventsDisplayCache,
   writeJobProcessEventsDisplayCache,
-} from '../utils/jobProcessEvents';
+} from '../utils/JobProcessEvents';
 import { getErrorMessage } from '../utils/error';
 
 interface JobProcessSocketPayload {

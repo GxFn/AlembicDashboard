@@ -58,7 +58,7 @@ import {
   type LlmOutputCompletenessTone,
   processEventStableKey,
   shouldCollapseProcessEventContentByDefault,
-} from '../../utils/jobProcessEvents';
+} from '../../utils/JobProcessEvents';
 import {
   type EvidenceIssue,
   extractEvidenceIssue,
@@ -67,7 +67,7 @@ import {
   getEvidenceIssueToneClass,
   isEvidenceIssueFailure,
   isRecord,
-} from '../../utils/evidenceStatus';
+} from '../../utils/EvidenceStatus';
 import Select from '../ui/Select';
 import { Drawer } from '../Layout/Drawer';
 import PageOverlay from '../Shared/PageOverlay';

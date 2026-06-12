@@ -10,7 +10,7 @@ import {
   buildRuntimeDiagnosticExtraRows,
   buildRuntimeDiagnosticsFieldRows,
   runtimeDiagnosticsRowValue,
-} from '../../runtimeDiagnosticsPanelModel';
+} from '../../RuntimeDiagnosticsPanelModel';
 import type {
   DashboardProjectActionResult,
   DashboardProjectRuntimeControlDiagnostic,

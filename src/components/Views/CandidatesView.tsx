@@ -16,7 +16,7 @@ import type { BadgeItem, MetaItem } from '../Shared/DrawerMeta';
 import DrawerContent from '../Shared/DrawerContent';
 import { useI18n } from '../../i18n';
 import { getErrorMessage } from '../../utils/error';
-import { formatSourceLabel, getSourceLabelInfo } from '../../utils/sourceLabels';
+import { formatSourceLabel, getSourceLabelInfo } from '../../utils/SourceLabels';
 import Select from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Drawer } from '../Layout/Drawer';

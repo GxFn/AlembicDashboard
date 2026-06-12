@@ -7,7 +7,7 @@ import CodeBlock from '../Shared/LazyCodeBlock';
 import HighlightedCodeEditor from '../Shared/HighlightedCodeEditor';
 import { useI18n } from '../../i18n';
 import Select from '../ui/Select';
-import { formatSourceLabel } from '../../utils/sourceLabels';
+import { formatSourceLabel } from '../../utils/SourceLabels';
 
 /* ═══════════════════════════════════════════════════════
  *  ScanResultCard — Pipeline Unification v2 审核卡片

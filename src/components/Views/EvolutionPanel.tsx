@@ -22,7 +22,7 @@ import {
 } from '../ui/Dialog';
 import { notify } from '../../utils/notification';
 import { getErrorMessage } from '../../utils/error';
-import { formatSourceLabel } from '../../utils/sourceLabels';
+import { formatSourceLabel } from '../../utils/SourceLabels';
 
 interface EvolutionPanelProps {
   recipeId: string;

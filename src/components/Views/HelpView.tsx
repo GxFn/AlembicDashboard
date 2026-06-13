@@ -112,9 +112,9 @@ const HelpView: React.FC = () => {
                 </thead>
                 <tbody>
                   <tr className="hover:bg-[var(--bg-subtle)]">
-                    <td className="px-4 py-3 border-b font-medium text-blue-700">{t('help.roleDeveloper')}</td>
-                    <td className="px-4 py-3 border-b">{t('help.developerResp')}</td>
-                    <td className="px-4 py-3 border-b text-xs" dangerouslySetInnerHTML={{ __html: t('help.developerCap') }} />
+                    <td className="px-4 py-3 border-b font-medium text-blue-700">{t('help.roleMaintainer')}</td>
+                    <td className="px-4 py-3 border-b">{t('help.maintainerResp')}</td>
+                    <td className="px-4 py-3 border-b text-xs" dangerouslySetInnerHTML={{ __html: t('help.maintainerCap') }} />
                   </tr>
                   <tr className="hover:bg-[var(--bg-subtle)]">
                     <td className="px-4 py-3 border-b font-medium text-green-700">{t('help.roleCodexHostAgent')}</td>
@@ -600,8 +600,8 @@ const HelpView: React.FC = () => {
                   <tr><td className="px-3 py-2 border-b font-medium">agent</td><td className="px-3 py-2 border-b"><code>wiki_plan</code> / <code>wiki_finalize</code></td><td className="px-3 py-2 border-b">{t('help.mcpWikiPlanDesc')} · {t('help.mcpWikiFinalizeDesc')}</td></tr>
                   <tr><td className="px-3 py-2 border-b font-medium">agent</td><td className="px-3 py-2 border-b"><code>task</code></td><td className="px-3 py-2 border-b">{t('help.mcpTaskDesc')}</td></tr>
                   <tr className="bg-amber-50/30"><td colSpan={3} className="px-3 py-1.5 border-b font-semibold text-amber-700 text-xs">{t('help.mcpAdminLayerHeader')}</td></tr>
-                  <tr><td className="px-3 py-2 border-b font-medium">admin</td><td className="px-3 py-2 border-b"><code>validate_candidate</code> / <code>check_duplicate</code></td><td className="px-3 py-2 border-b">{t('help.mcpCandidateAdminDesc')}</td></tr>
-                  <tr><td className="px-3 py-2 font-medium">admin</td><td className="px-3 py-2"><code>knowledge_lifecycle</code></td><td className="px-3 py-2">{t('help.mcpLifecycleDesc')}</td></tr>
+                  <tr><td className="px-3 py-2 border-b font-medium">elevated</td><td className="px-3 py-2 border-b"><code>validate_candidate</code> / <code>check_duplicate</code></td><td className="px-3 py-2 border-b">{t('help.mcpCandidateAdminDesc')}</td></tr>
+                  <tr><td className="px-3 py-2 font-medium">elevated</td><td className="px-3 py-2"><code>knowledge_lifecycle</code></td><td className="px-3 py-2">{t('help.mcpLifecycleDesc')}</td></tr>
                 </tbody>
               </table>
             </div>

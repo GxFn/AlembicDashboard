@@ -1,29 +1,28 @@
 /**
- * usePermission — 前端权限管理 Hook
+ * usePermission — 前端 UI 写入范围 Hook
  *
  * 双路径模式：
- *   AUTH_ENABLED=false → 进入页面时调用 /api/v1/auth/probe 获取探针角色
- *   AUTH_ENABLED=true  → 从 useAuth 的 user.role 获取角色
+ *   AUTH_ENABLED=false → 进入页面时调用 /api/v1/auth/probe 获取探针范围
+ *   AUTH_ENABLED=true  → 从 useAuth 的 user.role 归一化为 UI 写入范围
  *
- * 提供角色信息和权限检查方法，供组件做 UI 级别的权限控制
+ * 提供写入范围和权限检查方法，供组件做 UI 级别的安全过滤
  * （按钮灰化、菜单隐藏等）。
  *
- * 注意：这是前端 UI 层面的权限过滤，后端 Gateway 仍会做最终裁决。
+ * 注意：这是前端 UI 层面的安全过滤，后端功能入口仍会做最终裁决。
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 
-/** Constitution 角色 ID */
 export type RoleId =
-  | 'external_agent'
-  | 'chat_agent'
-  | 'developer';
+  | 'local-write'
+  | 'agent-submit'
+  | 'read-only';
 
 export type PermissionMode = 'token' | 'probe';
 
 export interface PermissionState {
-  /** 当前角色 */
+  /** 当前 UI 写入范围，不代表后端用户职责角色 */
   role: RoleId;
   /** 当前用户标识 */
   user: string;
@@ -31,11 +30,9 @@ export interface PermissionState {
   mode: PermissionMode;
   /** 是否正在加载 */
   isLoading: boolean;
-  /** 是否有管理权限（admin） */
-  isAdmin: boolean;
-  /** 是否可写（admin 或 contributor） */
+  /** 是否可写 */
   canWrite: boolean;
-  /** 是否只读（visitor） */
+  /** 是否只读 */
   isReadOnly: boolean;
   /** 检查是否有某个具体权限 */
   can: (action: string, resource?: string) => boolean;
@@ -53,35 +50,50 @@ interface ProbeCache {
   expired?: boolean;
 }
 
+const DEFAULT_ACCESS_SCOPE: RoleId = 'local-write';
+
 /**
- * 预定义的角色权限矩阵（与后端 Constitution 保持一致）
+ * Dashboard UI 范围矩阵只用于前端显示过滤；真实写保护属于后端功能入口。
  */
-const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
-  developer: ['*'],
-  external_agent: [
+const ACCESS_SCOPE_PERMISSIONS: Record<RoleId, string[]> = {
+  'local-write': ['*'],
+  'agent-submit': [
     'read:recipes', 'read:guard_rules',
     'create:candidates', 'submit:knowledge',
     'read:audit_logs:self',
     'knowledge:bootstrap',
   ],
-  chat_agent: [
+  'read-only': [
     'read:recipes', 'read:candidates', 'create:candidates', 'read:guard_rules',
   ],
 };
 
 const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true';
 
+function normalizeAccessScope(value?: string): RoleId {
+  if (value === 'local-write' || value === 'agent-submit' || value === 'read-only') {
+    return value;
+  }
+  if (value === 'external_agent') {
+    return 'agent-submit';
+  }
+  if (value === 'chat_agent') {
+    return 'read-only';
+  }
+  return DEFAULT_ACCESS_SCOPE;
+}
+
 export function usePermission(authRole?: string): PermissionState {
   const [role, setRole] = useState<RoleId>(() => {
-    if (AUTH_ENABLED && authRole) return authRole as RoleId;
-    return 'developer'; // 默认：本地用户 = 项目 Owner
+    if (AUTH_ENABLED && authRole) return normalizeAccessScope(authRole);
+    return DEFAULT_ACCESS_SCOPE;
   });
   const [user, setUser] = useState('anonymous');
   const [mode, setMode] = useState<PermissionMode>(AUTH_ENABLED ? 'token' : 'probe');
   const [isLoading, setIsLoading] = useState(!AUTH_ENABLED); // probe 模式需要加载
   const [probeCache, setProbeCache] = useState<ProbeCache | null>(null);
 
-  /** 调用后端 probe 接口获取角色 */
+  /** 调用后端 probe 接口获取 UI 写入范围 */
   const fetchProbe = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -92,14 +104,13 @@ export function usePermission(authRole?: string): PermissionState {
       const res = await axios.get('/api/v1/auth/probe', { headers });
       if (res.data.success) {
         const d = res.data.data;
-        setRole(d.role as RoleId);
+        setRole(normalizeAccessScope(d.role));
         setUser(d.user);
         setMode(d.mode);
         setProbeCache(d.probeCache ?? null);
       }
     } catch {
-      // 探针失败 → developer（本地用户默认全权）
-      setRole('developer');
+      setRole(DEFAULT_ACCESS_SCOPE);
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +120,7 @@ export function usePermission(authRole?: string): PermissionState {
   useEffect(() => {
     if (AUTH_ENABLED) {
       if (authRole) {
-        setRole(authRole as RoleId);
+        setRole(normalizeAccessScope(authRole));
         setMode('token');
         setIsLoading(false);
       }
@@ -121,7 +132,7 @@ export function usePermission(authRole?: string): PermissionState {
 
   /** 权限检查 */
   const can = useCallback((action: string, resource?: string) => {
-    const perms = ROLE_PERMISSIONS[role] || [];
+    const perms = ACCESS_SCOPE_PERMISSIONS[role] || [];
     if (perms.includes('*')) return true;
 
     // 精确匹配 action:resource
@@ -138,16 +149,14 @@ export function usePermission(authRole?: string): PermissionState {
     return false;
   }, [role]);
 
-  const isAdmin = useMemo(() => role === 'developer', [role]);
-  const canWrite = useMemo(() => role === 'developer', [role]);
-  const isReadOnly = useMemo(() => role !== 'developer', [role]);
+  const canWrite = useMemo(() => role === 'local-write', [role]);
+  const isReadOnly = useMemo(() => role === 'read-only', [role]);
 
   return {
     role,
     user,
     mode,
     isLoading,
-    isAdmin,
     canWrite,
     isReadOnly,
     can,

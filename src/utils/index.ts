@@ -8,9 +8,9 @@ export const isSilentTarget = (name: string) => name.startsWith('_');
 /** 未保存暂存池（SPM/New Recipe 分析结果），排到底端，24h 过期 */
 export const isPendingTarget = (name: string) => name === '_pending';
 
-/** 写权限 403 时的友好提示（勿擅动核心代码） */
+/** 写入被后端拒绝时的友好提示 */
 export const WRITE_FORBIDDEN_MSG =
-  '您暂无写入权限，无法保存。如需此权限请联系管理员；请勿擅自修改核心代码或安装包，以免影响团队协作与数据安全。';
+  '当前后端入口未允许此写入操作，无法保存。如需开放该操作，请联系项目维护者；请勿绕过 Dashboard 修改核心代码或安装包，以免影响协作与数据安全。';
 
 /** 若 err 为写权限 403（RECIPE_WRITE_FORBIDDEN），返回友好提示；否则返回 null */
 export function getWritePermissionErrorMsg(err: unknown): string | null {

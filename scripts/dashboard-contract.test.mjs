@@ -913,6 +913,35 @@ test('dashboard uses canonical host source labels without legacy IDE mappings', 
   assert.equal(labels.formatSourceLabel('custom-importer', t), 'custom-importer');
 });
 
+test('dashboard public governance copy avoids retired runtime role claims', () => {
+  const publicSurface = [
+    read('src/i18n/locales/en.ts'),
+    read('src/i18n/locales/zh.ts'),
+    read('src/components/Views/HelpView.tsx'),
+  ].join('\n');
+
+  for (const retiredClaim of [
+    /3-role RBAC/i,
+    /3 角色 RBAC/,
+    /developer\s*\(full\)/i,
+    /开发者全权限/,
+    /developer full access/i,
+    /Gateway permissions \/ constitution \/ audit/i,
+    /Gateway 权限 \/ 宪法 \/ 审计/,
+    /Constitution governance/i,
+    /宪法治理/,
+    /Agent\s*\/\s*Admin layered/i,
+    /Agent\s*\/\s*Admin 分层/,
+  ]) {
+    assert.doesNotMatch(publicSurface, retiredClaim);
+  }
+
+  const permissionHook = read('src/hooks/usePermission.ts');
+  assert.match(permissionHook, /local-write/);
+  assert.match(permissionHook, /agent-submit/);
+  assert.doesNotMatch(permissionHook, /ROLE_PERMISSIONS|Constitution 角色|role === 'developer'|'developer': \['\*'\]|项目 Owner/);
+});
+
 test('runtime boundary consumes canonical file monitor event sources only', async () => {
   const apiModule = await importTranspiled('src/api.ts');
   const boundary = apiModule.normalizeRuntimeBoundary({}, cloneWithRetiredProviderCompatibilityFields({

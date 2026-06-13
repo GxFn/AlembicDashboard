@@ -54,7 +54,7 @@ export function useAuth(): AuthState {
       const data = res.data;
       if (data.success) {
         const t = data.data.token as string;
-        const u: AuthUser = data.data.user ?? { username, role: 'developer' };
+        const u: AuthUser = data.data.user ?? { username, role: 'local-write' };
         localStorage.setItem(TOKEN_KEY, t);
         localStorage.setItem(USER_KEY, JSON.stringify(u));
         setToken(t);

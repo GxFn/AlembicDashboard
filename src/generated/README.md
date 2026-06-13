@@ -24,10 +24,13 @@ followed by a re-sync here.
 2. In this repository, from the repo root:
 
    ```sh
-   cp ../Alembic/lib/generated/dashboard-api-types.ts src/generated/api-types.ts
+   cp "$ALEMBIC_REPO/lib/generated/dashboard-api-types.ts" src/generated/api-types.ts
    shasum -a 256 src/generated/api-types.ts | awk '{ print $1 "  api-types.ts" }' > src/generated/api-types.sha256
    npm run check
    ```
+
+   `ALEMBIC_REPO` must point at the checkout root that owns the canonical
+   generated artifact.
 
 3. Commit the updated artifact and pin together with any consumer fallout.
 
@@ -37,8 +40,8 @@ followed by a re-sync here.
 
 1. recomputes the SHA-256 of `src/generated/api-types.ts` and compares it to
    the committed pin (catches local hand-edits or corruption), and
-2. byte-compares the copy against the Alembic-side canonical when the sibling
-   checkout `../Alembic/lib/generated/dashboard-api-types.ts` exists (catches
+2. byte-compares the copy against the Alembic-side canonical when the provider
+   checkout contains `lib/generated/dashboard-api-types.ts` (catches
    a stale Dashboard copy after the canonical regenerates). When the sibling
    checkout is absent the cross-repo comparison is skipped with a diagnostic
    line; the pin check above still applies.

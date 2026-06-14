@@ -4082,7 +4082,7 @@ Skill 文档格式要求：
 
   /** 删除知识条目 */
   async knowledgeDelete(id: string): Promise<void> {
-    await http.delete(`/knowledge/${id}`);
+    await http.delete(`/knowledge/${id}`, { params: { confirmed: true } });
   },
 
   /** 知识条目生命周期操作 */
@@ -4093,19 +4093,19 @@ Skill 文档格式要求：
 
   /** 批量发布 */
   async knowledgeBatchPublish(ids: string[]): Promise<{ published: KnowledgeEntry[]; failed: Array<{ id: string; error: string }>; successCount: number; failureCount: number }> {
-    const res = await http.post('/knowledge/batch-publish', { ids });
+    const res = await http.post('/knowledge/batch-publish', { ids, confirmed: true });
     return res.data?.data || { published: [], failed: [], successCount: 0, failureCount: 0 };
   },
 
   /** 批量删除 */
   async knowledgeBatchDelete(ids: string[]): Promise<{ deletedCount: number; failureCount: number; failed: Array<{ id: string; error: string }> }> {
-    const res = await http.post('/knowledge/batch-delete', { ids });
+    const res = await http.post('/knowledge/batch-delete', { ids, confirmed: true });
     return res.data?.data || { deletedCount: 0, failureCount: 0, failed: [] };
   },
 
   /** 批量废弃 */
   async knowledgeBatchDeprecate(ids: string[], reason?: string): Promise<{ deprecated: KnowledgeEntry[]; failed: Array<{ id: string; error: string }>; successCount: number; failureCount: number }> {
-    const res = await http.post('/knowledge/batch-deprecate', { ids, reason });
+    const res = await http.post('/knowledge/batch-deprecate', { ids, reason, confirmed: true });
     return res.data?.data || { deprecated: [], failed: [], successCount: 0, failureCount: 0 };
   },
 

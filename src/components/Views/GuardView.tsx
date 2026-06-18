@@ -46,104 +46,12 @@ interface GuardRun {
   violations: GuardViolation[];
 }
 
-interface GuardReportBoundary {
-  type: string;
-  description: string;
-  affectedRules: string[];
-  suggestedAction: string;
-}
+type GuardTab = 'violations' | 'rules' | 'audit';
 
-interface GuardReport {
-  complianceScore: number;
-  coverageScore: number;
-  confidenceScore: number;
-  qualityGate: { status: 'PASS' | 'WARN' | 'FAIL'; score: number };
-  uncertainSummary: {
-    total: number;
-    byLayer: Record<string, number>;
-    byReason: Record<string, number>;
-  };
-  boundaries: GuardReportBoundary[];
-  summary: {
-    filesScanned: number;
-    totalViolations: number;
-    errors: number;
-    warnings: number;
-    infos: number;
-  };
-  topViolations: {
-    ruleId: string;
-    message: string;
-    severity: string;
-    fileCount: number;
-    occurrences: number;
-  }[];
-  fileHotspots: { filePath: string; violationCount: number; errorCount: number }[];
-  trend: { errorsChange: number; warningsChange: number; hasHistory: boolean };
-}
-
-type GuardTab = 'violations' | 'uncertain' | 'rules' | 'boundaries' | 'audit';
-
-const CIRCLE_RADIUS = 36;
-const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
-
-const CircularProgress: React.FC<{ value: number; label: string; suffix?: string; hint?: string }> = ({ value, label, suffix = '', hint }) => {
-  const clamped = Math.max(0, Math.min(100, value));
-  const offset = CIRCLE_CIRCUMFERENCE - (clamped / 100) * CIRCLE_CIRCUMFERENCE;
-  const color =
-    clamped >= 80 ? '#3b82f6' :
-    clamped >= 50 ? '#f59e0b' :
-    '#ef4444';
-
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <svg width="84" height="84" viewBox="0 0 84 84">
-        <circle cx="42" cy="42" r={CIRCLE_RADIUS} fill="none" className="stroke-[var(--border-default)]" strokeWidth="6" opacity={0.3} />
-        <circle
-          cx="42" cy="42" r={CIRCLE_RADIUS} fill="none"
-          stroke={color} strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={CIRCLE_CIRCUMFERENCE} strokeDashoffset={offset}
-          transform="rotate(-90 42 42)"
-          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-        />
-        <text x="42" y="38" textAnchor="middle" fontSize="20" fontWeight="700" fill={color} dominantBaseline="central">
-          {clamped}
-        </text>
-        <text x="42" y="58" textAnchor="middle" fontSize="10" className="fill-[var(--fg-muted)]" dominantBaseline="central">
-          {suffix}
-        </text>
-      </svg>
-      <span className="text-xs font-medium text-[var(--fg-secondary)]">{label}</span>
-      {hint && <span className="text-[10px] text-[var(--fg-muted)] text-center leading-tight">{hint}</span>}
-    </div>
-  );
-};
-
-const GATE_STYLES: Record<string, string> = {
-  PASS: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
-  WARN: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
-  FAIL: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700',
-};
-
-const GateStatusBadge: React.FC<{ status: string; label: string }> = ({ status, label }) => {
-  const key = status.toUpperCase();
-  const cls = GATE_STYLES[key] || GATE_STYLES.FAIL;
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className={`w-[84px] h-[84px] rounded-full flex items-center justify-center border-2 ${cls}`}>
-        <span className="text-lg font-extrabold tracking-wide">{key}</span>
-      </div>
-      <span className="text-xs font-medium text-[var(--fg-secondary)]">{label}</span>
-    </div>
-  );
-};
-
-const TAB_KEYS: GuardTab[] = ['rules', 'violations', 'uncertain', 'boundaries', 'audit'];
+const TAB_KEYS: GuardTab[] = ['rules', 'violations', 'audit'];
 const TAB_I18N_KEYS: Record<GuardTab, string> = {
   violations: 'guard.tabViolations',
-  uncertain: 'guard.tabUncertain',
   rules: 'guard.tabRules',
-  boundaries: 'guard.tabBoundaries',
   audit: 'guard.tabAudit',
 };
 
@@ -154,8 +62,6 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
   const [projectLanguages, setProjectLanguages] = useState<string[]>([]);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [guardReport, setGuardReport] = useState<GuardReport | null>(null);
-  const [reportLoading, setReportLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<GuardTab>('violations');
   const [auditLogs, setAuditLogs] = useState<{ timestamp: string; actor: string; action: string; result: string; target: string }[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
@@ -180,29 +86,6 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
 
   useEffect(() => {
   fetchGuard();
-  }, []);
-
-  useEffect(() => {
-  let cancelled = false;
-  setReportLoading(true);
-  api.getGuardReport()
-    .then((data) => {
-    const report = data as GuardReport | null;
-    if (!cancelled && report) {
-      setGuardReport(report);
-    }
-    })
-    .catch(() => {
-    if (!cancelled) {
-      setGuardReport(null);
-    }
-    })
-    .finally(() => {
-    if (!cancelled) {
-      setReportLoading(false);
-    }
-    });
-  return () => { cancelled = true; };
   }, []);
 
   const handleClearViolations = async () => {
@@ -345,33 +228,6 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
     </div>
     </div>
 
-    {/* ── 指标卡片 ── */}
-    {!reportLoading && guardReport && (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4 mb-5 shrink-0">
-      <div className="flex items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-4 px-3">
-        <CircularProgress value={guardReport.complianceScore} label={t('guard.metricCompliance')} suffix="/100" hint={t('guard.hintCompliance')} />
-      </div>
-      <div className="flex items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-4 px-3">
-        <CircularProgress value={guardReport.coverageScore} label={t('guard.metricCoverage')} suffix="/100" hint={t('guard.hintCoverage')} />
-      </div>
-      <div className="flex items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-4 px-3">
-        <CircularProgress value={guardReport.confidenceScore} label={t('guard.metricConfidence')} suffix="%" hint={t('guard.hintConfidence')} />
-      </div>
-      <div className="flex items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-4 px-3">
-        <GateStatusBadge status={guardReport.qualityGate.status} label={t('guard.metricQualityGate')} />
-      </div>
-    </div>
-    )}
-    {reportLoading && (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4 mb-5 shrink-0">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-4 px-3 h-[130px]">
-          <div className="w-[84px] h-[84px] rounded-full border-4 border-[var(--border-default)] animate-pulse" />
-        </div>
-      ))}
-    </div>
-    )}
-
     {/* ── Tab 导航 ── */}
     <div className="-mx-1 mb-4 flex shrink-0 items-center gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-hidden">
       {TAB_KEYS.map(tab => {
@@ -380,14 +236,8 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
         if (tab === 'violations' && totalViolations > 0) {
           badge = <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold">{totalViolations}</span>;
         }
-        if (tab === 'uncertain' && guardReport?.uncertainSummary.total) {
-          badge = <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-bold">{guardReport.uncertainSummary.total}</span>;
-        }
         if (tab === 'rules') {
           badge = <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">{ruleEntries.length}</span>;
-        }
-        if (tab === 'boundaries' && guardReport?.boundaries.length) {
-          badge = <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold">{guardReport.boundaries.length}</span>;
         }
         return (
           <button
@@ -648,86 +498,6 @@ const GuardView: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
       })}
       </div>
     )}
-    </section>
-    )}
-
-    {/* ── Uncertain Tab ── */}
-    {activeTab === 'uncertain' && (
-    <section>
-      {!guardReport || guardReport.uncertainSummary.total === 0 ? (
-        <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-xl py-12 text-center text-[var(--fg-secondary)]">
-          暂无不确定检查结果
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
-              <h4 className="text-sm font-semibold text-[var(--fg-primary)] mb-3">按层级分布</h4>
-              <div className="space-y-2">
-                {Object.entries(guardReport.uncertainSummary.byLayer).map(([layer, count]) => (
-                  <div key={layer} className="flex items-center justify-between">
-                    <span className="text-sm text-[var(--fg-secondary)]">{layer}</span>
-                    <span className="text-sm font-mono font-bold text-purple-600">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
-              <h4 className="text-sm font-semibold text-[var(--fg-primary)] mb-3">按原因分布</h4>
-              <div className="space-y-2">
-                {Object.entries(guardReport.uncertainSummary.byReason).map(([reason, count]) => (
-                  <div key={reason} className="flex items-center justify-between">
-                    <span className="text-sm text-[var(--fg-secondary)]">{reason}</span>
-                    <span className="text-sm font-mono font-bold text-purple-600">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-100 text-xs text-purple-700">
-            <AlertTriangle size={14} className="shrink-0" />
-            <span>共 {guardReport.uncertainSummary.total} 项检查因静态分析局限或规则覆盖不足而无法确定结果，建议补充规则或人工复查。</span>
-          </div>
-        </div>
-      )}
-    </section>
-    )}
-
-    {/* ── Boundaries Tab ── */}
-    {activeTab === 'boundaries' && (
-    <section>
-      {!guardReport || guardReport.boundaries.length === 0 ? (
-        <div className="bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-xl py-12 text-center text-[var(--fg-secondary)]">
-          暂无能力边界信息
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {guardReport.boundaries.map((b, i) => (
-            <div key={i} className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium">
-                  {b.type}
-                </span>
-                <span className="text-sm font-medium text-[var(--fg-primary)]">{b.description}</span>
-              </div>
-              {b.affectedRules.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs text-[var(--fg-muted)]">受影响规则：</span>
-                  {b.affectedRules.map(rId => (
-                    <span key={rId} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
-                      {rId}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-start gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-                <Wrench size={12} className="shrink-0 mt-0.5" />
-                <span>{b.suggestedAction}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </section>
     )}
 

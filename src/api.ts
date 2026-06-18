@@ -85,7 +85,6 @@ export type DashboardProviderSurface =
   | 'jobs-events'
   | 'knowledge-search'
   | 'guard'
-  | 'decision-register'
   | 'diagnostics'
   | 'ai-host-managed-unavailable'
   | 'artifacts'
@@ -160,15 +159,6 @@ export const DASHBOARD_PROVIDER_ADAPTER_POLICIES: DashboardAdapterPolicy[] = [
     providerBranch: 'D20 guard report/rules/violations payloads and typed problem responses',
     cleanupTrigger: 'Keep as long as GuardView needs stable rule/run defaults for empty or invalid-input provider states.',
     fixtureRefs: ['guard.success', 'guard.invalid-input'],
-  },
-  {
-    id: 'decisionRegisterData',
-    surface: 'decision-register',
-    disposition: 'necessary-adapter',
-    currentConsumer: 'Decision register and scope-mismatch result displays',
-    providerBranch: 'D20 decision-register success and conflict problem payloads',
-    cleanupTrigger: 'Move into a dedicated decision-register projector when Dashboard adds a richer decision register view model.',
-    fixtureRefs: ['decision-register.success', 'decision-register.scope-mismatch'],
   },
   {
     id: 'jobArtifactRefs',

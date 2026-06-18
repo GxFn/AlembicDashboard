@@ -785,7 +785,6 @@ test('guard view keeps narrow screens from overflowing on long audit paths', () 
 
   assert.ok(app.includes('<main className="flex-1 min-w-0 flex flex-col overflow-hidden relative">'));
   assert.ok(guard.includes('flex-1 flex min-w-0 flex-col overflow-hidden'));
-  assert.ok(guard.includes('grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'));
   assert.ok(guard.includes('overflow-x-auto px-1 pb-1 scrollbar-hidden'));
   assert.ok(guard.includes('min-w-0 flex-1 break-all font-mono text-xs text-[var(--fg-primary)] sm:text-sm sm:truncate'));
   assert.ok(guard.includes('max-w-full break-all font-mono text-xs text-[var(--fg-secondary)]'));
@@ -1149,7 +1148,6 @@ test('dashboard classifies D21 adapter fallbacks by provider surface', async () 
     'jobs-events',
     'knowledge-search',
     'guard',
-    'decision-register',
     'diagnostics',
     'ai-host-managed-unavailable',
     'artifacts',
@@ -1216,15 +1214,13 @@ test('dashboard replays D20 provider fixtures through typed adapter projections'
 
   const search = apiModule.normalizeSearchResponse(providerFixture(fixtures, 'search.success').payload);
   assert.equal(search.items[0].title, 'Boundary rule');
-  assert.equal(search.mode, 'bm25');
+  assert.equal(search.mode, 'keyword');
   const searchDegraded = apiModule.normalizeSearchResponse(providerFixture(fixtures, 'search.degraded').payload);
   assert.equal(searchDegraded.total, 0);
   assert.equal(searchDegraded.mode, 'legacy-fallback');
 
   const guard = apiModule.providerDataRecord(providerFixture(fixtures, 'guard.success').payload);
   assert.equal(guard.summary.warnings, 1);
-  const decision = apiModule.providerDataRecord(providerFixture(fixtures, 'decision-register.success').payload);
-  assert.equal(decision.decision.decisionId, 'decision-alpha');
   const diagnostic = apiModule.providerDataRecord(providerFixture(fixtures, 'diagnostic.success').payload);
   assert.equal(diagnostic.operation, 'diagnostic.read');
 
@@ -1327,7 +1323,7 @@ test('dashboard replays D24 consumer scenarios with public projections and failu
       expectedFields: [
         ['items.0.title', 'Boundary rule'],
         ['items.0.content.markdown', undefined],
-        ['mode', 'bm25'],
+        ['mode', 'keyword'],
       ],
     },
     {

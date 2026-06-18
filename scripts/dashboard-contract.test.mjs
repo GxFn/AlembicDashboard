@@ -1404,7 +1404,7 @@ test('dashboard routes D25 problem taxonomy without raw payload guessing', async
   const errorUtils = await importTranspiled('src/utils/error.ts');
   const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
   // Key order mirrors DASHBOARD_FAILURE_KINDS from the generated contract artifact
-  // (minus the diagnostics-only kinds), which now defines the D25 required list.
+  // (minus the diagnostics-only and retired kinds), which now defines the D25 required list.
   const fixtureByKind = {
     'invalid-input': 'guard.invalid-input',
     unavailable: 'workflow.unavailable',
@@ -1416,7 +1416,6 @@ test('dashboard routes D25 problem taxonomy without raw payload guessing', async
     cancelled: 'jobs.cancelled-problem',
     partial: 'workflow.partial',
     degraded: 'workflow.degraded',
-    'needs-confirmation': 'decision-register.needs-confirmation',
     'provider-error': 'workflow.provider-error',
     'host-failure': 'workflow.host-failure',
     'internal-error': 'workflow.internal-error',

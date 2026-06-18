@@ -258,8 +258,18 @@ const DASHBOARD_DIAGNOSTIC_ONLY_FAILURE_KINDS: ReadonlySet<DashboardFailureKind>
   'sensitive-leak',
 ]);
 
+// `needs-confirmation` (412) was retired with the decision-register removal
+// (C9=B, 2026-06-18): no surviving provider produces it, so it is excluded from
+// the required projection matrix even though it stays a valid kind in the
+// generated taxonomy. Mirrors Core's relaxed CORE_D25_REQUIRED_FAILURE_KINDS.
+const DASHBOARD_RETIRED_FAILURE_KINDS: ReadonlySet<DashboardFailureKind> = new Set<DashboardFailureKind>([
+  'needs-confirmation',
+]);
+
 export const DASHBOARD_D25_REQUIRED_FAILURE_KINDS: readonly DashboardFailureKind[] =
-  DASHBOARD_FAILURE_KINDS.filter((kind) => !DASHBOARD_DIAGNOSTIC_ONLY_FAILURE_KINDS.has(kind));
+  DASHBOARD_FAILURE_KINDS.filter(
+    (kind) => !DASHBOARD_DIAGNOSTIC_ONLY_FAILURE_KINDS.has(kind) && !DASHBOARD_RETIRED_FAILURE_KINDS.has(kind),
+  );
 
 const DASHBOARD_FAILURE_KIND_SET = new Set<string>(DASHBOARD_FAILURE_KINDS);
 

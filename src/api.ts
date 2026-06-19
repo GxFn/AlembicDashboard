@@ -3819,7 +3819,8 @@ export const api = {
    * 统一搜索 — 合并 keyword/weighted/semantic/auto/context-aware 全场景
    *
    * - 无 context → GET /search (keyword/weighted/semantic/auto)
-   * - 有 context → POST /search/context-aware (FieldWeighted + Ranking + ContextBoost)
+   * - 有 context → GET /search?mode=weighted&language=…（FieldWeighted + Ranking；
+   *   context-aware 专用端点已退役，统一 /search 承接；sessionHistory 上下文不再支持）
    *
    * 返回的 items 中 content 已从 JSON 字符串解析为对象。
    */
@@ -3835,23 +3836,13 @@ export const api = {
   ): Promise<{ items: SearchResultItem[]; total: number; mode?: string; ranked?: boolean }> {
     const { mode = 'auto', type, limit = 20, signal, context } = options;
 
-    // ── 有 context: POST /search/context-aware ──
+    // ── 有 context: 走统一 /search（weighted 模式 + language；context-aware 端点已退役）──
     if (context) {
-      const res = await http.post('/search/context-aware', {
-        keyword: query, limit,
-        language: context.language,
-        sessionHistory: context.sessionHistory || [],
-      }, { signal }).catch(() => ({ data: { data: {} } }));
-      const data = res.data?.data || {};
-      const normalized = normalizeSearchResponse({
-        success: true,
-        data: {
-          items: data.results || [],
-          total: data.total,
-          mode: 'weighted',
-          ranked: true,
-        },
-      });
+      const ctxParams = new URLSearchParams({ q: query, mode: 'weighted', limit: String(limit) });
+      if (type) ctxParams.set('type', type);
+      if (context.language) ctxParams.set('language', context.language);
+      const res = await http.get(`/search?${ctxParams}`, { signal }).catch(() => null);
+      const normalized = res ? normalizeSearchResponse(res.data) : normalizeSearchResponse({});
       return { ...normalized, mode: 'weighted', ranked: true };
     }
 

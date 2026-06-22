@@ -674,18 +674,6 @@ export interface KnowledgePaginatedResponse {
   pagination: { page: number; pageSize: number; total: number };
 }
 
-/** 知识条目统计（后端返回扁平 key） */
-export interface KnowledgeStatsResponse {
-  total: number;
-  pending: number;
-  active: number;
-  deprecated: number;
-  rules: number;
-  patterns: number;
-  facts: number;
-  [key: string]: number;  // 允许按 key 索引
-}
-
 export interface GuardAuditResult {
   summary: GuardAuditSummary;
   files?: Array<{

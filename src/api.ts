@@ -24,7 +24,6 @@ import type {
   KnowledgeQuality,
   KnowledgeStats,
   KnowledgePaginatedResponse,
-  KnowledgeStatsResponse,
   KnowledgeLifecycle,
   KnowledgeKind,
   ProposalRecord,
@@ -4047,12 +4046,6 @@ Skill 文档格式要求：
     return res.data?.data || { data: [], pagination: { page: 1, pageSize: 20, total: 0 } };
   },
 
-  /** 获取知识条目统计 */
-  async knowledgeStats(): Promise<KnowledgeStatsResponse> {
-    const res = await http.get('/knowledge/stats');
-    return res.data?.data || { total: 0, pending: 0, active: 0, deprecated: 0, rules: 0, patterns: 0, facts: 0 };
-  },
-
   /** 获取知识条目详情 */
   async knowledgeGet(id: string): Promise<KnowledgeEntry> {
     const res = await http.get(`/knowledge/${id}`);
@@ -4124,91 +4117,6 @@ Skill 文档格式要求：
     await http.post('/ai/lang', { lang });
   },
 
-  // ── Panorama ──────────────────
-
-  /** 获取项目全景概览 */
-  async getPanoramaOverview(refresh = false): Promise<{
-    projectRoot: string;
-    moduleCount: number;
-    layerCount: number;
-    totalFiles: number;
-    totalRecipes: number;
-    overallCoverage: number;
-    layers: {
-      level: number;
-      name: string;
-      modules: { name: string; role: string; fileCount: number; recipeCount: number }[];
-    }[];
-    cycleCount: number;
-    gapCount: number;
-    healthRadar: {
-      dimensions: {
-        id: string;
-        name: string;
-        description: string;
-        recipeCount: number;
-        score: number;
-        status: string;
-        level: string;
-        topRecipes: string[];
-      }[];
-      overallScore: number;
-      totalRecipes: number;
-      coveredDimensions: number;
-      totalDimensions: number;
-      dimensionCoverage: number;
-    };
-    computedAt: number;
-    stale: boolean;
-  }> {
-    const res = await http.get('/panorama', refresh ? { params: { refresh: 'true' } } : undefined);
-    return res.data?.data;
-  },
-
-  /** 获取全景健康度 */
-  async getPanoramaHealth(refresh = false): Promise<{
-    healthRadar: {
-      dimensions: {
-        id: string;
-        name: string;
-        description: string;
-        recipeCount: number;
-        score: number;
-        status: string;
-        level: string;
-        topRecipes: string[];
-      }[];
-      overallScore: number;
-      totalRecipes: number;
-      coveredDimensions: number;
-      totalDimensions: number;
-      dimensionCoverage: number;
-    };
-    avgCoupling: number;
-    cycleCount: number;
-    gapCount: number;
-    highPriorityGaps: number;
-    moduleCount: number;
-    healthScore: number;
-  }> {
-    const res = await http.get('/panorama/health', refresh ? { params: { refresh: 'true' } } : undefined);
-    return res.data?.data;
-  },
-
-  /** 获取知识空白区 */
-  async getPanoramaGaps(refresh = false): Promise<{
-    dimension: string;
-    dimensionName: string;
-    recipeCount: number;
-    status: string;
-    priority: string;
-    suggestedTopics: string[];
-    affectedRoles: string[];
-  }[]> {
-    const res = await http.get('/panorama/gaps', refresh ? { params: { refresh: 'true' } } : undefined);
-    return res.data?.data ?? [];
-  },
-
   // ── Audit Log ─────────────────
 
   /** 查询审计日志 */
@@ -4268,18 +4176,6 @@ Skill 文档格式要求：
   }): Promise<unknown> {
     const res = await http.get('/guard/report', { params: options });
     return normalizeGuardReportResponse(res.data);
-  },
-
-  /** 获取模块知识覆盖率热力图 */
-  async getPanoramaCoverage(): Promise<{
-    modules: { name: string; layer: string; fileCount: number; recipeCount: number; coverage: number }[];
-    gapsByDimension: Record<string, number>;
-    overallCoverage: number;
-    totalFiles: number;
-    totalRecipes: number;
-  }> {
-    const res = await http.get('/panorama/coverage');
-    return res.data?.data;
   },
 
   /** 获取六态生命周期统计 + 各过渡态条目 */

@@ -79,7 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { tab: 'candidates', icon: Inbox, label: t('sidebar.candidates', { count: candidateCount }) },
     { tab: 'knowledge', icon: Library, label: t('sidebar.batchManage') },
     /* ── 项目探索 ── */
-    { tab: 'panorama', icon: Layers, label: t('sidebar.panorama') },
+    { tab: 'project-pyramid', icon: Layers, label: t('sidebar.projectPyramid') },
     { tab: 'spm', icon: Boxes, label: t('sidebar.moduleExplorer') },
     /* ── 质量治理 ── */
     { tab: 'guard', icon: Shield, label: t('sidebar.guard') },

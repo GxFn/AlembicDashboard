@@ -6,7 +6,7 @@
  * Alembic provider-contracts route table with a deduplicated
  * response-schema registry.
  *
- * Authority chain: @alembic/core src/types/knowledge-wire.ts +
+ * Authority chain: @alembic/core src/types/KnowledgeWire.ts +
  * src/shared/FailureTaxonomy.ts, Alembic lib/http/provider-contracts.ts +
  * lib/http/problem-taxonomy.ts.
  * Regenerate (in Alembic): npm run build && npm run generate:dashboard-types
@@ -15,7 +15,7 @@
  */
 
 // ════════════════════════════════════════════════════════════════════
-// Knowledge wire contract (verbatim from @alembic/core dist/types/knowledge-wire.d.ts)
+// Knowledge wire contract (verbatim from @alembic/core dist/types/KnowledgeWire.d.ts)
 // ════════════════════════════════════════════════════════════════════
 
 /**
@@ -2076,7 +2076,7 @@ export const DASHBOARD_API_ROUTES: readonly DashboardApiRouteContract[] = [
       "/api/v1/modules",
       "/api/v1/candidates"
     ],
-    "contractId": "I22.getPanorama",
+    "contractId": "I22.getGovernance",
     "errorKinds": [
       "invalid-input",
       "unavailable",
@@ -2108,10 +2108,10 @@ export const DASHBOARD_API_ROUTES: readonly DashboardApiRouteContract[] = [
     ],
     "functionClass": "rest-command",
     "method": "get",
-    "operationId": "getPanorama",
-    "path": "/panorama",
+    "operationId": "getGovernance",
+    "path": "/governance",
     "registryRowId": "I22",
-    "summary": "Panorama route family",
+    "summary": "Governance route family",
     "supportedScenarios": [
       "success",
       "unavailable-runtime",

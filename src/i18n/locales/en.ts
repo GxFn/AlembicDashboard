@@ -75,7 +75,7 @@ export const en: DeepString<typeof zh> = {
     depGraph: 'Dependency Graph',
     knowledgeGraph: 'Knowledge Graph',
     guard: 'Guard',
-    panorama: 'Panorama',
+    projectPyramid: 'Project Pyramid',
     skills: 'Skills',
     jobs: 'Jobs',
     help: 'Help',
@@ -580,9 +580,7 @@ export const en: DeepString<typeof zh> = {
     next: 'Next',
     narrow: 'Narrow',
     widen: 'Widen',
-    guardHits: 'Guard',
     adoptions: 'Adoptions',
-    searchHits: 'Searches',
     statViews: 'Views',
     statApplications: 'Applications',
     published: 'Published',
@@ -742,27 +740,6 @@ export const en: DeepString<typeof zh> = {
     },
   },
 
-  /* ═══════════════════════════════ panorama ═════════════════════════════ */
-  panorama: {
-    title: 'Project Panorama',
-    overview: 'Overview',
-    health: 'Health',
-    gaps: 'Knowledge Gaps',
-    modules: 'Modules',
-    layers: 'Layers',
-    files: 'Files',
-    recipes: 'Recipes',
-    coverage: 'Coverage',
-    cycles: 'Cycles',
-    healthScore: 'Health Score',
-    avgCoupling: 'Avg Coupling',
-    highPriorityGaps: 'High Priority',
-    noGaps: 'No knowledge gaps found',
-    noData: 'No panorama data available',
-    loading: 'Loading panorama...',
-    stale: 'Data may be stale',
-  },
-
   /* ═══════════════════════════════ skills ═══════════════════════════════ */
   skills: {
     title: 'Skills Management',
@@ -832,7 +809,7 @@ export const en: DeepString<typeof zh> = {
 
   /* ═══════════════════════════════ depGraph ════════════════════════════ */
   depGraph: {
-    title: 'Dependency Graph',
+    title: 'Project Pyramid',
     searchPlaceholder: 'Search modules...',
     noResults: 'No matching modules',
     totalModules: '{count} modules',
@@ -864,8 +841,8 @@ export const en: DeepString<typeof zh> = {
     filterExternal: 'External',
     packages: 'Packages',
     packageList: 'Package List',
-    depRelations: 'Dependencies (Mini)',
-    depRelationsDesc: 'The main graph doesn\'t show edges. Click nodes to see deps in the popup. All From → To listed here.',
+    depRelations: 'Dependency Edges',
+    depRelationsDesc: 'ProjectContext module dependency edges.',
     labelExternal: 'External',
     labelInternal: 'Internal',
     labelIndirect: 'Indirect',

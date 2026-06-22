@@ -10,7 +10,6 @@ import { useDrawerWide } from '../../hooks/useDrawerWide';
 import { useI18n } from '../../i18n';
 import type {
   KnowledgeEntry, KnowledgeLifecycle, KnowledgeKind,
-  KnowledgeStatsResponse
 } from '../../types';
 import api from '../../api';
 import { notify } from '../../utils/notification';
@@ -158,7 +157,6 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
 
   // ── 状态 ──
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
-  const [stats, setStats] = useState<KnowledgeStatsResponse | null>(null);
   const [lifecycleCounts, setLifecycleCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -210,13 +208,6 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
     }
   }, [page, pageSize, filterLifecycle, filterKind, filterCategory, keyword]);
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const s = await api.knowledgeStats();
-      if (isMountedRef.current) setStats(s);
-    } catch { /* silent */ }
-  }, []);
-
   const fetchLifecycle = useCallback(async () => {
     try {
       const data = await api.getKnowledgeLifecycle();
@@ -227,7 +218,6 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
   }, []);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
-  useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchLifecycle(); }, [fetchLifecycle]);
 
   // 搜索防抖
@@ -244,10 +234,9 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
 
   const refresh = useCallback(() => {
     fetchEntries();
-    fetchStats();
     fetchLifecycle();
     onRefresh?.();
-  }, [fetchEntries, fetchStats, fetchLifecycle, onRefresh]);
+  }, [fetchEntries, fetchLifecycle, onRefresh]);
 
   // ID → 标题 查找表 (将关联关系中的 UUID 解析为可读标题)
   const titleLookup = useMemo(() => {
@@ -274,7 +263,7 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
       // 更新本地列表
       setEntries(prev => prev.map(e => e.id === entry.id ? updated : e));
       if (selected?.id === entry.id) setSelected(updated);
-      fetchStats();
+      fetchLifecycle();
     } catch (err: unknown) {
       notify(getErrorMessage(err, t('common.operationFailed')), { title: t('common.operationFailed'), type: 'error' });
     } finally {
@@ -289,7 +278,7 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
       notify(t('knowledge.deleteSuccess', { title: entry.title }), { title: t('common.delete') });
       setEntries(prev => prev.filter(e => e.id !== entry.id));
       if (selected?.id === entry.id) setSelected(null);
-      fetchStats();
+      fetchLifecycle();
     } catch (err: unknown) {
       notify(getErrorMessage(err, t('knowledge.deleteFailed')), { title: t('knowledge.deleteFailed'), type: 'error' });
     }
@@ -414,10 +403,10 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
       {(() => {
         const counts = lifecycleCounts;
         const hasData = Object.values(counts).some(v => v > 0);
-        if (!hasData && !stats) { return null; }
+        if (!hasData) { return null; }
 
         const mergedCounts = (key: string) =>
-          counts[key] ?? (stats as Record<string, number> | null)?.[key] ?? 0;
+          counts[key] ?? 0;
 
         const StateChip: React.FC<{ stateKey: string; onClick: () => void }> = ({ stateKey, onClick }) => {
           const cfg = LIFECYCLE_CONFIG[stateKey];
@@ -801,34 +790,34 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
               )}
 
               {/* 4. Stats */}
-              {(selected.stats && Object.values(selected.stats).some(v => typeof v === 'number' && v > 0)) || (selected.quality && selected.quality.overall > 0) ? (
-                <div className="px-6 py-3 border-b border-[var(--border-default)]">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-amber-50/60 rounded-xl p-3 text-center border border-amber-100">
-                      <div className="text-lg font-bold text-amber-700">{selected.stats?.authority || Math.round((selected.quality?.overall || 0) * 5) || '—'}</div>
-                      <div className="text-[10px] text-amber-500 font-medium">{t('knowledge.authorityScore')}</div>
+              {(() => {
+                const authorityScore = selected.stats?.authority || Math.round((selected.quality?.overall || 0) * 5);
+                const adoptions = selected.stats?.adoptions ?? 0;
+                const views = selected.stats?.views ?? 0;
+                const applications = selected.stats?.applications ?? 0;
+                const showStats = Boolean(authorityScore || adoptions > 0 || views > 0 || applications > 0);
+                if (!showStats) { return null; }
+                return (
+                  <div className="px-6 py-3 border-b border-[var(--border-default)]">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-amber-50/60 rounded-xl p-3 text-center border border-amber-100">
+                        <div className="text-lg font-bold text-amber-700">{authorityScore || '—'}</div>
+                        <div className="text-[10px] text-amber-500 font-medium">{t('knowledge.authorityScore')}</div>
+                      </div>
+                      <div className="bg-[var(--bg-subtle)] rounded-xl p-3 text-center border border-[var(--border-default)]">
+                        <div className="text-lg font-bold text-[var(--fg-primary)]">{adoptions}</div>
+                        <div className="text-[10px] text-[var(--fg-muted)] font-medium">{t('knowledge.adoptions')}</div>
+                      </div>
                     </div>
-                    <div className="bg-[var(--bg-subtle)] rounded-xl p-3 text-center border border-[var(--border-default)]">
-                      <div className="text-lg font-bold text-[var(--fg-primary)]">{selected.stats?.guardHits ?? 0}</div>
-                      <div className="text-[10px] text-[var(--fg-muted)] font-medium">{t('knowledge.guardHits')}</div>
-                    </div>
-                    <div className="bg-[var(--bg-subtle)] rounded-xl p-3 text-center border border-[var(--border-default)]">
-                      <div className="text-lg font-bold text-[var(--fg-primary)]">{selected.stats?.adoptions ?? 0}</div>
-                      <div className="text-[10px] text-[var(--fg-muted)] font-medium">{t('knowledge.adoptions')}</div>
-                    </div>
-                    <div className="bg-blue-50/60 rounded-xl p-3 text-center border border-blue-100">
-                      <div className="text-lg font-bold text-blue-700">{selected.stats?.searchHits ?? 0}</div>
-                      <div className="text-[10px] text-blue-500 font-medium">{t('knowledge.searchHits')}</div>
-                    </div>
+                    {(views > 0 || applications > 0) && (
+                      <div className="flex items-center gap-4 mt-2 text-[10px] text-[var(--fg-muted)]">
+                        <span>{t('knowledge.statViews')}: {views}</span>
+                        <span>{t('knowledge.statApplications')}: {applications}</span>
+                      </div>
+                    )}
                   </div>
-                  {selected.stats && (selected.stats.views > 0 || selected.stats.applications > 0) && (
-                    <div className="flex items-center gap-4 mt-2 text-[10px] text-[var(--fg-muted)]">
-                      <span>{t('knowledge.statViews')}: {selected.stats.views}</span>
-                      <span>{t('knowledge.statApplications')}: {selected.stats.applications}</span>
-                    </div>
-                  )}
-                </div>
-              ) : null}
+                );
+              })()}
 
               {/* 5. Reasoning — 推理依据 */}
               <DrawerContent.Reasoning

@@ -72,7 +72,7 @@ export const zh = {
     depGraph: '依赖关系',
     knowledgeGraph: '知识图谱',
     guard: '代码审计',
-    panorama: '全景分析',
+    projectPyramid: '项目金字塔',
     skills: 'Skills',
     jobs: '后台任务',
     help: '使用说明',
@@ -577,9 +577,7 @@ export const zh = {
     next: '下一条',
     narrow: '收窄',
     widen: '展宽',
-    guardHits: 'Guard',
     adoptions: '采纳',
-    searchHits: '搜索',
     statViews: '浏览',
     statApplications: '应用',
     published: '发布',
@@ -739,27 +737,6 @@ export const zh = {
     },
   },
 
-  /* ═══════════════════════════════ panorama ═════════════════════════════ */
-  panorama: {
-    title: '项目全景',
-    overview: '概览',
-    health: '健康度',
-    gaps: '知识空白',
-    modules: '模块',
-    layers: '层级',
-    files: '文件',
-    recipes: '知识条目',
-    coverage: '覆盖率',
-    cycles: '循环依赖',
-    healthScore: '健康评分',
-    avgCoupling: '平均耦合度',
-    highPriorityGaps: '高优先级',
-    noGaps: '未发现知识空白',
-    noData: '暂无全景数据',
-    loading: '加载全景数据...',
-    stale: '数据可能已过期',
-  },
-
   /* ═══════════════════════════════ skills ═══════════════════════════════ */
   skills: {
     title: 'Skills 管理',
@@ -829,7 +806,7 @@ export const zh = {
 
   /* ═══════════════════════════════ depGraph ════════════════════════════ */
   depGraph: {
-    title: '依赖关系图',
+    title: '项目金字塔',
     searchPlaceholder: '搜索模块...',
     noResults: '没有匹配的模块',
     totalModules: '共 {count} 个模块',
@@ -861,8 +838,8 @@ export const zh = {
     filterExternal: '外部依赖',
     packages: '包',
     packageList: '包列表',
-    depRelations: '依赖关系（小图）',
-    depRelationsDesc: '主图不显示连线，点击节点可在浮窗查看该包依赖；此处列出全部 From → To。',
+    depRelations: '依赖边',
+    depRelationsDesc: 'ProjectContext 模块依赖边。',
     labelExternal: '外部',
     labelInternal: '内部',
     labelIndirect: '间接',

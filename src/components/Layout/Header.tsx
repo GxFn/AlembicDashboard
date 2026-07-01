@@ -10,6 +10,7 @@ import {
   buildRuntimeDiagnosticExtraRows,
   buildRuntimeDiagnosticsFieldRows,
   runtimeDiagnosticsRowValue,
+  summarizeRuntimeWritePolicy,
 } from '../../RuntimeDiagnosticsPanelModel';
 import type {
   DashboardProjectActionResult,
@@ -264,6 +265,8 @@ function RuntimeSourceOfTruthPanel({
       )
     : [];
   const detailRows = sourceOfTruth ? buildRuntimeDiagnosticsFieldRows(sourceOfTruth) : [];
+  // 收敛:把 5 个写入 flag + 只读三连压成一句摘要(见 summarizeRuntimeWritePolicy),默认视图只显示这句。
+  const writePolicySummary = sourceOfTruth ? summarizeRuntimeWritePolicy(sourceOfTruth) : null;
   const visibleDiagnostics = diagnostics.slice(0, 4);
   const hiddenDiagnosticCount = Math.max(0, diagnostics.length - visibleDiagnostics.length);
 
@@ -324,18 +327,31 @@ function RuntimeSourceOfTruthPanel({
           </span>
         </div>
 
-        <div className="mt-2 grid gap-1.5 text-[11px] text-[var(--fg-subtle)] sm:grid-cols-2">
-          {detailRows.map((row) => {
-            const value = runtimeDiagnosticsRowValue(row, t);
-            return (
-              <p className="truncate" title={value} key={row.key}>
-                {t(row.labelKey)}: <span className="font-medium text-[var(--fg-default)]">{value}</span>
-              </p>
-            );
-          })}
-        </div>
+        {/* 收敛:用一句读写摘要代替原来 17 行原始字段墙(只读模式下清一色「否」，占位多不表意)。 */}
+        {writePolicySummary && (
+          <p className="mt-2 text-[11px] text-[var(--fg-subtle)]">
+            {writePolicySummary.readOnly
+              ? t('header.projectDiagnosticsReadOnlySummary')
+              : `${t('header.projectDiagnosticsWritableSummary')}: ${writePolicySummary.allowedWriteLabelKeys
+                  .map((key) => t(key))
+                  .join(' / ')}`}
+          </p>
+        )}
 
-        {activeCleanup?.cleaned ? (
+        {/* 阻塞时突出失败原因 + 阻塞条件(原来这些埋在字段网格里，用户看不出要处理什么)。 */}
+        {failure && (
+          <div className="mt-2 rounded-[var(--radius-md)] border border-red-300/40 bg-red-500/10 px-2 py-1.5 text-xs">
+            <p className="font-medium text-red-700 dark:text-red-300">
+              {failure.reasonCode ?? t('header.projectDiagnosticsBlocked')}
+            </p>
+            {failure.blockingCondition && (
+              <p className="mt-0.5 text-[var(--fg-subtle)]">{failure.blockingCondition}</p>
+            )}
+          </div>
+        )}
+
+        {/* cleanup:仅在真的清理过期 active 状态时显示；稳定态不再常驻「未发现」占位行。 */}
+        {activeCleanup?.cleaned && (
           <div className="mt-2 rounded-[var(--radius-md)] border border-amber-300/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-300">
             <p className="font-medium">{t('header.projectDiagnosticsCleanupCleaned')}</p>
             <p className="mt-0.5 text-[var(--fg-subtle)]">
@@ -347,15 +363,33 @@ function RuntimeSourceOfTruthPanel({
               </p>
             )}
           </div>
-        ) : (
-          <p className="mt-2 text-[11px] text-[var(--fg-muted)]">{t('header.projectDiagnosticsCleanupStable')}</p>
         )}
 
-        <div className="mt-2 space-y-1.5">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
-            {t('header.projectDiagnosticsDiagnostics')}
-          </p>
-          {visibleDiagnostics.length > 0 ? (
+        {/* 原始 17 行字段(route/service/owner/写入矩阵/时间戳)收进折叠，排障时按需展开，默认不占版面。 */}
+        {detailRows.length > 0 && (
+          <details className="mt-2">
+            <summary className="cursor-pointer list-none text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)] hover:text-[var(--fg-subtle)]">
+              {t('header.projectDiagnosticsTechnicalDetails')}
+            </summary>
+            <div className="mt-1.5 grid gap-1.5 text-[11px] text-[var(--fg-subtle)] sm:grid-cols-2">
+              {detailRows.map((row) => {
+                const value = runtimeDiagnosticsRowValue(row, t);
+                return (
+                  <p className="truncate" title={value} key={row.key}>
+                    {t(row.labelKey)}: <span className="font-medium text-[var(--fg-default)]">{value}</span>
+                  </p>
+                );
+              })}
+            </div>
+          </details>
+        )}
+
+        {/* 诊断列表:仅在真有诊断时渲染；无诊断不再显示「没有 runtime-control 诊断」的空占位框。 */}
+        {visibleDiagnostics.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
+              {t('header.projectDiagnosticsDiagnostics')}
+            </p>
             <ul className="space-y-1">
               {visibleDiagnostics.map((diagnostic, index) => (
                 <li
@@ -392,17 +426,13 @@ function RuntimeSourceOfTruthPanel({
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="rounded-[var(--radius-md)] border border-[var(--border-muted)] bg-[var(--bg-subtle)]/60 px-2 py-1.5 text-xs text-[var(--fg-subtle)]">
-              {t('header.projectDiagnosticsDiagnosticsEmpty')}
-            </p>
-          )}
-          {hiddenDiagnosticCount > 0 && (
-            <p className="text-[11px] text-[var(--fg-muted)]">
-              {t('header.projectDiagnosticsMoreDiagnostics', { count: hiddenDiagnosticCount })}
-            </p>
-          )}
-        </div>
+            {hiddenDiagnosticCount > 0 && (
+              <p className="text-[11px] text-[var(--fg-muted)]">
+                {t('header.projectDiagnosticsMoreDiagnostics', { count: hiddenDiagnosticCount })}
+              </p>
+            )}
+          </div>
+        )}
 
         {nextActions.length > 0 && (
           <div className="mt-2 space-y-1.5">

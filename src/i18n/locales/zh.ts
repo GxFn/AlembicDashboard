@@ -184,6 +184,10 @@ export const zh = {
     projectDiagnosticsUnavailableHint: '当前后端响应未提供 sourceOfTruth；Dashboard 不展示伪造诊断。',
     projectDiagnosticsReadOnly: '只读',
     projectDiagnosticsWritableBlocked: '禁止隐式写入',
+    projectDiagnosticsReadOnlySummary:
+      '只读诊断路线：只读取状态，不写入 active / selected / daemon / job-store / ProjectScope 任何运行时状态。',
+    projectDiagnosticsWritableSummary: '允许写入',
+    projectDiagnosticsTechnicalDetails: '技术细节',
     projectDiagnosticsReason: '原因',
     projectDiagnosticsStatus: '状态',
     projectDiagnosticsRoute: '路线',

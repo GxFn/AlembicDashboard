@@ -55,6 +55,37 @@ export function formatRuntimeDiagnosticExtraValue(value: unknown): string {
   }
 }
 
+/**
+ * 运行诊断的读写摘要（布局收敛用）。
+ *
+ * 原面板把 5 个写入 flag（active/selected/daemon/job-store/ProjectScope）+ 只读/显式/隐式三连全部平铺，
+ * 只读模式下清一色「否」，占位多且不表意。此摘要把这一整块压成一个判断：只读，或列出真正被允许的写入。
+ * 默认视图只渲染这句摘要，完整 17 行原始字段移入「技术细节」折叠，供排障时展开。
+ */
+export interface RuntimeWritePolicySummary {
+  /** 无任何运行时写入被允许（即只读安全路线）。 */
+  readOnly: boolean;
+  /** 被允许的写入项 i18n label key（非只读时列出真正开放的写入，而非罗列一堆「否」）。 */
+  allowedWriteLabelKeys: string[];
+}
+
+export function summarizeRuntimeWritePolicy(
+  sourceOfTruth: DashboardProjectRuntimeSourceOfTruth,
+): RuntimeWritePolicySummary {
+  const writePolicy = sourceOfTruth.writePolicy;
+  const entries: Array<[boolean | null | undefined, string]> = [
+    [writePolicy.activeStateWriteAllowed, 'header.projectDiagnosticsWriteActiveState'],
+    [writePolicy.selectedStateWriteAllowed, 'header.projectDiagnosticsWriteSelectedState'],
+    [writePolicy.daemonLifecycleWriteAllowed, 'header.projectDiagnosticsWriteDaemonLifecycle'],
+    [writePolicy.jobStoreWriteAllowed, 'header.projectDiagnosticsWriteJobStore'],
+    [writePolicy.projectScopeRegistryWriteAllowed, 'header.projectDiagnosticsWriteProjectScope'],
+  ];
+  const allowedWriteLabelKeys = entries
+    .filter(([allowed]) => allowed === true)
+    .map(([, labelKey]) => labelKey);
+  return { readOnly: allowedWriteLabelKeys.length === 0, allowedWriteLabelKeys };
+}
+
 export function buildRuntimeDiagnosticsFieldRows(
   sourceOfTruth: DashboardProjectRuntimeSourceOfTruth,
 ): RuntimeDiagnosticsFieldRow[] {

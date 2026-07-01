@@ -187,6 +187,10 @@ export const en: DeepString<typeof zh> = {
     projectDiagnosticsUnavailableHint: 'This backend response did not provide sourceOfTruth; Dashboard will not display fake diagnostics.',
     projectDiagnosticsReadOnly: 'Read-only',
     projectDiagnosticsWritableBlocked: 'Implicit writes blocked',
+    projectDiagnosticsReadOnlySummary:
+      'Read-only diagnostics route — reads state only; writes nothing (active / selected / daemon / job-store / ProjectScope).',
+    projectDiagnosticsWritableSummary: 'Writes allowed',
+    projectDiagnosticsTechnicalDetails: 'Technical details',
     projectDiagnosticsReason: 'Reason',
     projectDiagnosticsStatus: 'Status',
     projectDiagnosticsRoute: 'Route',

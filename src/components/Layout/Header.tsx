@@ -934,7 +934,7 @@ const Header: React.FC<HeaderProps> = ({
                     {terminalCapability && (
                       <p className="flex items-center gap-1.5">
                         <TerminalSquare size={11} className="text-sky-500" />
-                        <span>{t('bootstrap.terminalCapability')}: {terminalCapability.toolset}</span>
+                        <span>{t('generate.terminalCapability')}: {terminalCapability.toolset}</span>
                       </p>
                     )}
                     {sandboxStatus && (
@@ -957,13 +957,13 @@ const Header: React.FC<HeaderProps> = ({
                 <TooltipTrigger asChild>
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-300/40 cursor-default">
                     <FlaskRound size={10} />
-                    {t('bootstrap.testMode')}
+                    {t('generate.testMode')}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs text-xs">
-                  <p className="font-medium mb-1">{t('bootstrap.testMode')}</p>
-                  <p>Bootstrap: {testMode.bootstrapDims.length > 0 ? testMode.bootstrapDims.join(', ') : t('bootstrap.testModeAll')}</p>
-                  <p>Rescan: {testMode.rescanDims.length > 0 ? testMode.rescanDims.join(', ') : t('bootstrap.testModeAll')}</p>
+                  <p className="font-medium mb-1">{t('generate.testMode')}</p>
+                  <p>Bootstrap: {testMode.bootstrapDims.length > 0 ? testMode.bootstrapDims.join(', ') : t('generate.testModeAll')}</p>
+                  <p>Rescan: {testMode.rescanDims.length > 0 ? testMode.rescanDims.join(', ') : t('generate.testModeAll')}</p>
                 </TooltipContent>
               </Tooltip>
             </div>

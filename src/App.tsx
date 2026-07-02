@@ -21,7 +21,7 @@ import api from './api';
 import { buildKnowledgeCreatePayload } from './KnowledgePayload';
 import { useAuth } from './hooks/useAuth';
 import { usePermission } from './hooks/usePermission';
-import { useBootstrapSocket } from './hooks/useBootstrapSocket';
+import { useGenerateSocket } from './hooks/useGenerateSocket';
 import { useI18n } from './i18n';
 import { zh } from './i18n/locales/zh';
 import LoginView from './components/Views/LoginView';
@@ -39,7 +39,7 @@ import GuardView from './components/Views/GuardView';
 import DepGraphView from './components/Views/DepGraphView';
 import KnowledgeView from './components/Views/KnowledgeView';
 import SkillsView from './components/Views/SkillsView';
-import BootstrapProgressView from './components/Views/BootstrapProgressView';
+import BootstrapProgressView from './components/Views/GenerateProgressView';
 import JobsView from './components/Views/JobsView';
 import RecipeEditor from './components/Modals/RecipeEditor';
 import CreateModal from './components/Modals/CreateModal';
@@ -137,7 +137,7 @@ function mapExtractedToV3(item: any, source: string = 'ai-scan'): Partial<ScanRe
 const App: React.FC = () => {
   const auth = useAuth();
   const permission = usePermission(auth.user?.role);
-  const bootstrap = useBootstrapSocket();
+  const bootstrap = useGenerateSocket();
   const { t } = useI18n();
 
   const getTabFromPath = (): TabType => {
@@ -292,9 +292,9 @@ const App: React.FC = () => {
       if (bootstrapNotifiedRef.current !== bootstrap.session.id) {
         bootstrapNotifiedRef.current = bootstrap.session.id;
         const msg = bootstrap.session.failed > 0
-          ? t('bootstrap.notifyPartial', { completed: bootstrap.session.completed, total: bootstrap.session.total, failed: bootstrap.session.failed })
-          : t('bootstrap.notifySuccess', { completed: bootstrap.session.completed });
-        notify(msg, { title: t('bootstrap.coldStartComplete'), type: bootstrap.session.failed > 0 ? 'error' : 'success' });
+          ? t('generate.notifyPartial', { completed: bootstrap.session.completed, total: bootstrap.session.total, failed: bootstrap.session.failed })
+          : t('generate.notifySuccess', { completed: bootstrap.session.completed });
+        notify(msg, { title: t('generate.coldStartComplete'), type: bootstrap.session.failed > 0 ? 'error' : 'success' });
       }
       fetchData();
     }

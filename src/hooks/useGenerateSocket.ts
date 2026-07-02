@@ -1,5 +1,5 @@
 /**
- * useBootstrapSocket — Socket.io hook for bootstrap progress events
+ * useGenerateSocket — Socket.io hook for bootstrap progress events
  *
  * Uses a shared singleton socket connection (lib/socket.ts) and listens
  * for bootstrap:* events to update progress state.
@@ -16,7 +16,7 @@ import type { DaemonJobRecord } from '../api';
  *  Types
  * ═══════════════════════════════════════════════════════ */
 
-export interface BootstrapTaskMeta {
+export interface GenerateTaskMeta {
   type: 'skill' | 'candidate';
   dimId: string;
   label: string;
@@ -24,10 +24,10 @@ export interface BootstrapTaskMeta {
   skillMeta?: { name: string; description: string } | null;
 }
 
-export interface BootstrapTask {
+export interface GenerateTask {
   id: string;
   status: 'skeleton' | 'filling' | 'completed' | 'failed';
-  meta: BootstrapTaskMeta;
+  meta: GenerateTaskMeta;
   startedAt?: number | null;
   completedAt?: number | null;
   result?: Record<string, unknown> | null;
@@ -66,7 +66,7 @@ export interface TestModeConfig {
   terminal: TestTerminalConfig;
 }
 
-export interface BootstrapSession {
+export interface GenerateSession {
   id: string;
   status: 'running' | 'completed' | 'completed_with_errors' | 'failed' | 'aborted' | 'cancelled' | 'idle';
   progress: number;
@@ -75,7 +75,7 @@ export interface BootstrapSession {
   failed: number;
   filling: number;
   skeleton: number;
-  tasks: BootstrapTask[];
+  tasks: GenerateTask[];
   summary?: Record<string, unknown> | null;
   /** AI 审查管线状态 */
   review?: ReviewState;
@@ -94,7 +94,7 @@ export interface BootstrapSession {
 
 interface UseBootstrapSocketReturn {
   /** Current bootstrap session state */
-  session: BootstrapSession | null;
+  session: GenerateSession | null;
   /** Whether socket is connected */
   isConnected: boolean;
   /** Whether all tasks are done */
@@ -104,15 +104,15 @@ interface UseBootstrapSocketReturn {
   /** Reset session (clear state) */
   resetSession: () => void;
   /** Start session from API response skeleton */
-  initFromApiResponse: (sessionData: BootstrapSession) => void;
+  initFromApiResponse: (sessionData: GenerateSession) => void;
 }
 
 /* ═══════════════════════════════════════════════════════
  *  Hook
  * ═══════════════════════════════════════════════════════ */
 
-export function useBootstrapSocket(): UseBootstrapSocketReturn {
-  const [session, setSession] = useState<BootstrapSession | null>(null);
+export function useGenerateSocket(): UseBootstrapSocketReturn {
+  const [session, setSession] = useState<GenerateSession | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [reviewState, setReviewState] = useState<ReviewState>(INITIAL_REVIEW_STATE);
   const sessionIdRef = useRef<string | null>(null);
@@ -141,7 +141,7 @@ export function useBootstrapSocket(): UseBootstrapSocketReturn {
           setSession(prev => {
             if (!prev || prev.id === status.id || status.progress > (prev?.progress ?? 0)) {
               sessionIdRef.current = status.id;
-              return status as BootstrapSession;
+              return status as GenerateSession;
             }
             return prev;
           });
@@ -155,7 +155,7 @@ export function useBootstrapSocket(): UseBootstrapSocketReturn {
 
     // ── Bootstrap progress events ──
 
-    const onStarted = (data: { tasks: Array<{ id: string } & BootstrapTaskMeta>; total: number; sessionId: string; startedAt?: number; testMode?: TestModeConfig }) => {
+    const onStarted = (data: { tasks: Array<{ id: string } & GenerateTaskMeta>; total: number; sessionId: string; startedAt?: number; testMode?: TestModeConfig }) => {
       sessionIdRef.current = data.sessionId;
       setReviewState(INITIAL_REVIEW_STATE);
       setSession({
@@ -356,7 +356,7 @@ export function useBootstrapSocket(): UseBootstrapSocketReturn {
     setReviewState(INITIAL_REVIEW_STATE);
   }, []);
 
-  const initFromApiResponse = useCallback((sessionData: BootstrapSession) => {
+  const initFromApiResponse = useCallback((sessionData: GenerateSession) => {
     if (sessionData) {
       setSession(prev => {
         if (prev && prev.id === sessionData.id) {

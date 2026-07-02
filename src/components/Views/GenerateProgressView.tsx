@@ -14,7 +14,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, X, Loader2, Sparkles, Code2, Layers, BookOpen, Zap, Settings, Bot, Brain, Filter, Wand2, GitMerge, Clock, Wrench, StopCircle, TerminalSquare, ExternalLink, Activity } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
-import type { BootstrapSession, BootstrapTask, ReviewState } from '../../hooks/useBootstrapSocket';
+import type { GenerateSession, GenerateTask, ReviewState } from '../../hooks/useGenerateSocket';
 import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
 import {
   formatProcessEventSemanticLabel,
@@ -77,7 +77,7 @@ function getDimIcon(dimId: string) {
  *  Task card component
  * ═══════════════════════════════════════════════════════ */
 
-const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
+const TaskCard: React.FC<{ task: GenerateTask }> = ({ task }) => {
   const { t, lang } = useI18n();
   const { status, meta } = task;
   const issue = getTaskEvidenceIssue(task);
@@ -97,25 +97,25 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
     skeleton: (
       <span className="flex items-center gap-1 text-xs text-[var(--fg-muted)]">
         <div className="w-2 h-2 rounded-full bg-[var(--border-emphasis)]" />
-        {t('bootstrap.statusLabels.skeleton')}
+        {t('generate.statusLabels.skeleton')}
       </span>
     ),
     filling: (
       <span className="flex items-center gap-1 text-xs text-blue-600">
         <Loader2 className="w-3 h-3 animate-spin" />
-        {t('bootstrap.statusLabels.filling')}
+        {t('generate.statusLabels.filling')}
       </span>
     ),
     completed: (
       <span className="flex items-center gap-1 text-xs text-emerald-600">
         <Check className="w-3 h-3" />
-        {t('bootstrap.statusLabels.completed')}
+        {t('generate.statusLabels.completed')}
       </span>
     ),
     failed: (
       <span className="flex items-center gap-1 text-xs text-red-600">
         <X className="w-3 h-3" />
-        {t('bootstrap.statusLabels.failed')}
+        {t('generate.statusLabels.failed')}
       </span>
     ),
   };
@@ -168,15 +168,15 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
                   const r = task.result as Record<string, unknown>;
                   const sourceCount = (r.sourceCount as number) ?? 0;
                   const extracted = (r.extracted as number) ?? 0;
-                  if (r.type === 'empty') return t('bootstrap.noMatch');
+                  if (r.type === 'empty') return t('generate.noMatch');
                   if (r.type === 'skill') {
-                    if (r.empty) return t('bootstrap.noMatch');
+                    if (r.empty) return t('generate.noMatch');
                     return extracted > 0
-                      ? t('bootstrap.featuresAndCandidates', { sourceCount, extracted })
-                      : t('bootstrap.featuresOnly', { sourceCount });
+                      ? t('generate.featuresAndCandidates', { sourceCount, extracted })
+                      : t('generate.featuresOnly', { sourceCount });
                   }
-                  if (extracted > 0) return t('bootstrap.candidatesOnly', { extracted });
-                  return t('bootstrap.noMatch');
+                  if (extracted > 0) return t('generate.candidatesOnly', { extracted });
+                  return t('generate.noMatch');
                 })()}
               </p>
             )}
@@ -195,7 +195,7 @@ const TaskCard: React.FC<{ task: BootstrapTask }> = ({ task }) => {
   );
 };
 
-function getTaskEvidenceIssue(task: BootstrapTask): EvidenceIssue | null {
+function getTaskEvidenceIssue(task: GenerateTask): EvidenceIssue | null {
   const issue = extractEvidenceIssue(task.result, task.meta?.dimId || task.id);
   if (issue) {
     return issue;
@@ -277,7 +277,7 @@ const ReviewPipelinePanel: React.FC<{ review: ReviewState }> = ({ review }) => {
     <div className="mt-5 border border-purple-200 rounded-xl bg-purple-50/50 p-4">
       <div className="flex items-center gap-2 mb-3">
         <Brain className="w-5 h-5 text-purple-600" />
-        <h3 className="text-sm font-semibold text-purple-800">{t('bootstrap.reviewPipeline')}</h3>
+        <h3 className="text-sm font-semibold text-purple-800">{t('generate.reviewPipeline')}</h3>
       </div>
 
       <div className="space-y-2.5">
@@ -315,7 +315,7 @@ const ReviewPipelinePanel: React.FC<{ review: ReviewState }> = ({ review }) => {
                 {/* Round-specific progress details */}
                 {key === 'round1' && isDone && (
                   <p className="text-xs text-emerald-600 mt-0.5">
-                    {t('bootstrap.round1Done', { kept: review.round1.kept ?? '?', merged: review.round1.merged ?? 0, dropped: review.round1.dropped ?? 0 })}
+                    {t('generate.round1Done', { kept: review.round1.kept ?? '?', merged: review.round1.merged ?? 0, dropped: review.round1.dropped ?? 0 })}
                   </p>
                 )}
                 {key === 'round2' && isActive && typeof review.round2.progress === 'number' && (
@@ -326,17 +326,17 @@ const ReviewPipelinePanel: React.FC<{ review: ReviewState }> = ({ review }) => {
                         style={{ width: `${review.round2.progress}%` }}
                       />
                     </div>
-                    <p className="text-xs text-purple-600 mt-0.5">{t('bootstrap.round2Progress', { current: review.round2.current ?? 0, total: review.round2.total ?? '?' })}</p>
+                    <p className="text-xs text-purple-600 mt-0.5">{t('generate.round2Progress', { current: review.round2.current ?? 0, total: review.round2.total ?? '?' })}</p>
                   </div>
                 )}
                 {key === 'round2' && isDone && (
                   <p className="text-xs text-emerald-600 mt-0.5">
-                    {t('bootstrap.round2Done', { refined: review.round2.refined ?? '?', total: review.round2.total ?? '?' })}
+                    {t('generate.round2Done', { refined: review.round2.refined ?? '?', total: review.round2.total ?? '?' })}
                   </p>
                 )}
                 {key === 'round3' && isDone && (
                   <p className="text-xs text-emerald-600 mt-0.5">
-                    {t('bootstrap.round3Done', { afterDedup: review.round3.afterDedup ?? '?', relationsFound: review.round3.relationsFound ?? 0 })}
+                    {t('generate.round3Done', { afterDedup: review.round3.afterDedup ?? '?', relationsFound: review.round3.relationsFound ?? 0 })}
                   </p>
                 )}
               </div>
@@ -511,7 +511,7 @@ function getBootstrapProcessEventTone(event: JobProcessDeveloperView): { badge: 
  * ═══════════════════════════════════════════════════════ */
 
 interface BootstrapProgressViewProps {
-  session: BootstrapSession | null;
+  session: GenerateSession | null;
   isAllDone: boolean;
   /** AI review pipeline state */
   reviewState?: ReviewState;
@@ -569,8 +569,8 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
   const toolCalls = session.totalToolCalls ?? 0;
 
   const statusText =
-    session.status === 'completed' ? t('bootstrap.allCompleted') :
-    session.status === 'completed_with_errors' ? t('bootstrap.completedWithErrors') :
+    session.status === 'completed' ? t('generate.allCompleted') :
+    session.status === 'completed_with_errors' ? t('generate.completedWithErrors') :
     session.status === 'failed' ? (lang === 'zh' ? 'Bootstrap 失败' : 'Bootstrap failed') :
     session.status === 'aborted' ? (lang === 'zh' ? 'Bootstrap 已中止' : 'Bootstrap aborted') :
     session.status === 'cancelled' ? (lang === 'zh' ? 'Bootstrap 已取消' : 'Bootstrap cancelled') :
@@ -582,17 +582,17 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
       <div className="flex items-center justify-between mb-5">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-[var(--fg-primary)]">{t('bootstrap.title')}</h2>
+            <h2 className="text-lg font-semibold text-[var(--fg-primary)]">{t('generate.title')}</h2>
             {session.testMode?.enabled && (
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                 <Filter size={10} />
-                {t('bootstrap.testMode')}
+                {t('generate.testMode')}
               </span>
             )}
             {session.testMode?.terminal?.enabled && (
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
                 <TerminalSquare size={10} />
-                {t('bootstrap.terminalCapability')}
+                {t('generate.terminalCapability')}
               </span>
             )}
           </div>
@@ -604,12 +604,12 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
           )}
           {(session.testMode?.enabled || session.testMode?.terminal?.enabled) && (
             <p className="text-xs text-amber-600 mt-0.5">
-              {session.testMode?.enabled && t('bootstrap.testModeHint', {
-                bootstrap: session.testMode.bootstrapDims.length > 0 ? session.testMode.bootstrapDims.join(', ') : t('bootstrap.testModeAll'),
-                rescan: session.testMode.rescanDims.length > 0 ? session.testMode.rescanDims.join(', ') : t('bootstrap.testModeAll'),
+              {session.testMode?.enabled && t('generate.testModeHint', {
+                bootstrap: session.testMode.bootstrapDims.length > 0 ? session.testMode.bootstrapDims.join(', ') : t('generate.testModeAll'),
+                rescan: session.testMode.rescanDims.length > 0 ? session.testMode.rescanDims.join(', ') : t('generate.testModeAll'),
               })}
               {session.testMode?.enabled && session.testMode?.terminal?.enabled && ' | '}
-              {session.testMode?.terminal?.enabled && t('bootstrap.terminalCapabilityHint', {
+              {session.testMode?.terminal?.enabled && t('generate.terminalCapabilityHint', {
                 toolset: session.testMode.terminal.toolset,
               })}
             </p>
@@ -628,7 +628,7 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
               ) : (
                 <StopCircle size={14} />
               )}
-              {t('bootstrap.cancel')}
+              {t('generate.cancel')}
             </button>
           )}
           {/* Dismiss button — only when done */}
@@ -637,7 +637,7 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
               onClick={onDismiss}
               className="text-sm px-3 py-1.5 rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--bg-subtle)] text-[var(--fg-secondary)] transition-colors"
           >
-            {t('bootstrap.close')}
+            {t('generate.close')}
           </button>
           )}
         </div>
@@ -647,20 +647,20 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
       <div className="flex flex-wrap items-center gap-4 mb-5 text-sm">
         <div className="flex items-center gap-1.5 text-[var(--fg-secondary)]">
           <Clock size={14} className="text-[var(--fg-muted)]" />
-          <span>{t('bootstrap.elapsed')} <span className="font-medium text-[var(--fg-primary)]">{formatDuration(elapsedMs)}</span></span>
+          <span>{t('generate.elapsed')} <span className="font-medium text-[var(--fg-primary)]">{formatDuration(elapsedMs)}</span></span>
         </div>
         {session.status === 'running' && remaining > 0 && estimatedRemainingMs > 0 && (
           <div className="flex items-center gap-1.5 text-[var(--fg-secondary)]">
             <Clock size={14} className="text-blue-400" />
-            <span>{t('bootstrap.estimatedRemaining')} <span className="font-medium text-blue-600">{formatDuration(estimatedRemainingMs)}</span></span>
+            <span>{t('generate.estimatedRemaining')} <span className="font-medium text-blue-600">{formatDuration(estimatedRemainingMs)}</span></span>
           </div>
         )}
         <div className="flex items-center gap-1.5 text-[var(--fg-secondary)]">
           <Wrench size={14} className="text-[var(--fg-muted)]" />
-          <span>{t('bootstrap.toolCalls')} <span className="font-medium text-[var(--fg-primary)]">{toolCalls}</span></span>
+          <span>{t('generate.toolCalls')} <span className="font-medium text-[var(--fg-primary)]">{toolCalls}</span></span>
         </div>
         <div className="text-[var(--fg-muted)] text-xs">
-          {t('bootstrap.dimensions', { done, total: session.total })}
+          {t('generate.dimensions', { done, total: session.total })}
         </div>
         {evidenceIssueCount > 0 && (
           <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-300">

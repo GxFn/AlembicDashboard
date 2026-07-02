@@ -858,7 +858,7 @@ export const en: DeepString<typeof zh> = {
   },
 
   /* ═══════════════════════════════ bootstrap ═══════════════════════════ */
-  bootstrap: {
+  generate: {
     title: 'Project Scan Progress',
     pipelineSteps: {
       collecting: 'Collecting project structure',

@@ -1,7 +1,7 @@
 import { Globe, Layout, Cpu, Zap, Database, Wifi, HardDrive, Box, Layers, Hash, GitBranch, Shield, BookOpen, Workflow, Cog, Brain, ScanSearch, Lock, Gauge, Eye, TestTube, Activity, Server, Puzzle, FileCode, Binary, Gem, Palette, Leaf, Flame } from 'lucide-react';
 
 /** Bootstrap 维度分类 tab 显示名（合并后的展示分组） */
-export const BOOTSTRAP_DIM_LABELS: Record<string, string> = {
+export const GENERATE_DIM_LABELS: Record<string, string> = {
   'architecture': '架构与设计',
   'best-practice': '规范与实践',
   'data-event-flow': '数据与并发',

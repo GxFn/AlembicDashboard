@@ -855,7 +855,7 @@ export const zh = {
   },
 
   /* ═══════════════════════════════ bootstrap ═══════════════════════════ */
-  bootstrap: {
+  generate: {
     title: '项目扫描进度',
     pipelineSteps: {
       collecting: '收集项目结构',

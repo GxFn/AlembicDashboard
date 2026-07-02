@@ -39,7 +39,7 @@ import GuardView from './components/Views/GuardView';
 import DepGraphView from './components/Views/DepGraphView';
 import KnowledgeView from './components/Views/KnowledgeView';
 import SkillsView from './components/Views/SkillsView';
-import BootstrapProgressView from './components/Views/GenerateProgressView';
+import GenerateProgressView from './components/Views/GenerateProgressView';
 import JobsView from './components/Views/JobsView';
 import RecipeEditor from './components/Modals/RecipeEditor';
 import CreateModal from './components/Modals/CreateModal';
@@ -1148,7 +1148,7 @@ const App: React.FC = () => {
         {/* Bootstrap 异步填充进度面板 */}
         {bootstrap.session && (
           <div className="mb-4">
-            <BootstrapProgressView
+            <GenerateProgressView
               session={bootstrap.session}
               isAllDone={bootstrap.isAllDone}
               reviewState={bootstrap.reviewState}

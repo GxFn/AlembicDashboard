@@ -1,5 +1,5 @@
 /**
- * BootstrapProgressView — 冷启动异步进度面板
+ * GenerateProgressView — 冷启动异步进度面板
  *
  * 展示每个维度任务的卡片状态：
  *   skeleton  → 灰色骨架动画
@@ -510,7 +510,7 @@ function getBootstrapProcessEventTone(event: JobProcessDeveloperView): { badge: 
  *  Main progress panel
  * ═══════════════════════════════════════════════════════ */
 
-interface BootstrapProgressViewProps {
+interface GenerateProgressViewProps {
   session: GenerateSession | null;
   isAllDone: boolean;
   /** AI review pipeline state */
@@ -525,7 +525,7 @@ interface BootstrapProgressViewProps {
   onOpenJobDetails?: (jobId: string) => void;
 }
 
-const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
+const GenerateProgressView: React.FC<GenerateProgressViewProps> = ({
   session,
   isAllDone,
   reviewState,
@@ -702,4 +702,4 @@ const BootstrapProgressView: React.FC<BootstrapProgressViewProps> = ({
   );
 };
 
-export default BootstrapProgressView;
+export default GenerateProgressView;

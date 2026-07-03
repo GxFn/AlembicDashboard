@@ -11,10 +11,7 @@ import {
   GuardAuditResult,
   KnowledgeEntry,
   ScannedFile,
-  DashboardProjectActionResult,
-  DashboardProjectsSnapshot,
 } from './types';
-import { TabType, validTabs } from './constants';
 import { isShellTarget, isSilentTarget, isPendingTarget, getWritePermissionErrorMsg, getSaveErrorMsg } from './utils';
 import { getErrorMessage, isAbortError, isTimeoutError, isAiError, isAxiosCancel } from './utils/error';
 import api from './api';
@@ -22,9 +19,12 @@ import { buildKnowledgeCreatePayload } from './KnowledgePayload';
 import { useAuth } from './hooks/useAuth';
 import { usePermission } from './hooks/usePermission';
 import { useGenerateSocket } from './hooks/useGenerateSocket';
+import { useLlmStatus } from './hooks/useLlmStatus';
+import { useProjectsControl } from './hooks/useProjectsControl';
+import { useTabNavigation } from './hooks/useTabNavigation';
 import { useI18n } from './i18n';
-import { zh } from './i18n/locales/zh';
 import LoginView from './components/Views/LoginView';
+import ErrorBoundary from './components/Shared/ErrorBoundary';
 
 // Components
 import Sidebar from './components/Layout/Sidebar';
@@ -45,39 +45,6 @@ import RecipeEditor from './components/Modals/RecipeEditor';
 import CreateModal from './components/Modals/CreateModal';
 import SearchModal from './components/Modals/SearchModal';
 import LlmConfigModal from './components/Modals/LlmConfigModal';
-
-/* ── ErrorBoundary — 防止白屏 ────────────── */
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: 40, textAlign: 'center' }}>
-          <h2 style={{ color: '#ef4444', marginBottom: 12 }}>{zh.app.errorBoundary.title}</h2>
-          <pre style={{ fontSize: 12, color: '#64748b', whiteSpace: 'pre-wrap', maxWidth: 600, margin: '0 auto' }}>
-            {this.state.error?.message}
-          </pre>
-          <button
-            onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
-            style={{ marginTop: 16, padding: '8px 20px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
-          >
-            {zh.app.errorBoundary.refreshBtn}
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 /**
  * 将后端 V3 结构直透为前端 ScanResultItem。
@@ -139,20 +106,16 @@ const App: React.FC = () => {
   const permission = usePermission(auth.user?.role);
   const bootstrap = useGenerateSocket();
   const { t } = useI18n();
-
-  const getTabFromPath = (): TabType => {
-  const path = window.location.pathname.replace(/^\//, '').split('/')[0] || '';
-  return (validTabs as readonly string[]).includes(path) ? (path as TabType) : 'help';
-  };
+  // tab 状态 + URL 持久化 + popstate（W7-e 搬入 hooks/useTabNavigation）
+  const { activeTab, setActiveTab, navigateToTab } = useTabNavigation();
+  // LLM 配置就绪 + 配置弹窗（W7-e 搬入 hooks/useLlmStatus）
+  const { llmReady, showLlmConfig, setShowLlmConfig, fetchLlmStatus } = useLlmStatus();
 
   // ── 登录门控标记 ──────────────────────────────────
   const requireLogin = auth.authEnabled && !auth.isAuthenticated;
 
   // State
   const [data, setData] = useState<ProjectData | null>(null);
-  const [projectsSnapshot, setProjectsSnapshot] = useState<DashboardProjectsSnapshot | null>(null);
-  const [projectsLoading, setProjectsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>(getTabFromPath());
   const [searchQuery, setSearchQuery] = useState('');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -212,10 +175,6 @@ const App: React.FC = () => {
   const [semanticResults, setSemanticResults] = useState<any[] | null>(null);
   const [searchAction, setSearchAction] = useState<{ q: string; path: string } | null>(null);
   const [isSavingRecipe, setIsSavingRecipe] = useState(false);
-
-  // LLM 配置状态
-  const [llmReady, setLlmReady] = useState(true); // 默认 true，加载后更新
-  const [showLlmConfig, setShowLlmConfig] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const trickleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -300,16 +259,6 @@ const App: React.FC = () => {
     }
   }, [bootstrap.isAllDone, bootstrap.session?.id]);
 
-  // Navigation
-  const navigateToTab = (tab: TabType, options?: { preserveSearch?: boolean; search?: string }) => {
-  setActiveTab(tab);
-  const explicitSearch = options?.search
-    ? (options.search.startsWith('?') ? options.search : `?${options.search}`)
-    : '';
-  const search = explicitSearch || (options?.preserveSearch && window.location.search ? window.location.search : '');
-  window.history.pushState({}, document.title, `/${tab}${search}`);
-  };
-
   // Handlers
   const openRecipeEdit = (recipe: Recipe) => {
   setEditingRecipe(recipe);
@@ -331,10 +280,6 @@ const App: React.FC = () => {
   }, [searchQuery]);
 
   // Effects
-  useEffect(() => {
-  setActiveTab(getTabFromPath());
-  }, []);
-
   useEffect(() => {
   if (!data) return;
   const pathname = window.location.pathname.replace(/^\//, '').split('/')[0];
@@ -360,11 +305,6 @@ const App: React.FC = () => {
   fetchProjectsSnapshot();
   fetchLlmStatus();
 
-  const handlePopState = () => {
-    setActiveTab(getTabFromPath());
-  };
-  window.addEventListener('popstate', handlePopState);
-
   const params = new URLSearchParams(window.location.search);
   const action = params.get('action');
   const path = params.get('path');
@@ -386,10 +326,6 @@ const App: React.FC = () => {
   if (action) {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
-
-  return () => {
-    window.removeEventListener('popstate', handlePopState);
-  };
   }, []);
 
   // API Calls
@@ -415,19 +351,6 @@ const App: React.FC = () => {
   }
   };
 
-  const fetchProjectsSnapshot = async () => {
-  setProjectsLoading(true);
-  try {
-    const snapshot = await api.getProjectsSnapshot();
-    setProjectsSnapshot(snapshot);
-  } catch (err: unknown) {
-    setProjectsSnapshot(null);
-    console.warn('项目控制状态加载失败:', getErrorMessage(err));
-  } finally {
-    setProjectsLoading(false);
-  }
-  };
-
   const resetProjectScopedUi = () => {
   setSelectedTargetName(null);
   setCustomFolderTargets([]);
@@ -438,34 +361,10 @@ const App: React.FC = () => {
   setSearchQuery('');
   };
 
-  const handleProjectActionCompleted = async (
-  result: DashboardProjectActionResult,
-  action: DashboardProjectActionResult['action'],
-  ) => {
-  setProjectsSnapshot(result.snapshot);
-  resetProjectScopedUi();
-  if (action === 'stop' && result.deferredStopProject) {
-    return;
-  }
-  const settled = await Promise.allSettled([
-    fetchData(),
-    fetchTargets(),
-    fetchProjectsSnapshot(),
-  ]);
-  const failed = settled.find((item) => item.status === 'rejected');
-  if (failed) {
-    console.warn('项目切换后刷新失败:', failed.reason);
-  }
-  };
-
-  const fetchLlmStatus = async () => {
-  try {
-    const data = await api.getLlmEnvConfig();
-    setLlmReady(data.llmReady);
-  } catch {
-    // 加载失败时保持默认值（true），不影响正常使用
-  }
-  };
+  // 项目控制快照 + 项目动作完成编排（W7-e 搬入 hooks/useProjectsControl；
+  // SPM 扫描状态冻结在 App，经 resetProjectScopedUi/fetchTargets 回调注入）
+  const { projectsSnapshot, projectsLoading, fetchProjectsSnapshot, handleProjectActionCompleted } =
+    useProjectsControl({ resetProjectScopedUi, fetchData, fetchTargets });
 
   const handleRefreshProject = async () => {
   try {

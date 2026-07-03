@@ -37,26 +37,30 @@ this audit.
 
 ## Read vs mutating operations (`src/api.ts`, wire-level facts)
 
-GET call sites: 52 (read-only). Mutating-verb call sites: 53, enumerated by
-method below. Verb is the machine fact recorded here; a subset of POST
-endpoints are compute/query RPCs (e.g. `search`, `translate`, `summarizeCode`,
-`probeProvider`, `getTargetFiles`, `extractFrom*`) — their semantic
+GET call sites: 36 (read-only). Mutating-verb call sites: 43 (`http.*`) plus
+the 2 SSE `fetch` POSTs, enumerated by method below (`refreshProject` has two
+POST sites: `/modules/update-map` + `/commands/spm-map` fallback). Verb is the
+machine fact recorded here; a subset of POST endpoints are compute/query RPCs
+(e.g. `probeProvider`, `getTargetFiles`, `extractFrom*`) — their semantic
 classification (whether server state changes) is owned by the HTTP contract
-(Alembic provider-contracts), not asserted here.
+(Alembic provider-contracts), not asserted here. W7-a deleted the zero-consumer
+methods (design doc ③-1/③-3): discoverRelations, getDiscoverRelationsStatus,
+getKnowledgeGraph, getGraphStats, getJob, getProjectInfo, saveRecipe,
+getRecipeByName, getCandidate, getAiProvidersEnhanced, setAiConfig,
+summarizeCode, translate, saveGuardRule, knowledgeGet, knowledgeRecordUsage,
+knowledgeUpdateQuality, getLogs, getProposalStats, getWarningStats.
 
-- **POST (39):** action, addProjectScopeFolder, aiGenerateSkill, bootstrap,
-  cancelBootstrap, cancelJob, clearViolations, createSkill, discoverRelations,
-  dismissWarning, enqueueBootstrapJob, enqueueRescanJob, executeProposal,
-  extractFromPath, extractFromText, getTargetFiles, knowledgeBatchDelete,
-  knowledgeBatchDeprecate, knowledgeBatchPublish, knowledgeCreate,
-  knowledgeRecordUsage, observeProposal, probeProvider, promoteToCandidate,
-  refreshProject, rejectProposal, rescan, resolveProjectScopeFolder,
-  resolveWarning, saveGuardRule, saveLlmEnvConfig, saveRecipe, scanProject,
-  scanTarget, search, setAiConfig, setLang, summarizeCode, translate
+- **POST (32 sites / 31 methods):** action, addProjectScopeFolder,
+  aiGenerateSkill, bootstrap, cancelBootstrap, cancelJob, clearViolations,
+  createSkill, dismissWarning, enqueueBootstrapJob, enqueueRescanJob,
+  executeProposal, extractFromPath, extractFromText, getTargetFiles,
+  knowledgeBatchDelete, knowledgeBatchDeprecate, knowledgeBatchPublish,
+  knowledgeCreate, observeProposal, probeProvider, promoteToCandidate,
+  refreshProject (×2), rejectProposal, rescan, resolveProjectScopeFolder,
+  resolveWarning, saveLlmEnvConfig, scanProject, scanTarget, setLang
 - **PUT (1):** updateSkill
-- **PATCH (7):** knowledgeLifecycle, knowledgeUpdate, knowledgeUpdateQuality,
-  promoteCandidateToRecipe, saveRecipe, setRecipeAuthority,
-  updateRecipeRelations
+- **PATCH (5):** knowledgeLifecycle, knowledgeUpdate,
+  promoteCandidateToRecipe, setRecipeAuthority, updateRecipeRelations
 - **DELETE (5):** deleteAllCandidatesInTarget, deleteCandidate, deleteRecipe,
   deleteSkill, knowledgeDelete
 - **SSE session starts (`fetch` POST ×2):** scan stream, scan-folder stream —

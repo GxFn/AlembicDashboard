@@ -2225,126 +2225,6 @@ function candidateGroupKey(entry: KnowledgeEntry): string {
 }
 
 // ═══════════════════════════════════════════════════════
-//  Frontmatter Parser (client-side)
-// ═══════════════════════════════════════════════════════
-
-function parseFrontmatter(markdownContent: string) {
-  let language = '',
-    category = 'general',
-    title = '',
-    trigger = '',
-    summary = '';
-  let summaryEn = '',
-    knowledgeType = '',
-    complexity = '',
-    scope = '';
-  let tags: string[] = [],
-    headers: string[] = [],
-    difficulty = '',
-    authority = 0,
-    version = '1.0.0';
-  let usageGuide = '',
-    usageGuideEn = '',
-    rationaleText = '',
-    bestPracticesText = '',
-    standardsText = '';
-  let kind = '', doClause = '', dontClause = '', whenClause = '', topicHint = '';
-  let codePattern = markdownContent;
-
-  const fmMatch = markdownContent.match(/^---\n([\s\S]*?)\n---/);
-  if (fmMatch) {
-    const fm = fmMatch[1];
-    const getField = (key: string): string | null => {
-      const m = fm.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'));
-      return m ? m[1].trim() : null;
-    };
-    language = getField('language') || language;
-    category = getField('category') || category;
-    title = getField('title') || title;
-    trigger = getField('trigger') || '';
-    summary = getField('summary_cn') || getField('summary') || getField('description') || summary;
-    summaryEn = getField('summary_en') || '';
-    knowledgeType = getField('knowledge_type') || getField('knowledgeType') || '';
-    complexity = getField('complexity') || '';
-    scope = getField('scope') || '';
-    difficulty = getField('difficulty') || '';
-    version = getField('version') || '1.0.0';
-    const authStr = getField('authority');
-    if (authStr) authority = parseInt(authStr) || 0;
-    const tagsStr = getField('tags');
-    if (tagsStr) {
-      try {
-        tags = JSON.parse(tagsStr);
-      } catch {
-        tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
-      }
-    }
-    const headersStr = getField('headers');
-    if (headersStr) {
-      try {
-        headers = JSON.parse(headersStr);
-      } catch {
-        headers = [headersStr];
-      }
-    }
-    kind = getField('kind') || '';
-    doClause = getField('doClause') || '';
-    dontClause = getField('dontClause') || '';
-    whenClause = getField('whenClause') || '';
-    topicHint = getField('topicHint') || '';
-
-    // Extract code block
-    const codeBlock = markdownContent.match(/```[\w]*\n([\s\S]*?)```/);
-    if (codeBlock) codePattern = codeBlock[1].trim();
-
-    // Extract body sections
-    const bodyAfterFm = markdownContent.replace(/^---\n[\s\S]*?\n---/, '').trim();
-    const usageMatch = bodyAfterFm.match(
-      /## (?:AI Context \/ )?Usage Guide(?:\s*\(CN\))?\n\n([\s\S]*?)(?=\n## |$)/,
-    );
-    if (usageMatch) usageGuide = usageMatch[1].trim();
-    const usageEnMatch = bodyAfterFm.match(
-      /## (?:AI Context \/ )?Usage Guide\s*\(EN\)\n\n([\s\S]*?)(?=\n## |$)/,
-    );
-    if (usageEnMatch) usageGuideEn = usageEnMatch[1].trim();
-    const archMatch = bodyAfterFm.match(/## Architecture Usage\n\n([\s\S]*?)(?=\n## |$)/);
-    if (archMatch) rationaleText = archMatch[1].trim();
-    const bpMatch = bodyAfterFm.match(/## Best Practices\n\n([\s\S]*?)(?=\n## |$)/);
-    if (bpMatch) bestPracticesText = bpMatch[1].trim();
-    const stdMatch = bodyAfterFm.match(/## Standards\n\n([\s\S]*?)(?=\n## |$)/);
-    if (stdMatch) standardsText = stdMatch[1].trim();
-  }
-
-  return {
-    title,
-    language,
-    category,
-    trigger,
-    summary,
-    summaryEn,
-    knowledgeType,
-    complexity,
-    scope,
-    tags,
-    headers,
-    difficulty,
-    authority,
-    version,
-    codePattern,
-    usageGuide,
-    usageGuideEn,
-    rationaleText,
-    bestPracticesText,
-    standardsText,
-    kind,
-    doClause,
-    dontClause,
-    whenClause,
-    topicHint,
-  };
-}
-
-// ═══════════════════════════════════════════════════════
 //  Request Payload Builders
 // ═══════════════════════════════════════════════════════
 
@@ -2719,19 +2599,6 @@ export function projectProviderSseMessage(value: unknown): SSEEvent | null {
   return null;
 }
 
-/** 知识图谱边 */
-export interface GraphEdge {
-  id: number;
-  fromId: string;
-  fromType: string;
-  toId: string;
-  toType: string;
-  relation: string;
-  weight: number;
-  metadata: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
 /** 搜索结果条目 */
 export interface SearchResultItem {
   title: string;
@@ -2982,85 +2849,6 @@ export function normalizeGuardRunRecord(value: unknown): GuardRunProviderRecord 
 
 export function normalizeGuardReportResponse(value: unknown): Record<string, unknown> {
   return dashboardPublicRecord(providerDataRecord(value)) ?? {};
-}
-
-/**
- * 统一 SSE 流消费器 — 从 fetch Response 中逐行读取 SSE events
- *
- * 支持统一协议的所有事件类型:
- *   stream:start — 会话开始
- *   step:start   — 推理步骤开始
- *   tool:start   — 工具调用开始
- *   tool:end     — 工具调用结束
- *   text:start   — 文本流开始
- *   text:delta   — 文本分块
- *   text:end     — 文本流结束
- *   step:end     — 推理步骤结束
- *   data:progress — 进度事件（润色等场景）
- *   stream:done  — 会话完成
- *   stream:error — 会话错误
- *
- * @param response   fetch 返回的 Response（body 为 ReadableStream）
- * @param onEvent    收到任意事件时的完整回调
- * @returns          通过 text:delta 拼接的完整文本（chat 场景使用）
- */
-async function _consumeSSE(
-  response: Response,
-  onEvent: (evt: SSEEvent) => void,
-): Promise<string> {
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('ReadableStream not available');
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let fullText = '';
-  let chunkCount = 0;
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    chunkCount++;
-    const text = decoder.decode(value, { stream: true });
-
-    buffer += text;
-    const lines = buffer.split('\n');
-    // 保留最后一个不完整行
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      // 心跳 :ping 注释 — 忽略
-      if (line.startsWith(':')) continue;
-      if (!line.startsWith('data: ')) continue;
-      const payload = line.slice(6).trim();
-      if (!payload || payload === '[DONE]') continue;
-
-      try {
-        const evt: SSEEvent = JSON.parse(payload);
-        onEvent(evt);
-
-        // text:delta — 拼接完整文本
-        const delta = projectSseTextDelta(evt);
-        if (evt.type === 'text:delta' && delta) {
-          fullText += delta;
-        }
-        // stream:done — 如果携带 text 则覆盖
-        else if (evt.type === 'stream:done') {
-          fullText = sseString(evt, 'text') ?? fullText;
-        }
-        // stream:error — 抛出错误
-        else if (evt.type === 'stream:error') {
-          throw new Error(projectSseErrorMessage(evt, 'Stream error'));
-        }
-      } catch (e) {
-        if (e instanceof SyntaxError) continue; // 非 JSON 行忽略
-        throw e;
-      }
-    }
-  }
-
-  return fullText;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3438,11 +3226,6 @@ export const api = {
     return res.data?.data?.jobs || [];
   },
 
-  async getJob(jobId: string, opts?: { compact?: boolean }): Promise<DaemonJobRecord | null> {
-    const res = await http.get(`/jobs/${encodeURIComponent(jobId)}`, { params: opts || {} });
-    return res.data?.data?.job || null;
-  },
-
   async getJobProcessEvents(jobId: string, opts?: {
     afterSequence?: number;
     limit?: number;
@@ -3539,16 +3322,6 @@ export const api = {
     return res.data?.data || {};
   },
 
-  /** 获取项目信息（检测到的语言、框架等） */
-  async getProjectInfo() {
-    try {
-      const res = await http.get('/modules/project-info');
-      return res.data?.data || {};
-    } catch {
-      return { primaryLanguage: 'unknown', discoverers: [], hasSpm: false };
-    }
-  },
-
   // ── Commands ────────────────────────────────────────
 
   async refreshProject(): Promise<void> {
@@ -3588,95 +3361,10 @@ export const api = {
 
   // ── Recipes ─────────────────────────────────────────
 
-  /**
-   * Save recipe from markdown content.
-   * Parses frontmatter → structured data, creates or updates.
-   */
-  async saveRecipe(name: string, markdownContent: string): Promise<void> {
-    const parsed = parseFrontmatter(markdownContent);
-    const title = parsed.title || name.replace(/\.md$/, '');
-
-    const dimensions = {
-      trigger: parsed.trigger,
-      headers: parsed.headers,
-      difficulty: parsed.difficulty,
-      authority: parsed.authority,
-      version: parsed.version,
-    };
-
-    const contentObj = {
-      pattern: parsed.codePattern || '',
-      rationale: parsed.rationaleText || '',
-      steps: parsed.bestPracticesText ? [parsed.bestPracticesText] : [],
-      codeChanges: [],
-      verification: null,
-      markdown: parsed.usageGuide || '',
-    };
-
-    // 解析 Standards 文本为结构化 constraints
-    const constraintsObj: Record<string, unknown> = {};
-    if (parsed.standardsText) {
-      // 解析 "**Preconditions:**\n- item1\n- item2" 格式
-      const lines = parsed.standardsText.split('\n').map((l: string) => l.trim()).filter(Boolean);
-      const preconditions = lines
-        .filter((l: string) => l.startsWith('- '))
-        .map((l: string) => l.slice(2).trim());
-      if (preconditions.length > 0) {
-        constraintsObj.preconditions = preconditions;
-      }
-      // 非列表内容保留为 boundaries
-      const nonList = lines.filter((l: string) => !l.startsWith('- ') && !l.startsWith('**'));
-      if (nonList.length > 0) {
-        constraintsObj.boundaries = nonList;
-      }
-    }
-
-    const recipeData: Record<string, unknown> = {
-      title,
-      language: parsed.language,
-      category: parsed.category,
-      description: parsed.summary,
-      knowledgeType: parsed.knowledgeType || 'code-pattern',
-      complexity: parsed.complexity || 'intermediate',
-      scope: parsed.scope || null,
-      tags: parsed.tags || [],
-      content: contentObj,
-      constraints: constraintsObj,
-      dimensions,
-    };
-    if (parsed.kind) recipeData.kind = parsed.kind;
-    if (parsed.doClause) recipeData.doClause = parsed.doClause;
-    if (parsed.dontClause) recipeData.dontClause = parsed.dontClause;
-    if (parsed.whenClause) recipeData.whenClause = parsed.whenClause;
-    if (parsed.topicHint) recipeData.topicHint = parsed.topicHint;
-
-    // Try to find existing recipe by ID or title → update
-    try {
-      const knowledgeId = await resolveKnowledgeId(name);
-      await http.patch(`/knowledge/${knowledgeId}`, recipeData);
-      return;
-    } catch {
-      /* create new */
-    }
-
-    await http.post('/knowledge', recipeData);
-  },
-
   async deleteRecipe(idOrName: string): Promise<void> {
     // 优先用 ID（V3），否则按名称搜索
     const knowledgeId = await resolveKnowledgeId(idOrName);
     await http.delete(`/knowledge/${knowledgeId}`);
-  },
-
-  async getRecipeByName(
-    name: string,
-  ): Promise<{ name: string; content: string }> {
-    const knowledgeId = await resolveKnowledgeId(name);
-    const res = await http.get(`/knowledge/${knowledgeId}`);
-    const r = res.data?.data;
-    if (!r) throw new Error('Recipe not found');
-    const c = r.content || {};
-    return { name, content: c.pattern || c.markdown || '' };
   },
 
   async setRecipeAuthority(idOrName: string, authority: number): Promise<void> {
@@ -3697,14 +3385,6 @@ export const api = {
 
   // ── Candidates (via V3 Knowledge API) ──────────────────────────────────────
 
-  /** 获取单个知识条目详情 */
-  async getCandidate(candidateId: string): Promise<KnowledgeEntry> {
-    const res = await http.get(`/knowledge/${candidateId}`);
-    const raw = res.data?.data;
-    if (!raw) throw new Error('Knowledge entry not found');
-    return raw as KnowledgeEntry;
-  },
-
   async deleteCandidate(candidateId: string): Promise<void> {
     await http.delete(`/knowledge/${candidateId}`);
   },
@@ -3714,31 +3394,6 @@ export const api = {
     const res = await http.patch(`/knowledge/${candidateId}/publish`);
     const entry = res.data?.data;
     return { recipe: entry, candidate: entry };
-  },
-
-  /** 获取全量知识图谱（边 + 节点标签） */
-  async getKnowledgeGraph(limit = 500): Promise<{ edges: GraphEdge[]; nodeLabels: Record<string, string>; nodeTypes: Record<string, string>; nodeCategories: Record<string, string> }> {
-    const res = await http.get(`/search/graph/all?limit=${limit}`);
-    return res.data?.data || { edges: [], nodeLabels: {}, nodeTypes: {}, nodeCategories: {} };
-  },
-
-  /** 获取知识图谱统计 */
-  async getGraphStats(): Promise<{ totalEdges: number; byRelation: Record<string, number>; nodeTypes: unknown[] }> {
-    const res = await http.get('/search/graph/stats');
-    return res.data?.data || { totalEdges: 0, byRelation: {}, nodeTypes: [] };
-  },
-
-  /** AI 批量发现 Recipe 知识图谱关系（异步启动） */
-  async discoverRelations(batchSize = 20): Promise<{ status: string; startedAt?: string; message?: string; error?: string }> {
-    const res = await http.post('/recipes/discover-relations', { batchSize });
-    if (!res.data?.success) throw new Error(res.data?.error?.message || '启动失败');
-    return res.data?.data || { status: 'unknown' };
-  },
-
-  /** 查询关系发现任务状态 */
-  async getDiscoverRelationsStatus(): Promise<{ status: string; discovered?: number; totalPairs?: number; batchErrors?: number; error?: string; elapsed?: number; message?: string; startedAt?: string }> {
-    const res = await http.get('/recipes/discover-relations/status');
-    return res.data?.data || { status: 'idle' };
   },
 
   async deleteAllCandidatesInTarget(targetName: string): Promise<{ deleted: number }> {
@@ -3775,41 +3430,9 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
-  async getAiProvidersEnhanced(): Promise<AiProvidersResponse> {
-    const res = await http.get('/ai/providers');
-    const data = res.data?.data;
-    if (data?.providers) {
-      return data;
-    }
-    return { providers: Array.isArray(data) ? data : [], active: { provider: '', model: '' } };
-  },
-
   async probeProvider(provider: string, apiKey?: string): Promise<AiProbeResult> {
     const res = await http.post('/ai/probe', { provider, apiKey });
     return res.data?.data || { provider, status: 'error', error: 'Unknown error' };
-  },
-
-  async setAiConfig(
-    provider: string,
-    model: string,
-  ): Promise<{ provider: string; model: string }> {
-    const res = await http.post('/ai/config', { provider, model });
-    return res.data?.data || { provider, model };
-  },
-
-  async summarizeCode(code: string, language: string): Promise<Record<string, unknown>> {
-    const res = await http.post('/ai/summarize', { code, language });
-    return res.data?.data || res.data || {};
-  },
-
-  async translate(
-    summary: string,
-    usageGuide: string,
-  ): Promise<{ summaryEn: string; usageGuideEn: string; warning?: string }> {
-    const res = await http.post('/ai/translate', { summary, usageGuide });
-    const data = res.data?.data || { summaryEn: '', usageGuideEn: '' };
-    if (res.data?.warning) data.warning = res.data.warning;
-    return data;
   },
 
   // ── Search (统一入口) ─────────────────────────────────
@@ -3882,11 +3505,6 @@ export const api = {
 
   async clearViolations(): Promise<void> {
     await http.post('/violations/clear', { all: true });
-  },
-
-  async saveGuardRule(ruleData: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const res = await http.post('/rules', ruleData);
-    return res.data?.data || {};
   },
 
   // ── Misc ────────────────────────────────────────────
@@ -4046,12 +3664,6 @@ Skill 文档格式要求：
     return res.data?.data || { data: [], pagination: { page: 1, pageSize: 20, total: 0 } };
   },
 
-  /** 获取知识条目详情 */
-  async knowledgeGet(id: string): Promise<KnowledgeEntry> {
-    const res = await http.get(`/knowledge/${id}`);
-    return res.data?.data;
-  },
-
   /** 创建知识条目 */
   async knowledgeCreate(data: KnowledgeCreatePayload): Promise<KnowledgeEntry> {
     const res = await http.post('/knowledge', data);
@@ -4093,17 +3705,6 @@ Skill 文档格式要求：
     return res.data?.data || { deprecated: [], failed: [], successCount: 0, failureCount: 0 };
   },
 
-  /** 记录使用 */
-  async knowledgeRecordUsage(id: string, type: string = 'adoption', feedback?: string): Promise<void> {
-    await http.post(`/knowledge/${id}/usage`, { type, feedback });
-  },
-
-  /** 重新计算质量评分 */
-  async knowledgeUpdateQuality(id: string): Promise<{ quality: KnowledgeQuality }> {
-    const res = await http.patch(`/knowledge/${id}/quality`);
-    return res.data?.data || { quality: {} };
-  },
-
   // ── Language preference ──────
 
   /** 获取服务端默认 UI 语言 */
@@ -4141,29 +3742,6 @@ Skill 文档格式要求：
   }> {
     const res = await http.get('/audit', { params: filters });
     return res.data?.data ?? { logs: [], total: 0 };
-  },
-
-  // ── Logs ──────────────────────
-
-  /** 读取日志文件 */
-  async getLogs(filters?: {
-    file?: 'combined' | 'error' | 'audit';
-    limit?: number;
-    level?: string;
-    search?: string;
-  }): Promise<{
-    file: string;
-    total: number;
-    entries: {
-      timestamp?: string;
-      level?: string;
-      message?: string;
-      tag?: string;
-      raw: string;
-    }[];
-  }> {
-    const res = await http.get('/logs', { params: filters });
-    return res.data?.data ?? { file: 'combined', total: 0, entries: [] };
   },
 
   // ── Guard Report ──────────────
@@ -4214,12 +3792,6 @@ Skill 文档格式要求：
     return this.getProposals({ targetRecipeId: recipeId });
   },
 
-  /** Proposal 统计 */
-  async getProposalStats(): Promise<{ pending: number; observing: number; total: number }> {
-    const res = await http.get('/evolution/proposals/stats');
-    return res.data?.data;
-  },
-
   /** 执行 Proposal */
   async executeProposal(id: string): Promise<unknown> {
     const res = await http.post(`/evolution/proposals/${encodeURIComponent(id)}/execute`);
@@ -4255,12 +3827,6 @@ Skill 文档格式要求：
   /** 查询指定 Recipe 的 Warnings */
   async getWarningsByRecipe(recipeId: string): Promise<WarningRecord[]> {
     return this.getWarnings({ targetRecipeId: recipeId });
-  },
-
-  /** Warning 统计 */
-  async getWarningStats(): Promise<{ contradiction: number; redundancy: number; total: number }> {
-    const res = await http.get('/evolution/warnings/stats');
-    return res.data?.data;
   },
 
   /** 解决 Warning */

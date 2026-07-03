@@ -253,13 +253,13 @@ test('header nests terminal and sandbox details under runtime route badge', () =
   assert.match(header, /const terminalCapability = testMode\?\.terminal\.enabled \? testMode\.terminal : null/);
   assert.match(header, /const sandboxStatus = testMode\?\.sandbox \?\? null/);
   assert.match(runtimeBlock, /hasNestedRuntimeDetails/);
-  assert.match(runtimeBlock, /t\('bootstrap\.terminalCapability'\)/);
+  assert.match(runtimeBlock, /t\('generate\.terminalCapability'\)/);
   assert.match(runtimeBlock, /terminalCapability\.toolset/);
   assert.match(runtimeBlock, /SandboxStatusIcon sandbox=\{sandboxStatus\}/);
   assert.match(runtimeBlock, /t\(sandboxLabelKey\(sandboxStatus\)\)/);
   assert.match(runtimeBlock, /t\(sandboxHintKey\(sandboxStatus\)\)/);
 
-  assert.match(testModeBlock, /t\('bootstrap\.testMode'\)/);
+  assert.match(testModeBlock, /t\('generate\.testMode'\)/);
   assert.doesNotMatch(testModeBlock, /terminalCapability/);
   assert.doesNotMatch(testModeBlock, /sandbox\./);
 });
@@ -499,7 +499,7 @@ test('object errors keep a readable fallback instead of rendering object identit
 
 test('bootstrap dimension completion does not refresh content mid-run', () => {
   const app = read('src/App.tsx');
-  const hook = read('src/hooks/useBootstrapSocket.ts');
+  const hook = read('src/hooks/useGenerateSocket.ts');
 
   assert.match(app, /bootstrap\.isAllDone[\s\S]*fetchData\(\)/);
   assert.doesNotMatch(app, /candidateCreatedTick/);
@@ -513,7 +513,7 @@ test('jobs process timeline consumes typed events contract', () => {
   const hook = read('src/hooks/useJobProcessEvents.ts');
   const eventUtils = read('src/utils/JobProcessEvents.ts');
   const jobs = read('src/components/Views/JobsView.tsx');
-  const bootstrap = read('src/components/Views/BootstrapProgressView.tsx');
+  const bootstrap = read('src/components/Views/GenerateProgressView.tsx');
 
   assert.match(api, /interface JobProcessDeveloperView/);
   assert.match(api, /interface JobProcessArtifactContent/);
@@ -1086,7 +1086,7 @@ test('dashboard signal page surfaces are removed while core dashboard views rema
     'KnowledgeView',
     'GuardView',
     'JobsView',
-    'BootstrapProgressView',
+    'GenerateProgressView',
     'SkillsView',
   ]) {
     assert.match(app, new RegExp(preservedView), `${preservedView} should remain mounted by App`);

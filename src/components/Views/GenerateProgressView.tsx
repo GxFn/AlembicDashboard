@@ -152,7 +152,7 @@ const TaskCard: React.FC<{ task: GenerateTask }> = ({ task }) => {
               status === 'skeleton' ? 'text-[var(--fg-muted)]' : 'text-[var(--fg-primary)]'
             } truncate`}>
               {(() => {
-                const key = `bootstrap.pipelineLabels.${meta.dimId}`;
+                const key = `generate.pipelineLabels.${meta.dimId}`;
                 const translated = t(key);
                 return translated !== key ? translated : meta.label;
               })()}
@@ -264,9 +264,9 @@ function getTaskIssueTextClass(issue: EvidenceIssue): string {
  * ═══════════════════════════════════════════════════════ */
 
 const REVIEW_ROUNDS = [
-  { key: 'round1' as const, labelKey: 'bootstrap.reviewRounds.round1Label', descKey: 'bootstrap.reviewRounds.round1Desc', icon: <Filter className="w-4 h-4" /> },
-  { key: 'round2' as const, labelKey: 'bootstrap.reviewRounds.round2Label', descKey: 'bootstrap.reviewRounds.round2Desc', icon: <Wand2 className="w-4 h-4" /> },
-  { key: 'round3' as const, labelKey: 'bootstrap.reviewRounds.round3Label', descKey: 'bootstrap.reviewRounds.round3Desc', icon: <GitMerge className="w-4 h-4" /> },
+  { key: 'round1' as const, labelKey: 'generate.reviewRounds.round1Label', descKey: 'generate.reviewRounds.round1Desc', icon: <Filter className="w-4 h-4" /> },
+  { key: 'round2' as const, labelKey: 'generate.reviewRounds.round2Label', descKey: 'generate.reviewRounds.round2Desc', icon: <Wand2 className="w-4 h-4" /> },
+  { key: 'round3' as const, labelKey: 'generate.reviewRounds.round3Label', descKey: 'generate.reviewRounds.round3Desc', icon: <GitMerge className="w-4 h-4" /> },
 ] as const;
 
 const ReviewPipelinePanel: React.FC<{ review: ReviewState }> = ({ review }) => {

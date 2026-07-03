@@ -77,7 +77,12 @@ for (const filePath of textFiles) {
 
 const anyBudgets = new Map([
   ['src/components/Shared/MarkdownWithHighlight.tsx', 0],
-  ['src/api.ts', 3],
+  // W7-f: src/api.ts (budget 3) was split into src/api/ route families; the
+  // split carried zero explicit `any` (the budgeted ones died with the W7-a
+  // dead-method deletions), so the whole family is pinned at 0.
+  ...readdirSync(path.join(root, 'src', 'api'))
+    .filter((name) => name.endsWith('.ts'))
+    .map((name) => [`src/api/${name}`, 0]),
 ]);
 
 for (const [file, maxAny] of anyBudgets.entries()) {

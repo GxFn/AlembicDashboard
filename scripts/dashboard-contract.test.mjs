@@ -11,6 +11,17 @@ function read(relativePath) {
   return readFileSync(path.join(root, relativePath), 'utf8');
 }
 
+// W7-f: src/api.ts was split into src/api/ route-family files. Whole-surface
+// assertions (absence pins and cross-family presence pins) read the joined
+// api-area text; single-family assertions read the owning family file.
+function readApiDir() {
+  return readdirSync(path.join(root, 'src', 'api'))
+    .filter((name) => name.endsWith('.ts'))
+    .sort()
+    .map((name) => read(`src/api/${name}`))
+    .join('\n');
+}
+
 const transpiledFileCache = new Map();
 
 function resolveRelativeImport(importerRelativePath, specifier) {
@@ -218,7 +229,7 @@ test('package exposes real local quality gates', () => {
 
 test('dashboard does not expose product AI mock UI or cleanup API', () => {
   const header = read('src/components/Layout/Header.tsx');
-  const api = read('src/api.ts');
+  const api = readApiDir();
   const llmConfig = read('src/components/Modals/LlmConfigModal.tsx');
   const zh = read('src/i18n/locales/zh.ts');
   const en = read('src/i18n/locales/en.ts');
@@ -266,7 +277,7 @@ test('header nests terminal and sandbox details under runtime route badge', () =
 
 test('dashboard consumes API AI runtime contract naming', () => {
   const types = read('src/types.ts');
-  const api = read('src/api.ts');
+  const api = readApiDir();
   const header = read('src/components/Layout/Header.tsx');
   const help = read('src/components/Views/HelpView.tsx');
   const zh = read('src/i18n/locales/zh.ts');
@@ -300,7 +311,7 @@ test('dashboard consumes API AI runtime contract naming', () => {
 
 test('projects runtime control source-of-truth diagnostics are preserved and visible', () => {
   const types = read('src/types.ts');
-  const api = read('src/api.ts');
+  const api = read('src/api/projects.ts');
   const header = read('src/components/Layout/Header.tsx');
   const zh = read('src/i18n/locales/zh.ts');
   const en = read('src/i18n/locales/en.ts');
@@ -343,7 +354,7 @@ test('projects runtime control source-of-truth diagnostics are preserved and vis
 });
 
 test('projects runtime diagnostics fixture preserves source-of-truth details through executable normalizer', async () => {
-  const { normalizeProjectsSnapshot } = await importTranspiled('src/api.ts');
+  const { normalizeProjectsSnapshot } = await importTranspiled('src/api/index.ts');
   const snapshot = normalizeProjectsSnapshot({
     diagnostics: [
       {
@@ -509,7 +520,7 @@ test('bootstrap dimension completion does not refresh content mid-run', () => {
 });
 
 test('jobs process timeline consumes typed events contract', () => {
-  const api = read('src/api.ts');
+  const api = read('src/api/jobs.ts');
   const hook = read('src/hooks/useJobProcessEvents.ts');
   const eventUtils = read('src/utils/JobProcessEvents.ts');
   const jobs = read('src/components/Views/JobsView.tsx');
@@ -678,7 +689,7 @@ test('jobs process terminal readability rules are enforced in the DOM contract',
 });
 
 test('jobs display snapshot viewer consumes the persisted snapshot contract', () => {
-  const api = read('src/api.ts');
+  const api = read('src/api/jobs.ts');
   const jobs = read('src/components/Views/JobsView.tsx');
 
   assert.match(api, /interface JobDisplaySnapshotSummaryRef extends JobDisplaySnapshotRef/);
@@ -796,14 +807,17 @@ test('guard view keeps narrow screens from overflowing on long audit paths', () 
 });
 
 test('socket process events share REST content normalization', () => {
-  const api = read('src/api.ts');
+  // W7-f split: the shared content normalizer lives in the api client family;
+  // its jobs-side consumption lives in the jobs family.
+  const apiClient = read('src/api/client.ts');
+  const apiJobs = read('src/api/jobs.ts');
   const hook = read('src/hooks/useJobProcessEvents.ts');
 
-  assert.match(api, /function contentTextOrUndefined\(value: unknown\)/);
-  assert.match(api, /stringOrUndefined\(record\.text\)/);
-  assert.match(api, /JSON\.stringify\(value, null, 2\)/);
-  assert.match(api, /const content = contentTextOrUndefined\(record\.content\)/);
-  assert.match(api, /content,/);
+  assert.match(apiClient, /function contentTextOrUndefined\(value: unknown\)/);
+  assert.match(apiClient, /stringOrUndefined\(record\.text\)/);
+  assert.match(apiClient, /JSON\.stringify\(value, null, 2\)/);
+  assert.match(apiJobs, /const content = contentTextOrUndefined\(record\.content\)/);
+  assert.match(apiJobs, /content,/);
 
   assert.doesNotMatch(hook, /\.\.\.payload\.event,\s*\n\s*jobId:/);
   assert.match(hook, /event\?: unknown/);
@@ -818,7 +832,7 @@ test('socket process events share REST content normalization', () => {
 
 test('dashboard replays accepted Alembic provider fixtures through executable normalizers', async () => {
   const provider = await importAlembicProviderContracts();
-  const apiModule = await importTranspiled('src/api.ts');
+  const apiModule = await importTranspiled('src/api/index.ts');
   const eventUtils = await importTranspiled('src/utils/JobProcessEvents.ts');
   const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
   const eventContracts = provider.ALEMBIC_PROVIDER_EVENT_CONTRACTS;
@@ -942,7 +956,7 @@ test('dashboard public governance copy avoids retired runtime role claims', () =
 });
 
 test('runtime boundary consumes canonical file monitor event sources only', async () => {
-  const apiModule = await importTranspiled('src/api.ts');
+  const apiModule = await importTranspiled('src/api/index.ts');
   const boundary = apiModule.normalizeRuntimeBoundary({}, cloneWithRetiredProviderCompatibilityFields({
     mode: 'daemon',
     projectRoot: '/workspace/alembic',
@@ -961,7 +975,7 @@ test('runtime boundary consumes canonical file monitor event sources only', asyn
 
 test('knowledge save uses a typed provider payload projector', async () => {
   const app = read('src/App.tsx');
-  const api = read('src/api.ts');
+  const api = read('src/api/knowledge.ts');
   const payload = await importTranspiled('src/KnowledgePayload.ts');
   const projected = payload.buildKnowledgeCreatePayload({
     title: 'Typed boundary',
@@ -997,7 +1011,7 @@ test('dashboard chat page and drawer surfaces are removed', () => {
   const commandPalette = read('src/components/Layout/CommandPalette.tsx');
   const header = read('src/components/Layout/Header.tsx');
   const pageOverlay = read('src/components/Shared/PageOverlay.tsx');
-  const api = read('src/api.ts');
+  const api = readApiDir();
   const zh = read('src/i18n/locales/zh.ts');
   const en = read('src/i18n/locales/en.ts');
 
@@ -1027,7 +1041,7 @@ test('dashboard wiki page surfaces are removed', () => {
   const sidebar = read('src/components/Layout/Sidebar.tsx');
   const commandPalette = read('src/components/Layout/CommandPalette.tsx');
   const header = read('src/components/Layout/Header.tsx');
-  const api = read('src/api.ts');
+  const api = readApiDir();
   const help = read('src/components/Views/HelpView.tsx');
   const zh = read('src/i18n/locales/zh.ts');
   const en = read('src/i18n/locales/en.ts');
@@ -1054,7 +1068,7 @@ test('dashboard signal page surfaces are removed while core dashboard views rema
   const commandPalette = read('src/components/Layout/CommandPalette.tsx');
   const header = read('src/components/Layout/Header.tsx');
   const jobs = read('src/components/Views/JobsView.tsx');
-  const api = read('src/api.ts');
+  const api = readApiDir();
   const efficiency = read('src/utils/efficiency.ts');
   const zh = read('src/i18n/locales/zh.ts');
   const en = read('src/i18n/locales/en.ts');
@@ -1112,8 +1126,8 @@ test('dashboard signal page surfaces are removed while core dashboard views rema
 });
 
 test('dashboard classifies D21 adapter fallbacks by provider surface', async () => {
-  const api = read('src/api.ts');
-  const apiModule = await importTranspiled('src/api.ts');
+  const api = read('src/api/client.ts');
+  const apiModule = await importTranspiled('src/api/index.ts');
   const policies = apiModule.DASHBOARD_PROVIDER_ADAPTER_POLICIES;
 
   assert.doesNotMatch(api, /不做字段映射/);
@@ -1169,7 +1183,7 @@ test('dashboard classifies D21 adapter fallbacks by provider surface', async () 
 
 test('dashboard replays D20 provider fixtures through typed adapter projections', async () => {
   const provider = await importAlembicProviderContracts();
-  const apiModule = await importTranspiled('src/api.ts');
+  const apiModule = await importTranspiled('src/api/index.ts');
   const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
 
   const runtimeReady = providerFixture(fixtures, 'runtime-health.ready');
@@ -1246,7 +1260,7 @@ test('dashboard replays D20 provider fixtures through typed adapter projections'
 
 test('dashboard replays D24 consumer scenarios with public projections and failure classification', async () => {
   const provider = await importAlembicProviderContracts();
-  const apiModule = await importTranspiled('src/api.ts');
+  const apiModule = await importTranspiled('src/api/index.ts');
   const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
   const scenarios = [
     {
@@ -1400,7 +1414,7 @@ test('dashboard replays D24 consumer scenarios with public projections and failu
 
 test('dashboard routes D25 problem taxonomy without raw payload guessing', async () => {
   const provider = await importAlembicProviderContracts();
-  const apiModule = await importTranspiled('src/api.ts');
+  const apiModule = await importTranspiled('src/api/index.ts');
   const errorUtils = await importTranspiled('src/utils/error.ts');
   const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
   // Key order mirrors DASHBOARD_FAILURE_KINDS from the generated contract artifact
@@ -1530,7 +1544,7 @@ test('dashboard routes D25 problem taxonomy without raw payload guessing', async
 });
 
 test('project scope panel consumes Alembic ProjectScope API without fake source folders', () => {
-  const api = read('src/api.ts');
+  const api = readApiDir();
   const types = read('src/types.ts');
   const header = read('src/components/Layout/Header.tsx');
   const panel = read('src/components/Layout/ProjectScopePanel.tsx');
@@ -1628,9 +1642,12 @@ test('project scope panel falls back to current project folder name when scope i
 });
 
 test('network transport primitives stay pinned to the declared census (AD6 inflow/outflow audit)', () => {
-  // Declared transport seams (docs/declared-effects.md): api.ts owns the HTTP
-  // client + SSE streams; lib/socket.ts owns the socket.io singleton.
-  const declaredTransportModules = ['src/api.ts', 'src/lib/socket.ts'];
+  // Declared transport seams (docs/declared-effects.md): api/client.ts owns the
+  // shared axios instance; api/modules.ts owns the SSE scan streams
+  // (fetch session-start + EventSource consume, SPM-frozen methods);
+  // lib/socket.ts owns the socket.io singleton. All other api families consume
+  // the shared client and carry no transport primitives of their own.
+  const declaredTransportModules = ['src/api/client.ts', 'src/api/modules.ts', 'src/lib/socket.ts'];
   // Known stray transport sites recorded as AD6 FINDINGS (api-consolidation
   // candidates, controller-routed): direct axios/fetch calls outside api.ts.
   // This is an exact ratchet — a NEW transport site fails the test, and

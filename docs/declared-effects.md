@@ -13,7 +13,8 @@ build + check pipeline itself.
 
 | Module | Primitive | Role |
 | --- | --- | --- |
-| `src/api.ts` | axios client (`/api/v1` base), `fetch` ×2 + `EventSource` ×2 (lines ~3225/3335: SSE scan-stream session start + consume) | The HTTP transport + normalizer seam. The only module that may grow new HTTP calls. |
+| `src/api/client.ts` | axios client (`/api/v1` base) | The shared HTTP transport instance (W7-f: `src/api.ts` split into `src/api/` route families; every family consumes this client — the api area is the only place new HTTP calls may grow). |
+| `src/api/modules.ts` | `fetch` ×2 + `EventSource` ×2 (SSE scan-stream session start + consume, inside the SPM-frozen `scanTargetStream`/`scanFolderStream` methods) | The modules route family; the SPM scan-stream transport moved verbatim with its methods. |
 | `src/lib/socket.ts` | `socket.io-client` singleton (managed null-slot) | Realtime events channel; one emit (`join-notifications` room opt-in, AD5 single-room contract). Hooks consume the exported singleton, never create transports. |
 
 Pinned by the contract-suite test
@@ -32,7 +33,7 @@ no global interceptor on the shared client), and `src/i18n/index.tsx` calls
 `knownStrayFindings` ratchet list is empty; any new transport site outside the
 declared modules fails `npm test`.
 
-## Read vs mutating operations (`src/api.ts`, wire-level facts)
+## Read vs mutating operations (`src/api/` families, wire-level facts)
 
 GET call sites: 38 (read-only; W7-c adds authMe + authProbe). Mutating-verb
 call sites: 44 (`http.*`; W7-c adds the authLogin POST) plus the 2 SSE `fetch`

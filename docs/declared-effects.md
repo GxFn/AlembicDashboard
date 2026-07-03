@@ -21,24 +21,22 @@ Pinned by the contract-suite test
 file touching `fetch`/`XMLHttpRequest`/`EventSource`/`WebSocket`/`sendBeacon`/
 axios/socket.io fails `npm test`.
 
-## Known stray transport sites — AD6 FINDINGS (recorded, not fixed)
+## Known stray transport sites — consolidated (W7-c)
 
-These pre-existing sites perform HTTP outside `src/api.ts`. They are
-normalizer-seam adjacency findings (charter places transport in the api area),
-pinned as an exact list in the same test so the set cannot grow silently.
-Consolidating them into `src/api.ts` is a controller-routed wave, not part of
-this audit.
-
-| Site | Calls | Note |
-| --- | --- | --- |
-| `src/hooks/useAuth.ts` | `axios.post /auth/login`, `axios.get /auth/me` | Auth flows predate the api-layer convention. |
-| `src/hooks/usePermission.ts` | `axios.get /auth/probe` | Same auth family. |
-| `src/i18n/index.tsx` | `fetch /ai/lang` ×3 (read + persist UI language) | Language preference round-trips outside api.ts. |
+The three pre-existing stray sites (recorded as AD6 FINDINGS) were consolidated
+into the api layer in W7-c: `src/hooks/useAuth.ts` (`/auth/login`, `/auth/me`)
+and `src/hooks/usePermission.ts` (`/auth/probe`) now call `api.authLogin` /
+`api.authMe` / `api.authProbe` (Authorization headers stay caller-assembled —
+no global interceptor on the shared client), and `src/i18n/index.tsx` calls
+`api.getLang` / `api.setLang` for the `/ai/lang` round-trips. The census test's
+`knownStrayFindings` ratchet list is empty; any new transport site outside the
+declared modules fails `npm test`.
 
 ## Read vs mutating operations (`src/api.ts`, wire-level facts)
 
-GET call sites: 36 (read-only). Mutating-verb call sites: 43 (`http.*`) plus
-the 2 SSE `fetch` POSTs, enumerated by method below (`refreshProject` has two
+GET call sites: 38 (read-only; W7-c adds authMe + authProbe). Mutating-verb
+call sites: 44 (`http.*`; W7-c adds the authLogin POST) plus the 2 SSE `fetch`
+POSTs, enumerated by method below (`refreshProject` has two
 POST sites: `/modules/update-map` + `/commands/spm-map` fallback). Verb is the
 machine fact recorded here; a subset of POST endpoints are compute/query RPCs
 (e.g. `probeProvider`, `getTargetFiles`, `extractFrom*`) — their semantic
@@ -50,14 +48,15 @@ getRecipeByName, getCandidate, getAiProvidersEnhanced, setAiConfig,
 summarizeCode, translate, saveGuardRule, knowledgeGet, knowledgeRecordUsage,
 knowledgeUpdateQuality, getLogs, getProposalStats, getWarningStats.
 
-- **POST (32 sites / 31 methods):** action, addProjectScopeFolder,
-  aiGenerateSkill, bootstrap, cancelBootstrap, cancelJob, clearViolations,
-  createSkill, dismissWarning, enqueueBootstrapJob, enqueueRescanJob,
-  executeProposal, extractFromPath, extractFromText, getTargetFiles,
-  knowledgeBatchDelete, knowledgeBatchDeprecate, knowledgeBatchPublish,
-  knowledgeCreate, observeProposal, probeProvider, promoteToCandidate,
-  refreshProject (×2), rejectProposal, rescan, resolveProjectScopeFolder,
-  resolveWarning, saveLlmEnvConfig, scanProject, scanTarget, setLang
+- **POST (33 sites / 32 methods):** action, addProjectScopeFolder,
+  aiGenerateSkill, authLogin, bootstrap, cancelBootstrap, cancelJob,
+  clearViolations, createSkill, dismissWarning, enqueueBootstrapJob,
+  enqueueRescanJob, executeProposal, extractFromPath, extractFromText,
+  getTargetFiles, knowledgeBatchDelete, knowledgeBatchDeprecate,
+  knowledgeBatchPublish, knowledgeCreate, observeProposal, probeProvider,
+  promoteToCandidate, refreshProject (×2), rejectProposal, rescan,
+  resolveProjectScopeFolder, resolveWarning, saveLlmEnvConfig, scanProject,
+  scanTarget, setLang
 - **PUT (1):** updateSkill
 - **PATCH (5):** knowledgeLifecycle, knowledgeUpdate,
   promoteCandidateToRecipe, setRecipeAuthority, updateRecipeRelations

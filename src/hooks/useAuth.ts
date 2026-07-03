@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { getErrorMessage } from '../utils/error';
 
 export interface AuthUser {
@@ -50,11 +50,11 @@ export function useAuth(): AuthState {
   const login = useCallback(async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      const res = await axios.post('/api/v1/auth/login', { username, password });
-      const data = res.data;
+      // W7-c：改经共享 api 层（POST /auth/login 串不变）；响应信封原样透传
+      const data = await api.authLogin({ username, password });
       if (data.success) {
-        const t = data.data.token as string;
-        const u: AuthUser = data.data.user ?? { username, role: 'local-write' };
+        const t = data.data?.token as string;
+        const u: AuthUser = data.data?.user ?? { username, role: 'local-write' };
         localStorage.setItem(TOKEN_KEY, t);
         localStorage.setItem(USER_KEY, JSON.stringify(u));
         setToken(t);
@@ -85,11 +85,10 @@ export function useAuth(): AuthState {
     (async () => {
       setIsLoading(true);
       try {
-        const res = await axios.get('/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!cancelled && res.data.success) {
-          setUser(res.data.data.user);
+        // W7-c：Authorization 头仍由本调用方显式组装（不加全局拦截器）
+        const res = await api.authMe({ Authorization: `Bearer ${token}` });
+        if (!cancelled && res.success) {
+          setUser(res.data?.user ?? null);
         } else if (!cancelled) {
           logout();
         }

@@ -1635,7 +1635,9 @@ test('network transport primitives stay pinned to the declared census (AD6 inflo
   // candidates, controller-routed): direct axios/fetch calls outside api.ts.
   // This is an exact ratchet — a NEW transport site fails the test, and
   // consolidating a stray away requires deleting its row here (explicit).
-  const knownStrayFindings = ['src/hooks/useAuth.ts', 'src/hooks/usePermission.ts', 'src/i18n/index.tsx'];
+  // W7-c consolidated the last three strays (useAuth/usePermission auth calls
+  // and the i18n /ai/lang round-trips) into the api layer — the list is empty.
+  const knownStrayFindings = [];
 
   const transportPatterns = [
     /\bfetch\s*\(/,

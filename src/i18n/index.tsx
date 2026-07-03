@@ -9,6 +9,9 @@
  */
 
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
+// W7-c 双通道收敛：语言偏好读写改经共享 api 层（i18n→api 单向运行时边，
+// layer-contract 已回写；api 不回引 i18n，无环）。HTTP 串 /ai/lang 不变。
+import api from '../api';
 import { zh } from './locales/zh';
 import { en } from './locales/en';
 import type { Locale } from './types';
@@ -65,18 +68,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'en' || stored === 'zh') {
-      // 用户有本地偏好 → 推送到服务端确保一致
-      fetch('/api/v1/ai/lang', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lang: stored }),
-      }).catch(() => { /* noop */ });
+      // 用户有本地偏好 → 推送到服务端确保一致（fire-and-forget）
+      api.setLang(stored).catch(() => { /* noop */ });
     } else {
       // 首次访问 → 从服务端获取系统默认语言
-      fetch('/api/v1/ai/lang')
-        .then(r => r.json())
-        .then(data => {
-          const serverLang = data?.data?.lang;
+      // （api.getLang 服务端缺省时归一化为 'zh'，与本地默认一致）
+      api.getLang()
+        .then(serverLang => {
           if (serverLang === 'en' || serverLang === 'zh') {
             setLangState(serverLang);
             try { localStorage.setItem(STORAGE_KEY, serverLang); } catch { /* noop */ }
@@ -90,11 +88,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setLangState(l);
     try { localStorage.setItem(STORAGE_KEY, l); } catch { /* noop */ }
     // 同步到服务端（fire-and-forget）— 影响后续冷启动等 AI 输出语言
-    fetch('/api/v1/ai/lang', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lang: l }),
-    }).catch(() => { /* noop */ });
+    api.setLang(l).catch(() => { /* noop */ });
   }, []);
 
   const t = useCallback(

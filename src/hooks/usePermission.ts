@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 
 export type RoleId =
   | 'local-write'
@@ -101,12 +101,13 @@ export function usePermission(authRole?: string): PermissionState {
       const headers: Record<string, string> = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      const res = await axios.get('/api/v1/auth/probe', { headers });
-      if (res.data.success) {
-        const d = res.data.data;
+      // W7-c：改经共享 api 层（GET /auth/probe 串不变）；headers 仍由此处显式组装
+      const res = await api.authProbe(headers);
+      if (res.success && res.data) {
+        const d = res.data;
         setRole(normalizeAccessScope(d.role));
-        setUser(d.user);
-        setMode(d.mode);
+        if (typeof d.user === 'string') { setUser(d.user); }
+        if (d.mode === 'token' || d.mode === 'probe') { setMode(d.mode); }
         setProbeCache(d.probeCache ?? null);
       }
     } catch {

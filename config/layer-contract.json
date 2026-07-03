@@ -8,7 +8,8 @@
     "App is the root view orchestrator: it consumes components, hooks, api, and the shared leaves; nothing imports App except main.",
     "components (views) consume state/services below them (api, hooks, RuntimeDiagnosticsPanelModel, i18n, theme, constants, lib, utils, types); nothing imports components except App.",
     "api owns HTTP transport plus the normalizer seam and is the only runtime consumer of generated; views never import generated directly.",
-    "Leaves import nothing at runtime: types, generated, constants, lib, utils, i18n, theme, KnowledgePayload, RuntimeDiagnosticsPanelModel (the latter two are single-module builder/view-model areas consumed from above)."
+    "Leaves import nothing at runtime: types, generated, constants, lib, utils, theme, KnowledgePayload, RuntimeDiagnosticsPanelModel (the latter two are single-module builder/view-model areas consumed from above).",
+    "i18n runtime-imports api since W7-c: the language-preference round-trips (/ai/lang) go through the shared HTTP transport (api.getLang/setLang). The edge is one-way — api never imports i18n — so the graph stays a DAG."
   ],
   "normalizerSeam": "Cross-provider response variance is absorbed only in api.ts explicit adapters/normalizers (and the utils/error helpers they delegate to): normalizers absorb runtime nulls and shape variance, never contract drift — contract drift is the generated-artifact drift gate's job. UI components consume normalized projections via api/types and must not guess raw payload fields; structurally enforced by this matrix (only api may runtime-import generated; components reach data through api).",
   "charterCrossCheck": "AD2 charter (zero-dependency UI consumer of the HTTP contract via generated types; projection only, no business logic): the observed matrix matches — api is the single transport/normalization owner, generated is a leaf consumed only by api (runtime) and types (type bridges), views are projection layers on top. No contradiction found 2026-06-12.",
@@ -35,7 +36,7 @@
     "constants": [],
     "generated": [],
     "hooks": ["api", "lib", "utils"],
-    "i18n": [],
+    "i18n": ["api"],
     "KnowledgePayload": [],
     "lib": [],
     "main": ["App", "i18n", "theme"],

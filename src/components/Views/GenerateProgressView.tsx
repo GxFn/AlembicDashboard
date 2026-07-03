@@ -14,7 +14,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, X, Loader2, Sparkles, Code2, Layers, BookOpen, Zap, Settings, Bot, Brain, Filter, Wand2, GitMerge, Clock, Wrench, StopCircle, TerminalSquare, ExternalLink, Activity } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/utils';
-import type { GenerateSession, GenerateTask, ReviewState } from '../../hooks/useGenerateSocket';
+import type { GenerateSessionView, GenerateTask, ReviewState } from '../../hooks/useGenerateSocket';
 import { useJobProcessEvents } from '../../hooks/useJobProcessEvents';
 import {
   formatProcessEventSemanticLabel,
@@ -511,7 +511,7 @@ function getBootstrapProcessEventTone(event: JobProcessDeveloperView): { badge: 
  * ═══════════════════════════════════════════════════════ */
 
 interface GenerateProgressViewProps {
-  session: GenerateSession | null;
+  session: GenerateSessionView | null;
   isAllDone: boolean;
   /** AI review pipeline state */
   reviewState?: ReviewState;

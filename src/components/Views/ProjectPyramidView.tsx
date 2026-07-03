@@ -159,7 +159,7 @@ function pyramidLayout(
   return { positions, tiers, tierOrder, tierYRanges, totalWidth };
 }
 
-const DepGraphView: React.FC = () => {
+const ProjectPyramidView: React.FC = () => {
   const { t } = useI18n();
   const { isDark } = useTheme();
   const [data, setData] = useState<DepGraphData | null>(null);
@@ -641,4 +641,4 @@ const DepGraphView: React.FC = () => {
   );
 };
 
-export default DepGraphView;
+export default ProjectPyramidView;

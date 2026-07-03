@@ -66,7 +66,7 @@ export interface TestModeConfig {
   terminal: TestTerminalConfig;
 }
 
-export interface GenerateSession {
+export interface GenerateSessionView {
   id: string;
   status: 'running' | 'completed' | 'completed_with_errors' | 'failed' | 'aborted' | 'cancelled' | 'idle';
   progress: number;
@@ -92,9 +92,9 @@ export interface GenerateSession {
   jobs?: DaemonJobRecord[];
 }
 
-interface UseBootstrapSocketReturn {
+interface UseGenerateSocketReturn {
   /** Current bootstrap session state */
-  session: GenerateSession | null;
+  session: GenerateSessionView | null;
   /** Whether socket is connected */
   isConnected: boolean;
   /** Whether all tasks are done */
@@ -104,15 +104,15 @@ interface UseBootstrapSocketReturn {
   /** Reset session (clear state) */
   resetSession: () => void;
   /** Start session from API response skeleton */
-  initFromApiResponse: (sessionData: GenerateSession) => void;
+  initFromApiResponse: (sessionData: GenerateSessionView) => void;
 }
 
 /* ═══════════════════════════════════════════════════════
  *  Hook
  * ═══════════════════════════════════════════════════════ */
 
-export function useGenerateSocket(): UseBootstrapSocketReturn {
-  const [session, setSession] = useState<GenerateSession | null>(null);
+export function useGenerateSocket(): UseGenerateSocketReturn {
+  const [session, setSession] = useState<GenerateSessionView | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [reviewState, setReviewState] = useState<ReviewState>(INITIAL_REVIEW_STATE);
   const sessionIdRef = useRef<string | null>(null);
@@ -141,7 +141,7 @@ export function useGenerateSocket(): UseBootstrapSocketReturn {
           setSession(prev => {
             if (!prev || prev.id === status.id || status.progress > (prev?.progress ?? 0)) {
               sessionIdRef.current = status.id;
-              return status as GenerateSession;
+              return status as GenerateSessionView;
             }
             return prev;
           });
@@ -356,7 +356,7 @@ export function useGenerateSocket(): UseBootstrapSocketReturn {
     setReviewState(INITIAL_REVIEW_STATE);
   }, []);
 
-  const initFromApiResponse = useCallback((sessionData: GenerateSession) => {
+  const initFromApiResponse = useCallback((sessionData: GenerateSessionView) => {
     if (sessionData) {
       setSession(prev => {
         if (prev && prev.id === sessionData.id) {

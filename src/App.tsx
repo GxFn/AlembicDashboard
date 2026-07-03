@@ -36,7 +36,7 @@ import HelpView from './components/Views/HelpView';
 import CandidatesView from './components/Views/CandidatesView';
 import ModuleExplorerView from './components/Views/ModuleExplorerView';
 import GuardView from './components/Views/GuardView';
-import DepGraphView from './components/Views/DepGraphView';
+import ProjectPyramidView from './components/Views/ProjectPyramidView';
 import KnowledgeView from './components/Views/KnowledgeView';
 import SkillsView from './components/Views/SkillsView';
 import GenerateProgressView from './components/Views/GenerateProgressView';
@@ -1136,7 +1136,7 @@ const App: React.FC = () => {
       ) : activeTab === 'guard' ? (
       <GuardView onRefresh={fetchData} />
       ) : activeTab === 'project-pyramid' ? (
-      <DepGraphView />
+      <ProjectPyramidView />
       ) : activeTab === 'skills' ? (
       <SkillsView onRefresh={fetchData} />
       ) : activeTab === 'jobs' ? (

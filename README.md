@@ -4,6 +4,17 @@ AlembicDashboard is the standalone frontend repository for the Alembic Dashboard
 
 It does not own Core runtime logic, Agent decisions, tool execution, CLI / daemon code, plugin marketplace delivery, or real project test operations. Those responsibilities stay in their corresponding Alembic repositories.
 
+## Directory map (W7, 2026-07-03)
+
+| Directory | Responsibility |
+| --------- | -------------- |
+| `src/api/` | HTTP client split by backend route family (`client`/`problem`/`sse` shared bases + `projects`/`jobs`/`knowledge`/`modules`/… 16 families; `index.ts` re-assembles the legacy `api` aggregate so consumers stay unchanged) |
+| `src/components/Views/` | Tab views (one per tab id) plus embedded panels; `Layout/` header/sidebar shells; `Shared/` cross-view pieces (ErrorBoundary…) |
+| `src/hooks/` | Socket/session hooks (`useGenerateSocket`), auth, tab navigation, projects control, LLM status |
+| `src/i18n/` | zh/en locales (keys pruned to live usage in W7; SPM segment and backend-keyed families intentionally kept) |
+| `src/generated/` | Byte-copy of the main repo's canonical dashboard API types (sha256-pinned, do not edit by hand) |
+| `scripts/` | Contract test suite (`node --test`, 33 cases — path/regex pinned structure gates) and lint/check tooling |
+
 ## Common Commands
 
 ```bash

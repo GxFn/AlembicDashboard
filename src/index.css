@@ -34,6 +34,17 @@
   --accent-fg:      #ffffff;
   --accent-subtle:  rgba(99, 102, 241, 0.08);
   --accent-muted:   rgba(99, 102, 241, 0.15);
+  --accent-emphasis: var(--accent);
+
+  /* ── Legacy dashboard token aliases ── */
+  --fg-primary:      var(--fg-default);
+  --fg-secondary:    var(--fg-muted);
+  --text-primary:    var(--fg-default);
+  --text-secondary:  var(--fg-muted);
+  --text-tertiary:   var(--fg-subtle);
+  --bg-elevated:     var(--bg-surface);
+  --bg-hover:        var(--bg-muted);
+  --border-hover:    var(--border-emphasis);
 
   /* ── 品牌渐变 ── */
   --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);

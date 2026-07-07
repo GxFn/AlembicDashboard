@@ -124,9 +124,12 @@ export interface KnowledgeGap {
 export interface KnowledgeGraphEdge {
   fromId: string;
   fromType: string;
+  id: number;
+  metadata: Record<string, unknown>;
   relation: string;
   toId: string;
   toType: string;
+  weight: number;
 }
 
 export interface KnowledgeGraph {
@@ -140,6 +143,24 @@ export interface KnowledgeGraphStats {
   byRelation: Record<string, number>;
   nodeTypes: unknown[];
   totalEdges: number;
+}
+
+export interface DiscoverRelationsResponse {
+  error?: string;
+  message?: string;
+  startedAt?: string;
+  status: string;
+}
+
+export interface DiscoverRelationsStatus {
+  batchErrors?: number;
+  discovered?: number;
+  elapsed?: number;
+  error?: string;
+  message?: string;
+  startedAt?: string;
+  status: string;
+  totalPairs?: number;
 }
 
 function num(value: unknown, fallback = 0): number {
@@ -306,12 +327,15 @@ function normalizeGaps(value: unknown): KnowledgeGap[] {
 
 function normalizeGraph(value: unknown): KnowledgeGraph {
   const data = providerDataRecord(value);
-  const edges = recordArray(data.edges).map((edge) => ({
+  const edges = recordArray(data.edges).map((edge, index) => ({
     fromId: str(edge.fromId),
     fromType: str(edge.fromType),
+    id: firstNumber(edge.id) ?? index,
+    metadata: asRuntimeRecord(edge.metadata) ?? {},
     relation: str(edge.relation, str(edge.type, 'depends_on')),
     toId: str(edge.toId),
     toType: str(edge.toType),
+    weight: num(edge.weight, 1),
   })).filter((edge) => edge.fromId.length > 0 && edge.toId.length > 0);
   return {
     edges,
@@ -331,6 +355,35 @@ function normalizeGraphStats(value: unknown): KnowledgeGraphStats {
     byRelation,
     nodeTypes: Array.isArray(data.nodeTypes) ? data.nodeTypes : [],
     totalEdges: num(data.totalEdges),
+  };
+}
+
+function normalizeDiscoverRelationsResponse(value: unknown): DiscoverRelationsResponse {
+  const payload = asRuntimeRecord(value) ?? {};
+  if (payload.success === false) {
+    const errorRecord = asRuntimeRecord(payload.error) ?? {};
+    throw new Error(str(errorRecord.message, 'Failed to start relation discovery'));
+  }
+  const data = providerDataRecord(value);
+  return {
+    error: firstString(data.error) ?? undefined,
+    message: firstString(data.message) ?? undefined,
+    startedAt: firstString(data.startedAt) ?? undefined,
+    status: str(data.status, 'unknown'),
+  };
+}
+
+function normalizeDiscoverRelationsStatus(value: unknown): DiscoverRelationsStatus {
+  const data = providerDataRecord(value);
+  return {
+    batchErrors: firstNumber(data.batchErrors) ?? undefined,
+    discovered: firstNumber(data.discovered) ?? undefined,
+    elapsed: firstNumber(data.elapsed) ?? undefined,
+    error: firstString(data.error) ?? undefined,
+    message: firstString(data.message) ?? undefined,
+    startedAt: firstString(data.startedAt) ?? undefined,
+    status: str(data.status, 'idle'),
+    totalPairs: firstNumber(data.totalPairs) ?? undefined,
   };
 }
 
@@ -358,5 +411,15 @@ export const panoramaApi = {
   async getGraphStats(): Promise<KnowledgeGraphStats> {
     const res = await http.get('/search/graph/stats');
     return normalizeGraphStats(res.data);
+  },
+
+  async discoverRelations(batchSize = 20): Promise<DiscoverRelationsResponse> {
+    const res = await http.post('/recipes/discover-relations', { batchSize });
+    return normalizeDiscoverRelationsResponse(res.data);
+  },
+
+  async getDiscoverRelationsStatus(): Promise<DiscoverRelationsStatus> {
+    const res = await http.get('/recipes/discover-relations/status');
+    return normalizeDiscoverRelationsStatus(res.data);
   },
 };

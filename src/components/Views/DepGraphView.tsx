@@ -33,22 +33,65 @@ interface DepGraphData {
 
 /* ── 自适应布局参数 ─────────────────────────────── */
 
+const LAYOUT_DENSITY = {
+  normal: {
+    nodeWidth: 140,
+    nodeHeight: 40,
+    nodeGap: 16,
+    layerGap: 12,
+    layerPadY: 6,
+    subRowGap: 8,
+    padding: 24,
+    layerSidePadding: 20,
+    fontSize: 12,
+    labelMaxChars: 16,
+  },
+  compact: {
+    nodeWidth: 120,
+    nodeHeight: 34,
+    nodeGap: 8,
+    layerGap: 8,
+    layerPadY: 5,
+    subRowGap: 5,
+    padding: 16,
+    layerSidePadding: 14,
+    fontSize: 10.5,
+    labelMaxChars: 13,
+  },
+  ultraCompact: {
+    nodeWidth: 100,
+    nodeHeight: 30,
+    nodeGap: 6,
+    layerGap: 6,
+    layerPadY: 4,
+    subRowGap: 4,
+    padding: 12,
+    layerSidePadding: 10,
+    fontSize: 9,
+    labelMaxChars: 10,
+  },
+} as const;
+
+function layoutDensity(nodeCount: number): keyof typeof LAYOUT_DENSITY {
+  if (nodeCount > 120) return 'ultraCompact';
+  if (nodeCount > 40) return 'compact';
+  return 'normal';
+}
+
 /** 根据节点总数和容器宽度计算布局参数 */
 function computeLayoutParams(nodeCount: number, containerWidth: number) {
-  // 紧凑模式阈值
-  const compact = nodeCount > 40;
-  const ultraCompact = nodeCount > 120;
-
-  const nodeWidth = ultraCompact ? 100 : compact ? 120 : 140;
-  const nodeHeight = ultraCompact ? 30 : compact ? 34 : 40;
-  const nodeGap = ultraCompact ? 6 : compact ? 8 : 16;
-  const layerGap = ultraCompact ? 6 : compact ? 8 : 12; // 层与层之间的间距
-  const layerPadY = ultraCompact ? 4 : compact ? 5 : 6;  // 层背景上下内边距
-  const subRowGap = ultraCompact ? 4 : compact ? 5 : 8;  // 同层多行的行间距
-  const padding = ultraCompact ? 12 : compact ? 16 : 24;
-  const layerSidePadding = ultraCompact ? 10 : compact ? 14 : 20;
-  const fontSize = ultraCompact ? 9 : compact ? 10.5 : 12;
-  const labelMaxChars = ultraCompact ? 10 : compact ? 13 : 16;
+  const {
+    nodeWidth,
+    nodeHeight,
+    nodeGap,
+    layerGap,
+    layerPadY,
+    subRowGap,
+    padding,
+    layerSidePadding,
+    fontSize,
+    labelMaxChars,
+  } = LAYOUT_DENSITY[layoutDensity(nodeCount)];
 
   // 根据容器宽度计算每行最大节点数
   const usableWidth = Math.max(400, containerWidth) - padding * 2 - layerSidePadding * 2;
@@ -224,7 +267,7 @@ const DepGraphView: React.FC = () => {
   }, [allNodes, nodeFilter, hasTypes]);
   const nodeIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
   const edges = useMemo(() => {
-    return allEdges.filter(e => nodeIds.has(e.from) && nodeIds.has(e.to));
+    return allEdges.filter(e => nodeIds.has(e.from) || nodeIds.has(e.to));
   }, [allEdges, nodeIds]);
 
   // 自适应布局参数
@@ -270,11 +313,6 @@ const DepGraphView: React.FC = () => {
     return fitScale < 1 ? fitScale : 1;
   }, [containerWidth, svgW]);
   const effectiveZoom = zoom * autoScale;
-  const generatedAtLabel = useMemo(() => {
-    if (!data?.generatedAt) { return null; }
-    const date = new Date(data.generatedAt);
-    return Number.isNaN(date.getTime()) ? data.generatedAt : date.toLocaleString();
-  }, [data?.generatedAt]);
 
   const tierColors = isDark ? [
     { bg: 'rgba(59, 130, 246, 0.14)', border: 'rgba(59, 130, 246, 0.40)', text: 'rgb(147 197 253)' },
@@ -325,44 +363,6 @@ const DepGraphView: React.FC = () => {
 
   return (
   <div className="flex-1 flex flex-col overflow-hidden">
-    <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-emphasis)]">
-          <Layers size={ICON_SIZES.md} />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-[var(--fg-primary)]">{t('depGraph.title')}</h2>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--fg-secondary)]">
-            <span>{t('depGraph.totalModules', { count: allNodes.length })}</span>
-            <span>{t('depGraph.totalDeps', { count: allEdges.length })}</span>
-            {data.projectRoot && <span className="max-w-full truncate font-mono">{data.projectRoot}</span>}
-            {generatedAtLabel && <span>{generatedAtLabel}</span>}
-          </div>
-        </div>
-      </div>
-      {hasTypes && (
-        <div className="inline-flex w-fit shrink-0 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-1">
-          {([
-            ['all', t('depGraph.filterAll')],
-            ['internal', t('depGraph.filterInternal')],
-            ['external', t('depGraph.filterExternal')],
-          ] as const).map(([filter, label]) => (
-            <button
-              key={filter}
-              type="button"
-              onClick={() => setNodeFilter(filter)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                nodeFilter === filter
-                  ? 'bg-[var(--accent)] text-white shadow-sm'
-                  : 'text-[var(--fg-secondary)] hover:bg-[var(--bg-muted)]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
     {/* ── Compact toolbar: legend + zoom ── */}
     <div className="flex items-center justify-between mb-2 flex-shrink-0">
       <div className="flex items-center gap-4 text-xs text-[var(--fg-secondary)]">
@@ -401,12 +401,6 @@ const DepGraphView: React.FC = () => {
     {/* ── 内容区域 ── */}
     <div className="flex-1 overflow-y-auto pr-1 pb-6">
 
-    {nodes.length === 0 ? (
-    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] p-8 text-[var(--fg-secondary)] shadow-sm">
-      <p className="font-medium text-[var(--fg-primary)]">{t('depGraph.noResults')}</p>
-    </div>
-    ) : (
-    <>
     {/* 图区域：金字塔分层，点击节点在浮窗显示依赖 */}
     <div ref={containerRef} className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] overflow-auto shadow-sm relative" style={{ minHeight: 320, maxHeight: '75vh' }}>
     <svg
@@ -617,13 +611,11 @@ const DepGraphView: React.FC = () => {
       <h3 className="text-sm font-bold text-[var(--fg-primary)] mb-3 pb-2 border-b border-[var(--border-default)]">{t('depGraph.depRelations')} ({edges.length})</h3>
       <p className="text-xs text-[var(--fg-secondary)] mb-2">{t('depGraph.depRelationsDesc')}</p>
       <ul className="text-sm space-y-2 max-h-[280px] overflow-y-auto pr-1">
-      {edges.length === 0 ? (
-        <li className="text-[var(--fg-muted)]">{t('depGraph.none')}</li>
-      ) : edges.map((e, i) => (
+      {edges.map((e, i) => (
         <li key={`${e.from}-${e.to}-${i}`} className="flex items-center gap-2 text-[var(--fg-primary)]">
-          <span className="font-semibold text-[var(--fg-primary)]">{e.from}</span>
-          <span className="text-[var(--fg-muted)] shrink-0">→</span>
-          <span className="font-semibold text-[var(--fg-primary)]">{e.to}</span>
+        <span className="font-semibold text-[var(--fg-primary)]">{e.from}</span>
+        <span className="text-[var(--fg-muted)] shrink-0">→</span>
+        <span className="font-semibold text-[var(--fg-primary)]">{e.to}</span>
         </li>
       ))}
       </ul>
@@ -634,8 +626,6 @@ const DepGraphView: React.FC = () => {
     </p>
     )}
     </div>
-    </>
-    )}
     </div>
   </div>
   );

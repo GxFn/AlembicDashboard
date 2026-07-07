@@ -510,7 +510,7 @@ const TAB_LABELS: Record<TabType, string> = {
   candidates: 'sidebar.candidates',
   knowledge: 'sidebar.batchManage',
   guard: 'sidebar.guard',
-  'project-pyramid': 'sidebar.projectPyramid',
+  panorama: 'sidebar.panorama',
   skills: 'sidebar.skills',
   jobs: 'sidebar.jobs',
   help: 'sidebar.help',

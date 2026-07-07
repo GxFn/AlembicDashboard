@@ -19,6 +19,7 @@ import { guardApi } from './guard';
 import { jobsApi } from './jobs';
 import { knowledgeApi } from './knowledge';
 import { modulesApi } from './modules';
+import { panoramaApi } from './panorama';
 import { projectScopeApi } from './projectScope';
 import { projectsApi } from './projects';
 import { searchApi } from './search';
@@ -29,6 +30,7 @@ export const api = {
   ...projectsApi,
   ...projectScopeApi,
   ...modulesApi,
+  ...panoramaApi,
   ...jobsApi,
   ...extractApi,
   ...knowledgeApi,
@@ -120,6 +122,20 @@ export type {
   JobProcessSourceClass,
 } from './jobs';
 export type { SearchResultItem } from './search';
+export type {
+  KnowledgeGap,
+  KnowledgeGraph,
+  KnowledgeGraphEdge,
+  KnowledgeGraphStats,
+  PanoramaArchitectureLayer,
+  PanoramaHealth,
+  PanoramaHealthRadar,
+  PanoramaHealthRadarDimension,
+  PanoramaLayerModule,
+  PanoramaOverview,
+  PanoramaRecipeCount,
+  PanoramaScopeBoundary,
+} from './panorama';
 export type {
   AiProbeResult,
   AiProviderInfo,

@@ -1125,6 +1125,67 @@ test('dashboard signal page surfaces are removed while core dashboard views rema
   assert.match(api, /async promoteCandidateToRecipe/);
 });
 
+test('dashboard restores the Panorama four-tab contract on P2 endpoints', () => {
+  const app = read('src/App.tsx');
+  const constants = read('src/constants/index.ts');
+  const sidebar = read('src/components/Layout/Sidebar.tsx');
+  const commandPalette = read('src/components/Layout/CommandPalette.tsx');
+  const header = read('src/components/Layout/Header.tsx');
+  const panorama = read('src/components/Views/PanoramaView.tsx');
+  const depGraph = read('src/components/Views/DepGraphView.tsx');
+  const knowledgeGraph = read('src/components/Views/KnowledgeGraphView.tsx');
+  const api = read('src/api/panorama.ts');
+  const generated = read('src/generated/api-types.ts');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+
+  assert.equal(existsSync(path.join(root, 'src/components/Views/ProjectPyramidView.tsx')), false);
+  assert.equal(existsSync(path.join(root, 'src/components/Views/PanoramaView.tsx')), true);
+  assert.equal(existsSync(path.join(root, 'src/components/Views/DepGraphView.tsx')), true);
+  assert.equal(existsSync(path.join(root, 'src/components/Views/KnowledgeGraphView.tsx')), true);
+
+  assert.match(app, /PanoramaView/);
+  assert.match(app, /activeTab === ['"]panorama['"]/);
+  assert.match(constants, /['"]panorama['"]/);
+  assert.doesNotMatch(constants, /project-pyramid/);
+  assert.match(sidebar, /tab:\s*['"]panorama['"]/);
+  assert.match(commandPalette, /panorama:\s*Layers/);
+  assert.match(header, /panorama:\s*['"]sidebar\.panorama['"]/);
+  assert.doesNotMatch(`${sidebar}\n${commandPalette}\n${header}`, /projectPyramid|project-pyramid/);
+
+  for (const tab of ['overview', 'dependencies', 'graph', 'gaps']) {
+    assert.match(panorama, new RegExp(`key:\\s*['"]${tab}['"]`), `${tab} Panorama tab should be restored`);
+  }
+  for (const endpoint of ['/panorama', '/panorama/health', '/panorama/gaps']) {
+    assert.match(api, new RegExp(endpoint.replaceAll('/', '\\/')), `${endpoint} should be called by the Panorama API family`);
+    assert.match(generated, new RegExp(`"path": "${endpoint}"`), `${endpoint} should be present in the generated API contract`);
+  }
+  for (const operationId of ['getPanoramaOverview', 'getPanoramaHealth', 'getPanoramaGaps']) {
+    assert.match(generated, new RegExp(`"operationId": "${operationId}"`));
+  }
+
+  assert.match(panorama, /DepGraphView/);
+  assert.match(panorama, /KnowledgeGraphView/);
+  assert.match(depGraph, /api\.getDepGraph/);
+  assert.match(knowledgeGraph, /api\.getKnowledgeGraph/);
+  assert.match(knowledgeGraph, /api\.getGraphStats/);
+
+  for (const role of ['app', 'core', 'foundation', 'service', 'networking', 'storage', 'model', 'ui', 'routing', 'utility', 'auth', 'feature', 'config', 'test']) {
+    assert.match(panorama, new RegExp(`${role}:`), `${role} role label should remain in Panorama`);
+  }
+  assert.match(api, /recipeCount:\s*number \| null/);
+  assert.match(panorama, /recipeCount === null/);
+  assert.match(panorama, /recipeCountDegraded/);
+
+  for (const locale of [zh, en]) {
+    assert.match(locale, /sidebar:\s*\{[\s\S]*panorama:/);
+    assert.match(locale, /panorama:\s*\{[\s\S]*overview:/);
+    assert.match(locale, /panorama:\s*\{[\s\S]*dependencies:/);
+    assert.match(locale, /panorama:\s*\{[\s\S]*recipeCountDegraded:/);
+    assert.doesNotMatch(locale, /projectPyramid/);
+  }
+});
+
 test('dashboard classifies D21 adapter fallbacks by provider surface', async () => {
   const api = read('src/api/client.ts');
   const apiModule = await importTranspiled('src/api/index.ts');

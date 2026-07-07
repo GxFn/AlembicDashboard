@@ -32,7 +32,7 @@ const ROLE_LABELS: Record<string, string> = {
   feature: 'Feature',
   foundation: 'Foundation',
   model: 'Model',
-  networking: 'Networking',
+  networking: 'Network',
   routing: 'Routing',
   service: 'Service',
   storage: 'Storage',
@@ -459,7 +459,7 @@ function GapsSummary({ gaps, overview }: { gaps: KnowledgeGap[]; overview: Panor
               <p className="mt-1 text-xl font-semibold text-[var(--fg-primary)]">{gaps.length}</p>
             </div>
           </div>
-          {gaps.slice(0, 3).map((gap) => (
+          {gaps.slice(0, 5).map((gap) => (
             <div key={`${gap.dimension}-${gap.priority}`} className="rounded-md border border-[var(--border-default)] px-3 py-2">
               <p className="truncate text-sm font-medium text-[var(--fg-primary)]">{gap.dimensionName}</p>
               <p className="mt-1 text-xs text-[var(--fg-secondary)]">

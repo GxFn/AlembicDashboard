@@ -10,8 +10,10 @@
  */
 
 import { http } from './client';
+import { normalizeModuleScanProjectResult } from './moduleScan';
 import { projectSseErrorMessage, projectSseScanResult } from './sse';
 import type { ExtractedRecipe, SPMTarget, ScannedFile } from '../types';
+import type { ModuleScanProjectResult } from './moduleScan';
 
 
 export const modulesApi = {
@@ -118,22 +120,10 @@ export const modulesApi = {
   },
 
   /** 全项目扫描：AI 提取 + Guard 审计 */
-  async scanProject(signal?: AbortSignal): Promise<{
-    targets: string[];
-    recipes: ExtractedRecipe[];
-    guardAudit: import('../types').GuardAuditResult | null;
-    scannedFiles: ScannedFile[];
-    partial: boolean;
-  }> {
+  async scanProject(signal?: AbortSignal): Promise<ModuleScanProjectResult> {
     const res = await http.post('/modules/scan-project', {}, { signal, timeout: 600000 });
     const data = res.data?.data || {};
-    return {
-      targets: data.targets || [],
-      recipes: data.recipes || [],
-      guardAudit: data.guardAudit || null,
-      scannedFiles: (data.scannedFiles || []) as ScannedFile[],
-      partial: data.partial || false,
-    };
+    return normalizeModuleScanProjectResult(data);
   },
 
   /**

@@ -15,8 +15,9 @@ import {
 import { isShellTarget, isSilentTarget, isPendingTarget, getWritePermissionErrorMsg, getSaveErrorMsg } from './utils';
 import { getErrorMessage, isAbortError, isTimeoutError, isAiError, isAxiosCancel } from './utils/error';
 import api from './api';
-import { toRecipe } from './api/knowledge';
-import { buildKnowledgeUpdatePayload, resolveExistingRecipeId } from './api/recipeReviewer';
+import { buildModuleScanViewModel } from './api/moduleScan';
+import type { ModuleScanProjectResult } from './api/moduleScan';
+import { buildKnowledgeUpdatePayload, loadExistingRecipeForReview } from './api/recipeReviewer';
 import { useAuth } from './hooks/useAuth';
 import { usePermission } from './hooks/usePermission';
 import { useGenerateSocket } from './hooks/useGenerateSocket';
@@ -138,6 +139,7 @@ const App: React.FC = () => {
   const [scanFileList, setScanFileList] = useState<ScannedFile[]>([]);
   const [scanResults, setScanResults_raw] = useState<ScanResultItem[]>([]);
   const [guardAudit, setGuardAudit] = useState<GuardAuditResult | null>(null);
+  const [projectScanResult, setProjectScanResult] = useState<ModuleScanProjectResult | null>(null);
 
   // projectRoot ref — 用于缓存 key 构建（避免 useCallback 依赖变化）
   const projectRootRef = useRef<string | null>(null);
@@ -496,6 +498,7 @@ const App: React.FC = () => {
   setScanResults([]);
   setGuardAudit(null);
   setScanFileList([]);
+  setProjectScanResult(null);
   setScanProgress({ current: 0, total: 100, status: t('app.scan.streamInit') });
 
   try {
@@ -697,6 +700,7 @@ const App: React.FC = () => {
   setScanResults([]);
   setGuardAudit(null);
   setScanFileList([]);
+  setProjectScanResult(null);
   setScanProgress({ current: 0, total: 100, status: t('app.fullScan.collecting') });
 
   const phases = [
@@ -720,14 +724,18 @@ const App: React.FC = () => {
   try {
     const result = await api.scanProject(controller.signal);
     clearInterval(progressTimer);
-    setScanProgress({ current: 100, total: 100, status: result.partial ? t('app.fullScan.partialComplete') : t('app.fullScan.completed') });
+    const view = buildModuleScanViewModel(result);
+    setProjectScanResult(result);
+    setScanProgress({
+      current: 100,
+      total: 100,
+      status: view.status === 'partial' ? t('app.fullScan.partialComplete') : t('app.fullScan.completed'),
+    });
 
-    const recipes = result.recipes || [];
-    const scannedFiles = result.scannedFiles || [];
-
-    if (recipes.length > 0 || scannedFiles.length > 0) {
-    const enrichedResults = recipes.map((item: ExtractedRecipe) => ({
-      ...mapExtractedToV3(item, 'ai-scan'),
+    const recipes = result.recipes;
+    const scannedFiles = result.scannedFiles;
+    const enrichedResults = recipes.map((item) => ({
+      ...mapExtractedToV3(item as unknown as Partial<KnowledgeEntry>, 'ai-scan'),
       mode: 'full' as const,
       lang: 'cn' as const,
       candidateTargetName: '__project__',
@@ -736,14 +744,23 @@ const App: React.FC = () => {
     setScanResults(enrichedResults);
     setScanFileList(scannedFiles);
     setGuardAudit(result.guardAudit || null);
-    fetchData();
+    if (recipes.length > 0) fetchData();
 
     const guardInfo = result.guardAudit?.summary;
     const violationMsg = guardInfo ? `, ${t('app.fullScan.guardSuffix', { count: guardInfo.totalViolations })}` : '';
-    const partialMsg = result.partial ? t('app.fullScan.timeoutSuffix') : '';
-    notify(t('app.fullScan.resultDetail', { count: recipes.length }) + violationMsg + partialMsg);
+    if (view.status === 'completed') {
+      notify(t('app.fullScan.resultDetail', { count: view.reviewableRecipeCount }) + violationMsg);
+    } else if (view.status === 'partial') {
+      notify(t('app.fullScan.partialDetail', {
+        count: view.reviewableRecipeCount,
+        errors: view.errorCount,
+      }) + violationMsg, { type: 'error' });
+    } else if (view.status === 'failed') {
+      notify(t('app.fullScan.failedDetail', { errors: view.errorCount }), { type: 'error' });
+    } else if (view.status === 'skipped') {
+      notify(t('app.fullScan.skippedDetail'), { type: 'info' });
     } else {
-    notify(t('app.fullScan.noContent'));
+      notify(t('app.fullScan.emptyDetail'), { type: 'info' });
     }
   } catch (err: unknown) {
     clearInterval(progressTimer);
@@ -774,9 +791,7 @@ const App: React.FC = () => {
   if (isSavingRecipe) return;
   setIsSavingRecipe(true);
   try {
-    const recipeId = resolveExistingRecipeId(extracted);
-    const entry = await api.knowledgeGet(recipeId);
-    openRecipeEdit(toRecipe(entry));
+    openRecipeEdit(await loadExistingRecipeForReview(extracted, api.knowledgeGet));
   } catch (err: unknown) {
     const msg = getErrorMessage(err, t('app.recipe.existingIdRequired'));
     console.warn('existing Recipe reviewer open failed:', {
@@ -1040,6 +1055,7 @@ const App: React.FC = () => {
           difficulty: cand.difficulty || cand.complexity || 'intermediate',
           authority: cand.stats?.authority || 3,
           candidateId: cand.id,
+          status: 'created',
           candidateTargetName: targetName
         } as ScanResultItem]);
         navigateToTab('spm');
@@ -1060,6 +1076,7 @@ const App: React.FC = () => {
           difficulty: cand.difficulty || cand.complexity || 'intermediate',
           authority: cand.stats?.authority || 3,
           candidateId: cand.id,
+          status: 'created',
           candidateTargetName: targetName
         } as ScanResultItem;
         }));
@@ -1079,6 +1096,7 @@ const App: React.FC = () => {
         scanProgress={scanProgress}
         scanFileList={scanFileList}
         scanResults={scanResults}
+        projectScanResult={projectScanResult}
         guardAudit={guardAudit}
         handleScanTarget={handleScanTarget}
         handleScanProject={handleScanProject}

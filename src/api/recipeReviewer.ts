@@ -110,15 +110,30 @@ export function buildKnowledgeUpdatePayload(recipe: Recipe): JsonRecord & {
 
 /** 模块扫描必须返回已由四类生产入口持久化的 ID；Dashboard 不再创建第五个候选。 */
 export function resolveExistingRecipeId(item: Partial<ScanResultItem>): string {
-  const id = typeof item.id === 'string' && item.id.trim()
-    ? item.id.trim()
-    : typeof item.candidateId === 'string' && item.candidateId.trim()
-      ? item.candidateId.trim()
-      : '';
-  if (!id) {
+  const id = typeof item.id === 'string' ? item.id.trim() : '';
+  const candidateId = typeof item.candidateId === 'string' ? item.candidateId.trim() : '';
+  if (!id || !candidateId) {
     throw new Error('Module scan result is missing an existing Recipe/candidate ID.');
   }
+  if (id !== candidateId) {
+    throw new Error('Module scan result must have matching existing Recipe and candidate IDs.');
+  }
+  if (item.status !== 'created') {
+    throw new Error('Module scan result was not created by an authoritative producer.');
+  }
+  if (item.lifecycle !== 'pending' && item.lifecycle !== 'staging') {
+    throw new Error('Module scan result must be pending or staging before review.');
+  }
   return id;
+}
+
+/** Existing-ID reviewer entry: exactly one GET, followed by local editor projection. */
+export async function loadExistingRecipeForReview(
+  item: Partial<ScanResultItem>,
+  knowledgeGet: (id: string) => Promise<Record<string, unknown>>,
+): Promise<Recipe> {
+  const id = resolveExistingRecipeId(item);
+  return recipeEditorModelFromWire(await knowledgeGet(id));
 }
 
 /** 只有 Core 的结构 readiness 决定发布；provider/vector/generation warning 只展示。 */

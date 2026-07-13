@@ -1788,6 +1788,7 @@ test('recipe reviewer update projection preserves unedited fields and unknown pr
   const {
     buildKnowledgeUpdatePayload,
     canPublishRecipe,
+    loadExistingRecipeForReview,
     recipeEditorModelFromWire,
     resolveExistingRecipeId,
   } = await importTranspiled('src/api/recipeReviewer.ts');
@@ -1850,9 +1851,35 @@ test('recipe reviewer update projection preserves unedited fields and unknown pr
   assert.deepEqual(payload.retrievalProfile.futureProfileField, { keep: true });
   assert.equal('futureRootField' in payload, false, 'server-owned unknown root fields stay untouched');
 
-  assert.equal(resolveExistingRecipeId({ id: 'recipe-from-scan' }), 'recipe-from-scan');
-  assert.equal(resolveExistingRecipeId({ candidateId: 'candidate-from-scan' }), 'candidate-from-scan');
+  const authoritativeEnvelope = {
+    id: 'recipe-from-scan',
+    candidateId: 'recipe-from-scan',
+    status: 'created',
+    lifecycle: 'pending',
+  };
+  assert.equal(resolveExistingRecipeId(authoritativeEnvelope), 'recipe-from-scan');
+  assert.throws(
+    () => resolveExistingRecipeId({ ...authoritativeEnvelope, candidateId: 'different-id' }),
+    /matching existing Recipe and candidate IDs/,
+  );
+  assert.throws(
+    () => resolveExistingRecipeId({ ...authoritativeEnvelope, id: '  ', candidateId: '  ' }),
+    /existing Recipe\/candidate ID/,
+  );
+  assert.throws(
+    () => resolveExistingRecipeId({ ...authoritativeEnvelope, lifecycle: 'active' }),
+    /pending or staging/,
+  );
   assert.throws(() => resolveExistingRecipeId({ title: 'missing id' }), /existing Recipe\/candidate ID/);
+
+  const getCalls = [];
+  const loaded = await loadExistingRecipeForReview(authoritativeEnvelope, async (id) => {
+    getCalls.push(id);
+    return original;
+  });
+  assert.deepEqual(getCalls, ['recipe-from-scan']);
+  assert.equal(loaded.id, 'recipe-existing-1');
+  assert.equal(loaded.wireSnapshot.futureRootField.serverOwned, true);
 
   assert.equal(canPublishRecipe({ ready: true, violations: [], warnings: [
     { code: 'retrieval.provider.unavailable', message: 'warning only' },
@@ -1860,6 +1887,196 @@ test('recipe reviewer update projection preserves unedited fields and unknown pr
   assert.equal(canPublishRecipe({ ready: false, violations: [
     { code: 'retrieval.profile.primary-summary-missing', message: 'blocked' },
   ], warnings: [] }), false, 'structural readiness violations remain hard gates');
+});
+
+test('module scan normalizer consumes only authoritative existing-id reviewer results', async () => {
+  const {
+    buildModuleScanViewModel,
+    normalizeModuleScanProjectResult,
+  } = await importTranspiled('src/api/moduleScan.ts');
+
+  const envelope = (overrides = {}) => ({
+    targets: ['Dashboard'],
+    recipes: [],
+    guardAudit: null,
+    scannedFiles: [{ name: 'App.tsx', path: 'src/App.tsx', targetName: 'Dashboard' }],
+    partial: false,
+    errors: [],
+    outcome: {
+      status: 'empty',
+      recipeCount: 0,
+      projectionAuthority: 'persisted-knowledge-submit-results-only',
+      batches: [{
+        batch: 'project-batch-1',
+        fileCount: 1,
+        recipeCount: 0,
+        persistenceOutcome: 'no-submit-attempt',
+        diagnostics: { persistenceOutcome: 'no-submit-attempt' },
+        error: null,
+      }],
+    },
+    ...overrides,
+  });
+  const persisted = (id, lifecycle = 'pending') => ({
+    id,
+    candidateId: id,
+    status: 'created',
+    lifecycle,
+    title: `Recipe ${id}`,
+  });
+
+  const completed = normalizeModuleScanProjectResult(envelope({
+    recipes: [persisted('pending-existing'), persisted('staging-existing', 'staging')],
+    outcome: {
+      status: 'completed',
+      recipeCount: 2,
+      projectionAuthority: 'persisted-knowledge-submit-results-only',
+      batches: [{
+        batch: 'project-batch-1',
+        fileCount: 1,
+        recipeCount: 2,
+        persistenceOutcome: 'created',
+        diagnostics: null,
+        error: null,
+      }],
+    },
+  }));
+  assert.deepEqual(completed.recipes.map((item) => item.id), ['pending-existing', 'staging-existing']);
+  assert.equal(completed.outcome.batches[0].persistenceOutcome, 'created');
+  assert.deepEqual(buildModuleScanViewModel(completed), {
+    status: 'completed',
+    reviewableRecipeCount: 2,
+    errorCount: 0,
+    batchCount: 1,
+    operationMayContinue: false,
+    reason: null,
+  });
+
+  const invalidCases = [
+    ['id mismatch', { ...persisted('recipe-a'), candidateId: 'recipe-b' }, 'recipe-id-mismatch'],
+    ['blank id', persisted('  '), 'recipe-id-blank'],
+    ['active lifecycle', persisted('recipe-active', 'active'), 'recipe-lifecycle-invalid'],
+  ];
+  for (const [name, recipe, expectedCode] of invalidCases) {
+    const normalized = normalizeModuleScanProjectResult(envelope({
+      recipes: [recipe],
+      outcome: {
+        status: 'completed',
+        recipeCount: 1,
+        projectionAuthority: 'persisted-knowledge-submit-results-only',
+        batches: [],
+      },
+    }));
+    assert.equal(normalized.recipes.length, 0, `${name} must not reach the reviewer`);
+    assert.equal(normalized.normalizationIssues[0].code, expectedCode);
+    assert.equal(buildModuleScanViewModel(normalized).status, 'failed');
+  }
+
+  const untrustedEnvelope = normalizeModuleScanProjectResult(envelope({
+    recipes: [persisted('provider-only-id')],
+    outcome: {
+      status: 'completed',
+      recipeCount: 1,
+      projectionAuthority: 'provider-json-only',
+      batches: [],
+    },
+  }));
+  assert.equal(untrustedEnvelope.recipes.length, 0, 'non-authoritative envelopes must fail closed');
+  assert.equal(untrustedEnvelope.normalizationIssues[0].code, 'projection-authority-invalid');
+  assert.equal(buildModuleScanViewModel(untrustedEnvelope).status, 'failed');
+
+  const empty = normalizeModuleScanProjectResult(envelope());
+  assert.equal(buildModuleScanViewModel(empty).status, 'empty');
+  assert.equal(empty.outcome.batches[0].persistenceOutcome, 'no-submit-attempt');
+
+  const failed = normalizeModuleScanProjectResult(envelope({
+    errors: [{ code: 'MODULE_SCAN_AGENT_ERROR', message: 'agent runtime unavailable' }],
+    outcome: {
+      status: 'failed',
+      recipeCount: 0,
+      projectionAuthority: 'persisted-knowledge-submit-results-only',
+      batches: [],
+    },
+  }));
+  assert.equal(buildModuleScanViewModel(failed).status, 'failed');
+  assert.equal(failed.errors[0].code, 'MODULE_SCAN_AGENT_ERROR');
+
+  const partial = normalizeModuleScanProjectResult(envelope({
+    recipes: [persisted('recipe-before-timeout', 'staging')],
+    partial: true,
+    errors: [{
+      code: 'MODULE_SCAN_BATCH_TIMEOUT',
+      message: 'project-batch-2 timed out',
+      batch: 'project-batch-2',
+      operationMayContinue: true,
+    }],
+    outcome: {
+      status: 'partial',
+      recipeCount: 1,
+      projectionAuthority: 'persisted-knowledge-submit-results-only',
+      batches: [{
+        batch: 'project-batch-2',
+        fileCount: 1,
+        recipeCount: 0,
+        persistenceOutcome: 'agent-error',
+        diagnostics: null,
+        error: {
+          code: 'MODULE_SCAN_BATCH_TIMEOUT',
+          message: 'project-batch-2 timed out',
+          batch: 'project-batch-2',
+          operationMayContinue: true,
+        },
+      }],
+    },
+  }));
+  const partialView = buildModuleScanViewModel(partial);
+  assert.equal(partialView.status, 'partial');
+  assert.equal(partialView.reviewableRecipeCount, 1);
+  assert.equal(partialView.operationMayContinue, true);
+  assert.equal(partial.outcome.batches[0].error.operationMayContinue, true);
+
+  const skipped = normalizeModuleScanProjectResult(envelope({
+    outcome: {
+      status: 'skipped',
+      recipeCount: 0,
+      projectionAuthority: 'persisted-knowledge-submit-results-only',
+      batches: [],
+      reason: 'ai-unavailable',
+    },
+  }));
+  assert.equal(buildModuleScanViewModel(skipped).status, 'skipped');
+  assert.equal(buildModuleScanViewModel(skipped).reason, 'ai-unavailable');
+});
+
+test('module scan App chain opens existing IDs, PATCHes review edits, and publishes only after confirmation', () => {
+  const app = read('src/App.tsx');
+  const editor = read('src/components/Modals/RecipeEditor.tsx');
+  const moduleExplorer = read('src/components/Views/ModuleExplorerView.tsx');
+  const modules = read('src/api/modules.ts');
+  const knowledge = read('src/api/knowledge.ts');
+
+  const openStart = app.indexOf('const handleSaveExtracted');
+  const saveStart = app.indexOf('const handleSaveRecipe', openStart);
+  const saveEnd = app.indexOf('const handlePublishRecipe', saveStart);
+  const openBlock = app.slice(openStart, saveStart);
+  const saveBlock = app.slice(saveStart, saveEnd);
+  assert.match(openBlock, /loadExistingRecipeForReview\(extracted, api\.knowledgeGet\)/);
+  assert.doesNotMatch(openBlock, /knowledgeCreate|knowledgeUpdate|knowledgePublish/);
+  assert.match(saveBlock, /api\.knowledgeUpdate\(recipeId, buildKnowledgeUpdatePayload\(editingRecipe\)\)/);
+  assert.doesNotMatch(saveBlock, /knowledgeCreate|knowledgePublish/);
+
+  const publishStart = editor.indexOf('const handlePublish');
+  const publishEnd = editor.indexOf('const initializeRetrievalProfile', publishStart);
+  const publishBlock = editor.slice(publishStart, publishEnd);
+  assert.ok(publishBlock.indexOf('window.confirm') < publishBlock.indexOf('api.knowledgePublish'));
+  assert.match(publishBlock, /canPublishRecipe/);
+  assert.doesNotMatch(publishBlock, /knowledgeCreate|knowledgeUpdate/);
+
+  assert.match(modules, /normalizeModuleScanProjectResult\(data\)/);
+  assert.match(moduleExplorer, /data-testid="module-scan-project"/);
+  assert.match(moduleExplorer, /onClick=\{handleScanProject\}/);
+  assert.match(moduleExplorer, /projectScanView\.reason/);
+  assert.doesNotMatch(`${app}\n${modules}\n${knowledge}`, /knowledgeCreate|post\(['"]\/knowledge['"]/);
 });
 
 test('recipe reviewer replays canonical readiness fixtures without turning runtime warnings into gates', async () => {

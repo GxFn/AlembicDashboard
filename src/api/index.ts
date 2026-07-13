@@ -76,6 +76,7 @@ export {
   normalizeGuardViolationRecord,
 } from './guard';
 export { normalizeRuntimeBoundary } from './fetchData';
+export { buildModuleScanViewModel, normalizeModuleScanProjectResult } from './moduleScan';
 
 /* ── named 恒等出口（类型 50） ───────────────────────── */
 export type {
@@ -145,6 +146,15 @@ export type {
   ModelReasoning,
 } from './ai';
 export type { SkillInfo } from './skills';
+export type {
+  ModuleScanBatchOutcome,
+  ModuleScanError,
+  ModuleScanNormalizationIssue,
+  ModuleScanOutcomeStatus,
+  ModuleScanProjectResult,
+  ModuleScanRecipe,
+  ModuleScanViewModel,
+} from './moduleScan';
 export type {
   GuardRuleProviderRecord,
   GuardRunProviderRecord,

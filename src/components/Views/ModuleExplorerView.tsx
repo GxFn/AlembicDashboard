@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Box, Boxes, Zap, Edit3, Cpu, Loader2, Layers, Shield, AlertTriangle, RefreshCw, Trash2, FolderOpen, ChevronRight } from 'lucide-react';
+import { Box, Boxes, Zap, Edit3, Cpu, Loader2, Layers, Shield, AlertTriangle, RefreshCw, Trash2, FolderOpen, ChevronRight, CheckCircle2, CircleOff, Info } from 'lucide-react';
 import { SPMTarget, ScanResultItem, Recipe, GuardAuditResult, ProjectDirectory, ScannedFile } from '../../types';
 import api from '../../api';
+import { buildModuleScanViewModel } from '../../api/moduleScan';
+import type { ModuleScanOutcomeStatus, ModuleScanProjectResult } from '../../api/moduleScan';
 import { notify } from '../../utils/notification';
 import { ICON_SIZES } from '../../constants/icons';
 import { useI18n } from '../../i18n';
@@ -17,6 +19,7 @@ interface ModuleExplorerViewProps {
   scanProgress: { current: number; total: number; status: string };
   scanFileList: ScannedFile[];
   scanResults: ScanResultItem[];
+  projectScanResult?: ModuleScanProjectResult | null;
   guardAudit?: GuardAuditResult | null;
   handleScanTarget: (target: SPMTarget) => void;
   handleScanProject?: () => void;
@@ -74,6 +77,7 @@ const ModuleExplorerView: React.FC<ModuleExplorerViewProps> = ({
   scanProgress,
   scanFileList,
   scanResults,
+  projectScanResult,
   guardAudit,
   handleScanTarget,
   handleScanProject,
@@ -94,6 +98,40 @@ const ModuleExplorerView: React.FC<ModuleExplorerViewProps> = ({
   const [isContextSearchOpen, setIsContextSearchOpen] = useState(false);
   const [selectedContextFile, ] = useState<string | undefined>();
   const [selectedContextTarget, ] = useState<string | undefined>();
+  const projectScanView = projectScanResult ? buildModuleScanViewModel(projectScanResult) : null;
+
+  const outcomePresentation = (status: ModuleScanOutcomeStatus) => {
+    if (status === 'completed') return {
+      icon: CheckCircle2,
+      shell: 'border-emerald-200 bg-emerald-50/80',
+      iconColor: 'text-emerald-600',
+      badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    };
+    if (status === 'failed') return {
+      icon: CircleOff,
+      shell: 'border-red-200 bg-red-50/80',
+      iconColor: 'text-red-600',
+      badge: 'bg-red-100 text-red-800 border-red-200',
+    };
+    if (status === 'partial') return {
+      icon: AlertTriangle,
+      shell: 'border-amber-200 bg-amber-50/80',
+      iconColor: 'text-amber-600',
+      badge: 'bg-amber-100 text-amber-800 border-amber-200',
+    };
+    if (status === 'skipped') return {
+      icon: Info,
+      shell: 'border-blue-200 bg-blue-50/80',
+      iconColor: 'text-blue-600',
+      badge: 'bg-blue-100 text-blue-800 border-blue-200',
+    };
+    return {
+      icon: Box,
+      shell: 'border-slate-200 bg-slate-50/80',
+      iconColor: 'text-slate-500',
+      badge: 'bg-slate-100 text-slate-700 border-slate-200',
+    };
+  };
 
   // ── 目录浏览器状态（内联替代弹窗） ──
   const [projectDirs, setProjectDirs] = useState<ProjectDirectory[]>([]);
@@ -196,6 +234,24 @@ const ModuleExplorerView: React.FC<ModuleExplorerViewProps> = ({
       )}
       </div>
     </div>
+    {handleScanProject && (
+      <div className="border-b border-[var(--border-default)] p-2">
+        <button
+          data-testid="module-scan-project"
+          onClick={handleScanProject}
+          disabled={isScanning}
+          className="flex w-full items-center gap-2.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-left text-indigo-800 transition-all hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isScanning && selectedTargetName === '__project__'
+            ? <Loader2 size={ICON_SIZES.md} className="shrink-0 animate-spin" />
+            : <Layers size={ICON_SIZES.md} className="shrink-0" />}
+          <span className="min-w-0">
+            <span className="block text-xs font-bold">{t('moduleExplorer.fullProjectScan')}</span>
+            <span className="block truncate text-[10px] text-indigo-600">{t('moduleExplorer.fullProjectScanHint')}</span>
+          </span>
+        </button>
+      </div>
+    )}
     <div className="flex-1 overflow-y-auto p-2 space-y-1">
       {sidebarTab === 'modules' ? (
       <>
@@ -366,7 +422,7 @@ const ModuleExplorerView: React.FC<ModuleExplorerViewProps> = ({
       </div>
       )}
 
-      {!isScanning && scanResults.length === 0 && (
+      {!isScanning && scanResults.length === 0 && !projectScanResult && (
       <div className="h-full flex flex-col items-center justify-center text-[var(--fg-muted)] text-center">
         <Box size={ICON_SIZES.xxxl} className="mb-4 opacity-20" />
         <p className="font-medium text-[var(--fg-secondary)]">{t('moduleExplorer.knowledgeExtract')}</p>
@@ -375,6 +431,100 @@ const ModuleExplorerView: React.FC<ModuleExplorerViewProps> = ({
         </p>
       </div>
       )}
+
+      {!isScanning && selectedTargetName === '__project__' && projectScanResult && projectScanView && (() => {
+        const presentation = outcomePresentation(projectScanView.status);
+        const OutcomeIcon = presentation.icon;
+        return (
+          <section
+            data-testid={`module-scan-outcome-${projectScanView.status}`}
+            aria-live={projectScanView.status === 'failed' ? 'assertive' : 'polite'}
+            className={`rounded-xl border p-4 ${presentation.shell}`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <OutcomeIcon size={20} className={`mt-0.5 shrink-0 ${presentation.iconColor}`} />
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-[var(--fg-primary)]">
+                    {t(`moduleExplorer.moduleScanOutcome.${projectScanView.status}Title`)}
+                  </h3>
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--fg-secondary)]">
+                    {t(`moduleExplorer.moduleScanOutcome.${projectScanView.status}Detail`, {
+                      count: projectScanView.reviewableRecipeCount,
+                      errors: projectScanView.errorCount,
+                    })}
+                  </p>
+                </div>
+              </div>
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${presentation.badge}`}>
+                {projectScanView.status}
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+              <span className="rounded-md border border-white/80 bg-white/70 px-2 py-1 text-[var(--fg-secondary)]">
+                {t('moduleExplorer.moduleScanOutcome.reviewableCount', { count: projectScanView.reviewableRecipeCount })}
+              </span>
+              <span className="rounded-md border border-white/80 bg-white/70 px-2 py-1 text-[var(--fg-secondary)]">
+                {t('moduleExplorer.moduleScanOutcome.batchCount', { count: projectScanView.batchCount })}
+              </span>
+              {projectScanView.operationMayContinue && (
+                <span className="rounded-md border border-amber-200 bg-amber-100 px-2 py-1 font-semibold text-amber-800">
+                  {t('moduleExplorer.moduleScanOutcome.operationMayContinue')}
+                </span>
+              )}
+              {projectScanView.reason && (
+                <code className="rounded-md border border-white/80 bg-white/70 px-2 py-1 text-[var(--fg-secondary)]">
+                  {t('moduleExplorer.moduleScanOutcome.reason')}: {projectScanView.reason}
+                </code>
+              )}
+            </div>
+
+            {projectScanResult.recipes.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2" aria-label={t('moduleExplorer.moduleScanOutcome.existingIds')}>
+                {projectScanResult.recipes.map((recipe) => (
+                  <code key={recipe.id} className="rounded border border-emerald-200 bg-white/80 px-2 py-1 text-[10px] font-semibold text-emerald-800">
+                    {recipe.id}
+                  </code>
+                ))}
+              </div>
+            )}
+
+            {(projectScanResult.errors.length > 0 || projectScanResult.normalizationIssues.length > 0) && (
+              <div className="mt-3 space-y-1.5" data-testid="module-scan-diagnostics">
+                {projectScanResult.errors.map((error, index) => (
+                  <div key={`${error.code}-${index}`} className="rounded-md border border-red-200 bg-white/80 px-3 py-2 text-xs text-red-800">
+                    <span className="font-mono font-bold">{error.code}</span>
+                    {error.batch && <span className="ml-2 text-red-600">{error.batch}</span>}
+                    <span className="ml-2">{error.message}</span>
+                  </div>
+                ))}
+                {projectScanResult.normalizationIssues.map((issue, index) => (
+                  <div key={`${issue.code}-${index}`} className="rounded-md border border-red-200 bg-white/80 px-3 py-2 text-xs text-red-800">
+                    <span className="font-mono font-bold">{issue.code}</span>
+                    <span className="ml-2">{issue.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {projectScanResult.outcome.batches.length > 0 && (
+              <details className="mt-3 text-xs text-[var(--fg-secondary)]">
+                <summary className="cursor-pointer font-semibold">{t('moduleExplorer.moduleScanOutcome.batchDetails')}</summary>
+                <div className="mt-2 space-y-1">
+                  {projectScanResult.outcome.batches.map((batch) => (
+                    <div key={batch.batch} className="flex flex-wrap gap-x-3 gap-y-1 rounded-md border border-white/80 bg-white/70 px-3 py-2">
+                      <code>{batch.batch}</code>
+                      <span>{batch.persistenceOutcome}</span>
+                      <span>{t('moduleExplorer.moduleScanOutcome.batchRecipes', { count: batch.recipeCount })}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </section>
+        );
+      })()}
 
       {/* Guard 审计摘要 — 仅全项目扫描模式显示 */}
       {!isScanning && selectedTargetName === '__project__' && guardAudit?.summary && (

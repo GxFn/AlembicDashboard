@@ -22,7 +22,6 @@ interface ModuleExplorerViewProps {
   handleScanProject?: () => void;
   handleUpdateScanResult: (index: number, updates: any) => void;
   handleSaveExtracted: (res: any) => void;
-  handlePromoteToCandidate?: (res: ScanResultItem, index: number) => void;
   handleDeleteCandidate?: (targetName: string, candidateId: string) => void;
   onEditRecipe?: (recipe: Recipe) => void;
   isShellTarget: (name: string) => boolean;
@@ -80,7 +79,6 @@ const ModuleExplorerView: React.FC<ModuleExplorerViewProps> = ({
   handleScanProject,
   handleUpdateScanResult,
   handleSaveExtracted,
-  handlePromoteToCandidate,
   handleDeleteCandidate,
   onEditRecipe,
   isShellTarget,
@@ -422,7 +420,6 @@ const ModuleExplorerView: React.FC<ModuleExplorerViewProps> = ({
           setExpandedEditIndex={setExpandedEditIndex}
           handleUpdateScanResult={handleUpdateScanResult}
           handleSaveExtracted={handleSaveExtracted}
-          handlePromoteToCandidate={handlePromoteToCandidate}
           isSavingRecipe={isSavingRecipe}
         />
       ))}

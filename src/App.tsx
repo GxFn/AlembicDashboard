@@ -15,7 +15,8 @@ import {
 import { isShellTarget, isSilentTarget, isPendingTarget, getWritePermissionErrorMsg, getSaveErrorMsg } from './utils';
 import { getErrorMessage, isAbortError, isTimeoutError, isAiError, isAxiosCancel } from './utils/error';
 import api from './api';
-import { buildKnowledgeCreatePayload } from './KnowledgePayload';
+import { toRecipe } from './api/knowledge';
+import { buildKnowledgeUpdatePayload, resolveExistingRecipeId } from './api/recipeReviewer';
 import { useAuth } from './hooks/useAuth';
 import { usePermission } from './hooks/usePermission';
 import { useGenerateSocket } from './hooks/useGenerateSocket';
@@ -52,8 +53,16 @@ import LlmConfigModal from './components/Modals/LlmConfigModal';
  *
  * @param source - 数据来源标识：'ai-scan' | 'extract' | 'clipboard'
  */
-function mapExtractedToV3(item: any, source: string = 'ai-scan'): Partial<ScanResultItem> {
+function mapExtractedToV3(
+  input: ExtractedRecipe | Partial<KnowledgeEntry>,
+  source: string = 'ai-scan',
+): Partial<ScanResultItem> {
+  const item = input as unknown as Partial<KnowledgeEntry> & Partial<ExtractedRecipe> & { candidateId?: string };
   return {
+    // 上游四类 producer 已持久化候选；保留真实 ID 和未知扩展供 reviewer 消费。
+    ...item,
+    id: item.id || item.candidateId,
+    candidateId: item.candidateId || item.id,
     // ── 基础字段 ──
     title: item.title || '',
     description: item.description || '',
@@ -80,14 +89,15 @@ function mapExtractedToV3(item: any, source: string = 'ai-scan'): Partial<ScanRe
     whenClause: item.whenClause || '',
     topicHint: item.topicHint || '',
     coreCode: item.coreCode || '',
+    retrievalProfile: item.retrievalProfile ?? null,
 
     // ── 结构化子对象（直透） ──
-    content: item.content || {},
-    constraints: item.constraints || {},
-    reasoning: item.reasoning || {},
-    quality: item.quality || {},
-    stats: item.stats || {},
-    relations: item.relations || {},
+    content: item.content,
+    constraints: item.constraints,
+    reasoning: item.reasoning,
+    quality: item.quality,
+    stats: item.stats,
+    relations: item.relations,
 
     // ── 头文件相关 ──
     headers: item.headers || [],
@@ -764,51 +774,17 @@ const App: React.FC = () => {
   if (isSavingRecipe) return;
   setIsSavingRecipe(true);
   try {
-    // V3: 统一数据模型直接取值
-    const codeRaw = (extracted.content?.pattern || '').trim();
-    const isCodeContent = (() => {
-      if (!codeRaw) return false;
-      const lines = codeRaw.split('\n').filter((l: string) => l.trim());
-      const mdLines = lines.filter((l: string) => /^\s*(#{1,6}\s|[-*>]\s|\d+\.\s)/.test(l));
-      return mdLines.length <= lines.length * 0.3;
-    })();
-
-    const triggers = (extracted.trigger || '').split(/[,，\s]+/).map(t => t.trim()).filter(Boolean);
-    if (isCodeContent && triggers.length === 0) {
-    notify(t('app.recipe.triggerRequired'), { type: 'error' });
-    setIsSavingRecipe(false);
-    return;
-    }
-
-    const v3Data = buildKnowledgeCreatePayload(extracted, triggers);
-
-    const created = await api.knowledgeCreate(v3Data);
-
-    // 审核卡片保存后直接发布为 active Recipe（跳过 pending 候选阶段）
-    if (created?.id) {
-      try {
-        await api.knowledgeLifecycle(created.id, 'publish');
-      } catch (pubErr) {
-        console.warn('auto-publish after save failed:', pubErr);
-      }
-    }
-
-    notify(isCodeContent ? t('app.recipe.savedAsRecipe') : t('app.recipe.savedToKb'));
-    setScanResults(prev => prev.filter(item => item.title !== extracted.title));
-    // 若来自候选池，保存后从候选池移除
-    const candTarget = extracted.candidateTargetName;
-    const candId = extracted.candidateId;
-    if (candTarget && candId) {
-    try {
-      await api.deleteCandidate(candId);
-    } catch (_) {
-      // intentionally ignored: candidate may already be deleted; non-critical cleanup
-    }
-    }
-    fetchData();
-  } catch (err) {
-    const msg = getSaveErrorMsg(err) ?? getWritePermissionErrorMsg(err);
-    notify(msg ?? t('app.recipe.saveFailed'), { type: 'error' });
+    const recipeId = resolveExistingRecipeId(extracted);
+    const entry = await api.knowledgeGet(recipeId);
+    openRecipeEdit(toRecipe(entry));
+  } catch (err: unknown) {
+    const msg = getErrorMessage(err, t('app.recipe.existingIdRequired'));
+    console.warn('existing Recipe reviewer open failed:', {
+      candidateId: extracted.candidateId,
+      recipeId: extracted.id,
+      message: msg,
+    });
+    notify(msg, { type: 'error' });
   } finally {
     setIsSavingRecipe(false);
   }
@@ -818,21 +794,8 @@ const App: React.FC = () => {
   if (!editingRecipe || isSavingRecipe) return;
   setIsSavingRecipe(true);
   try {
-    // V3: 直接通过 Knowledge API 更新结构化数据
     const recipeId = editingRecipe.id || editingRecipe.name?.replace(/\.md$/, '');
-    const contentObj = typeof editingRecipe.content === 'string'
-      ? { pattern: editingRecipe.content, markdown: '', rationale: '', steps: [], codeChanges: [], verification: null }
-      : (editingRecipe.content || {});
-
-    await api.knowledgeUpdate(recipeId, {
-      title: editingRecipe.name?.replace(/\.md$/, '') || '',
-      description: editingRecipe.description || '',
-      content: contentObj,
-      tags: editingRecipe.tags || [],
-      kind: editingRecipe.kind,
-      language: editingRecipe.language,
-      category: editingRecipe.category,
-    } as Partial<KnowledgeEntry>);
+    await api.knowledgeUpdate(recipeId, buildKnowledgeUpdatePayload(editingRecipe));
     closeRecipeEdit();
     fetchData();
   } catch (err) {
@@ -885,17 +848,6 @@ const App: React.FC = () => {
     notify(t('app.candidate.clearDone', { name: targetName }));
   } catch (err) {
     notify(t('common.operationFailed'), { type: 'error' });
-  }
-  };
-
-  const handlePromoteToCandidate = async (res: any, index: number) => {
-  try {
-    await api.promoteToCandidate(res, res.candidateTargetName || selectedTargetName || '_review');
-    notify(t('app.candidate.pushSuccess'));
-    setScanResults(prev => prev.filter((_, i) => i !== index));
-    fetchData();
-  } catch (err: unknown) {
-    notify(getErrorMessage(err, t('app.candidate.pushFailed')), { type: 'error' });
   }
   };
 
@@ -1132,7 +1084,6 @@ const App: React.FC = () => {
         handleScanProject={handleScanProject}
         handleUpdateScanResult={handleUpdateScanResult}
         handleSaveExtracted={handleSaveExtracted}
-        handlePromoteToCandidate={handlePromoteToCandidate}
         handleDeleteCandidate={handleDeleteCandidate}
         onEditRecipe={openRecipeEdit}
         isShellTarget={isShellTarget}
@@ -1158,6 +1109,7 @@ const App: React.FC = () => {
       handleSaveRecipe={handleSaveRecipe} 
       closeRecipeEdit={closeRecipeEdit}
       isSavingRecipe={isSavingRecipe}
+      onPublished={fetchData}
       />
     )}
 

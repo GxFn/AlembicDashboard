@@ -256,9 +256,14 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
 
   // ── 生命周期操作 ──
   const handleLifecycleAction = async (entry: KnowledgeEntry, action: string, reason?: string) => {
+    if (action === 'publish' && !window.confirm(t('recipeEditor.retrievalPublishConfirm'))) {
+      return;
+    }
     setActionLoading(true);
     try {
-      const updated = await api.knowledgeLifecycle(entry.id, action, reason);
+      const updated = action === 'publish'
+        ? await api.knowledgePublish(entry.id)
+        : await api.knowledgeLifecycle(entry.id, action, reason);
       notify(`${entry.title} → ${t(LIFECYCLE_CONFIG[updated.lifecycle]?.labelKey || '') || updated.lifecycle}`, { title: t('knowledge.operationSuccess') });
       // 更新本地列表
       setEntries(prev => prev.map(e => e.id === entry.id ? updated : e));
@@ -298,6 +303,9 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
       notify(t('knowledge.noPublishable'), { title: t('knowledge.batchPublish'), type: 'info' });
       return;
     }
+    if (!window.confirm(t('recipeEditor.retrievalPublishConfirm'))) {
+      return;
+    }
     setBatchLoading(true);
     try {
       const result = await api.knowledgeBatchPublish(publishableIds);
@@ -320,6 +328,9 @@ const KnowledgeView: React.FC<KnowledgeViewProps> = ({ onRefresh, idTitleMap: id
       const autoIds = (result.data || []).filter((e: KnowledgeEntry) => e.autoApprovable).map((e: KnowledgeEntry) => e.id);
       if (autoIds.length === 0) {
         notify(t('knowledge.noAutoApprovable'), { title: t('knowledge.noPublishable') });
+        return;
+      }
+      if (!window.confirm(t('recipeEditor.retrievalPublishConfirm'))) {
         return;
       }
       const pub = await api.knowledgeBatchPublish(autoIds);

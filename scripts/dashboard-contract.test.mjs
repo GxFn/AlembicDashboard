@@ -973,35 +973,30 @@ test('runtime boundary consumes canonical file monitor event sources only', asyn
   assert.equal('compatibilityAliasPolicy' in boundary.capabilities.fileMonitor, false);
 });
 
-test('knowledge save uses a typed provider payload projector', async () => {
+test('knowledge reviewer uses a typed update projector without a create payload', async () => {
   const app = read('src/App.tsx');
   const api = read('src/api/knowledge.ts');
-  const payload = await importTranspiled('src/KnowledgePayload.ts');
-  const projected = payload.buildKnowledgeCreatePayload({
+  const model = await importTranspiled('src/api/recipeReviewer.ts');
+  const projected = model.buildKnowledgeUpdatePayload(model.recipeEditorModelFromWire({
+    id: 'existing-recipe',
     title: 'Typed boundary',
     description: 'No wide bag',
-    trigger: 'unused',
+    lifecycle: 'pending',
     language: 'ts',
     category: 'interfaces',
+    kind: 'pattern',
     tags: ['contract'],
-    source: 'host-agent',
     content: { pattern: 'const ok = true;' },
-    reasoning: { whyStandard: 'provider contract', sources: ['fixture'], confidence: 0.8 },
-    quality: { overall: 0.9 },
-    stats: { applications: 1 },
-    headers: ['A.h'],
-    headerPaths: ['Sources/A.h'],
-    includeHeaders: true,
-  }, ['typed-boundary']);
+    retrievalProfile: null,
+  }));
 
   assert.equal(projected.title, 'Typed boundary');
-  assert.equal(projected.trigger, 'typed-boundary');
   assert.equal(projected.kind, 'pattern');
-  assert.deepEqual(projected.headerPaths, ['Sources/A.h']);
-  assert.equal(projected.includeHeaders, true);
-  assert.match(app, /buildKnowledgeCreatePayload\(extracted, triggers\)/);
-  assert.doesNotMatch(app, /const v3Data: Record<string, any>/);
-  assert.match(api, /knowledgeCreate\(data: KnowledgeCreatePayload\)/);
+  assert.equal(projected.content.pattern, 'const ok = true;');
+  assert.match(app, /buildKnowledgeUpdatePayload\(editingRecipe\)/);
+  assert.match(api, /knowledgeUpdate\(id: string, data: Record<string, unknown>\)/);
+  assert.doesNotMatch(app, /buildKnowledgeCreatePayload|knowledgeCreate/);
+  assert.equal(existsSync(path.join(root, 'src', 'KnowledgePayload.ts')), false);
 });
 
 test('dashboard chat page and drawer surfaces are removed', () => {
@@ -1122,7 +1117,7 @@ test('dashboard signal page surfaces are removed while core dashboard views rema
   assert.match(api, /async listSkills/);
   assert.match(api, /async knowledgeList/);
   assert.match(api, /async getGuardReport/);
-  assert.match(api, /async promoteCandidateToRecipe/);
+  assert.match(api, /async knowledgePublish/);
 });
 
 test('dashboard restores the Panorama four-tab contract on P2 endpoints', () => {
@@ -1602,6 +1597,21 @@ test('dashboard routes D25 problem taxonomy without raw payload guessing', async
     }),
     'Needs confirmation',
   );
+  assert.equal(
+    errorUtils.getErrorMessage(Object.assign(new Error('Request failed with status code 409'), {
+      response: {
+        status: 409,
+        data: {
+          error: {
+            code: 'FIXTURE_PUBLISH_REJECTED',
+            message: 'Fixture rejected publish; lifecycle remains pending.',
+          },
+        },
+      },
+    })),
+    'Fixture rejected publish; lifecycle remains pending.',
+    'Axios Error instances must preserve the stable provider message before the generic Error.message fallback',
+  );
 });
 
 test('project scope panel consumes Alembic ProjectScope API without fake source folders', () => {
@@ -1749,4 +1759,170 @@ test('network transport primitives stay pinned to the declared census (AD6 inflo
     [...declaredTransportModules, ...knownStrayFindings].sort(),
     'transport primitives appeared outside the declared census — update docs/declared-effects.md and route the finding before changing this pin',
   );
+});
+
+test('recipe reviewer consumes the canonical profile, readiness, generation, and existing-id API contract', () => {
+  const generated = read('src/generated/api-types.ts');
+  const api = read('src/api/knowledge.ts');
+  const app = read('src/App.tsx');
+  const scanCard = read('src/components/Views/ScanResultCard.tsx');
+
+  assert.match(generated, /export interface RecipeRetrievalProfileWire/);
+  assert.match(generated, /retrievalProfile: RecipeRetrievalProfileWire \| null/);
+  assert.match(generated, /\/knowledge\/\{knowledgeId\}\/retrieval-readiness/);
+  assert.match(generated, /\/commands\/recipe-index-generation\/dry-run/);
+
+  assert.match(api, /async knowledgeGet\(id: string\)/);
+  assert.match(api, /async getKnowledgeRetrievalReadiness\(id: string\)/);
+  assert.match(api, /async getRecipeIndexGeneration\(\)/);
+  assert.match(api, /async previewRecipeIndexGeneration\(\)/);
+  assert.match(api, /async knowledgePublish\(id: string\)/);
+  assert.match(api, /confirmed: true/);
+  assert.doesNotMatch(api, /knowledgeCreate|toCandidatePayload|http\.post\('\/knowledge'/);
+  assert.doesNotMatch(app, /buildKnowledgeCreatePayload|knowledgeCreate|auto-publish/);
+  assert.doesNotMatch(scanCard, /saveAsRecipe|saveAsKnowledge|handlePromoteToCandidate/);
+  assert.equal(existsSync(path.join(root, 'src', 'KnowledgePayload.ts')), false);
+});
+
+test('recipe reviewer update projection preserves unedited fields and unknown profile extensions', async () => {
+  const {
+    buildKnowledgeUpdatePayload,
+    canPublishRecipe,
+    recipeEditorModelFromWire,
+    resolveExistingRecipeId,
+  } = await importTranspiled('src/api/recipeReviewer.ts');
+
+  const original = {
+    id: 'recipe-existing-1',
+    title: 'Existing recipe',
+    description: 'before',
+    lifecycle: 'pending',
+    language: 'typescript',
+    category: 'patterns',
+    kind: 'pattern',
+    tags: ['existing'],
+    content: {
+      pattern: 'before()',
+      markdown: '# Before',
+      rationale: 'keep rationale',
+      steps: [{ title: 'keep step' }],
+      codeChanges: [],
+      verification: null,
+      futureContentField: { keep: true },
+    },
+    retrievalProfile: {
+      schemaVersion: '1',
+      primaryLanguage: 'zh-CN',
+      summary: {
+        primary: '原摘要',
+        technicalEnglish: 'Original technical summary',
+        futureSummaryField: 'keep summary extension',
+      },
+      concepts: [{ term: 'boundary', language: 'en', provenanceRefs: ['field:title'], futureFactField: 7 }],
+      scenarios: [{ text: '审阅现有候选', language: 'zh-CN', provenanceRefs: ['field:whenClause'] }],
+      exclusions: [{ text: '不要新建', language: 'zh-CN', provenanceRefs: ['field:dontClause'] }],
+      provenance: {
+        evidenceRefs: ['source:1-3'],
+        sourceFieldRefs: ['field:title'],
+        sourceContentHash: 'source-hash',
+        generator: 'core-authoring',
+        futureProvenanceField: 'keep provenance extension',
+      },
+      futureProfileField: { keep: true },
+    },
+    futureRootField: { serverOwned: true },
+  };
+
+  const editor = recipeEditorModelFromWire(original);
+  editor.description = 'after';
+  editor.content.markdown = '# After';
+  editor.retrievalProfile.summary.primary = '新摘要';
+  const payload = buildKnowledgeUpdatePayload(editor);
+
+  assert.equal(payload.description, 'after');
+  assert.equal(payload.content.markdown, '# After');
+  assert.equal(payload.content.rationale, 'keep rationale');
+  assert.deepEqual(payload.content.futureContentField, { keep: true });
+  assert.equal(payload.retrievalProfile.summary.primary, '新摘要');
+  assert.equal(payload.retrievalProfile.summary.futureSummaryField, 'keep summary extension');
+  assert.equal(payload.retrievalProfile.concepts[0].futureFactField, 7);
+  assert.equal(payload.retrievalProfile.provenance.futureProvenanceField, 'keep provenance extension');
+  assert.deepEqual(payload.retrievalProfile.futureProfileField, { keep: true });
+  assert.equal('futureRootField' in payload, false, 'server-owned unknown root fields stay untouched');
+
+  assert.equal(resolveExistingRecipeId({ id: 'recipe-from-scan' }), 'recipe-from-scan');
+  assert.equal(resolveExistingRecipeId({ candidateId: 'candidate-from-scan' }), 'candidate-from-scan');
+  assert.throws(() => resolveExistingRecipeId({ title: 'missing id' }), /existing Recipe\/candidate ID/);
+
+  assert.equal(canPublishRecipe({ ready: true, violations: [], warnings: [
+    { code: 'retrieval.provider.unavailable', message: 'warning only' },
+  ] }), true, 'provider/vector/generation warnings must not become publish gates');
+  assert.equal(canPublishRecipe({ ready: false, violations: [
+    { code: 'retrieval.profile.primary-summary-missing', message: 'blocked' },
+  ], warnings: [] }), false, 'structural readiness violations remain hard gates');
+});
+
+test('recipe reviewer replays canonical readiness fixtures without turning runtime warnings into gates', async () => {
+  const provider = await importAlembicProviderContracts();
+  const { canPublishRecipe } = await importTranspiled('src/api/recipeReviewer.ts');
+  const fixtures = provider.ALEMBIC_PROVIDER_FIXTURES;
+
+  const native = providerFixture(fixtures, 'knowledge-readiness.native').payload.data;
+  const runtimeWarnings = providerFixture(fixtures, 'knowledge-readiness.runtime-warnings').payload.data;
+  const blocked = providerFixture(fixtures, 'knowledge-readiness.blocked').payload.data;
+
+  assert.equal(canPublishRecipe(native), true);
+  assert.equal(canPublishRecipe(runtimeWarnings), true);
+  assert.ok(runtimeWarnings.warnings.some((warning) => warning.code === 'retrieval.provider.unavailable'));
+  assert.equal(canPublishRecipe(blocked), false);
+  assert.equal(blocked.violations[0].code, 'retrieval.profile.primary-summary-missing');
+  assert.equal(native.profileHash, 'profile-hash-native');
+  assert.equal(native.documentSetHash, 'document-set-hash-native');
+});
+
+test('recipe reviewer UI exposes resilient profile, readiness, generation, and explicit publish states', () => {
+  const editor = read('src/components/Modals/RecipeEditor.tsx');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+
+  const localeSection = (source) => {
+    const start = source.indexOf('recipeEditor: {');
+    const end = source.indexOf('\n  /* ', start);
+    return source.slice(start, end === -1 ? source.length : end);
+  };
+  const zhRecipeEditor = localeSection(zh);
+  const enRecipeEditor = localeSection(en);
+
+  assert.match(editor, /getKnowledgeRetrievalReadiness/);
+  assert.match(editor, /getRecipeIndexGeneration/);
+  assert.match(editor, /previewRecipeIndexGeneration/);
+  assert.match(editor, /knowledgePublish/);
+  assert.match(editor, /window\.confirm/);
+  assert.match(editor, /profileHash/);
+  assert.match(editor, /documentSetHash/);
+  assert.match(editor, /retrievalProfile\.concepts/);
+  assert.match(editor, /retrievalProfile\.scenarios/);
+  assert.match(editor, /retrievalProfile\.exclusions/);
+  assert.match(editor, /retrievalProfile\.provenance\.sourceFieldRefs/);
+  assert.match(editor, /aria-live="polite"/);
+  assert.match(editor, /aria-live="assertive"/);
+  assert.match(editor, /useEffect\(\(\) => \{\s*isMountedRef\.current = true;/, 'StrictMode effect replay must restore the mounted flag');
+  assert.doesNotMatch(editor, /ranking|rankGate|providerAvailable\s*&&/);
+
+  for (const key of [
+    'retrievalProfileTitle',
+    'retrievalReadinessTitle',
+    'retrievalGenerationTitle',
+    'retrievalLoading',
+    'retrievalEmpty',
+    'retrievalRetry',
+    'retrievalPublish',
+    'retrievalPublishConfirm',
+    'retrievalPublishFailed',
+    'retrievalDryRun',
+    'retrievalDryRunRunning',
+  ]) {
+    assert.match(zhRecipeEditor, new RegExp(`${key}:`), `zh recipeEditor locale must define ${key}`);
+    assert.match(enRecipeEditor, new RegExp(`${key}:`), `en recipeEditor locale must define ${key}`);
+  }
 });

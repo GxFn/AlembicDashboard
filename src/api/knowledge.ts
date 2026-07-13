@@ -4,9 +4,13 @@
  */
 
 import { http } from './client';
-import type { KnowledgeCreatePayload } from '../KnowledgePayload';
+import { cloneRecipeWireSnapshot } from './recipeReviewer';
 import type {
-  ExtractedRecipe,
+  RecipeIndexGenerationDryRun,
+  RecipeIndexGenerationStatus,
+  RetrievalReadinessReport,
+} from './recipeReviewer';
+import type {
   KnowledgeContent,
   KnowledgeEntry,
   KnowledgeKind,
@@ -29,11 +33,6 @@ type RawKnowledgeRecord = Partial<KnowledgeEntry> & {
   statistics?: Record<string, number>;
   status?: string;
   version?: string;
-};
-
-/** 候选条目输入类型 — 兼容 ExtractedRecipe 和 KnowledgeEntry 字段 */
-type CandidateInput = Partial<ExtractedRecipe & KnowledgeEntry> & {
-  isMarked?: boolean;
 };
 
 /** V3 KnowledgeEntry → 前端 Recipe 视图类型 */
@@ -93,6 +92,10 @@ export function toRecipe(r: RawKnowledgeRecord): Recipe {
     headers: r.headers || [],
     createdAt: r.createdAt || null,
     updatedAt: r.updatedAt || null,
+    retrievalProfile: r.retrievalProfile
+      ? cloneRecipeWireSnapshot(r.retrievalProfile)
+      : null,
+    wireSnapshot: cloneRecipeWireSnapshot(r as Record<string, unknown>),
   };
 }
 
@@ -149,51 +152,6 @@ export function candidateGroupKey(entry: KnowledgeEntry): string {
 }
 
 // ═══════════════════════════════════════════════════════
-//  Request Payload Builders
-// ═══════════════════════════════════════════════════════
-
-/** 构建 POST /knowledge 请求体（从前端 item 转为 API payload） */
-function toCandidatePayload(item: CandidateInput, targetName: string, source: string) {
-  const categoryVal = Array.isArray(item.category) ? item.category[0] : item.category || targetName || 'general';
-  return {
-    // ── POST /api/v1/knowledge 必填字段 ──
-    title: item.title || 'Untitled',
-    content: item.content || { pattern: '', markdown: '', rationale: '' },
-    // ── 候选元数据 ──
-    description: item.description || '',
-    trigger: item.trigger || '',
-    language: item.language || '',
-    category: categoryVal,
-    kind: item.kind || 'pattern',
-    knowledgeType: item.knowledgeType || 'code-pattern',
-    complexity: item.complexity || 'intermediate',
-    source: source || 'manual',
-    lifecycle: 'pending',
-    tags: item.tags || [],
-    sourceFile: item.sourceFile || '',
-    moduleName: item.moduleName || '',
-    headers: item.headers || [],
-    headerPaths: item.headerPaths || [],
-    reasoning: {
-      whyStandard: item.description || item.title || 'Extracted from project',
-      sources: [source || 'unknown'],
-      confidence: 0.6,
-    },
-    metadata: {
-      targetName: targetName || '',
-      title: item.title || '',
-      trigger: item.trigger || '',
-      description: item.description || '',
-      category: categoryVal,
-      headers: item.headers || [],
-      headerPaths: item.headerPaths || [],
-      moduleName: item.moduleName || '',
-      isMarked: item.isMarked || false,
-    },
-  };
-}
-
-// ═══════════════════════════════════════════════════════
 //  Helpers
 // ═══════════════════════════════════════════════════════
 
@@ -244,13 +202,6 @@ export const knowledgeApi = {
     await http.delete(`/knowledge/${candidateId}`);
   },
 
-  /** 一键将 Candidate 发布为 Recipe (V3: publish → active) */
-  async promoteCandidateToRecipe(candidateId: string, _overrides?: Record<string, unknown>): Promise<{ recipe: KnowledgeEntry; candidate: KnowledgeEntry }> {
-    const res = await http.patch(`/knowledge/${candidateId}/publish`);
-    const entry = res.data?.data;
-    return { recipe: entry, candidate: entry };
-  },
-
   async deleteAllCandidatesInTarget(targetName: string): Promise<{ deleted: number }> {
     // V3: list all entries with this category then delete individually
     const res = await http.get(`/knowledge?category=${encodeURIComponent(targetName)}&limit=1000`);
@@ -263,15 +214,6 @@ export const knowledgeApi = {
       } catch { /* skip */ }
     }
     return { deleted };
-  },
-
-  async promoteToCandidate(
-    item: CandidateInput,
-    targetName: string,
-  ): Promise<{ ok: boolean; candidateId: string }> {
-    const data = toCandidatePayload(item, targetName, 'review-promote');
-    const res = await http.post('/knowledge', data);
-    return { ok: true, candidateId: res.data?.data?.id || '' };
   },
 
   // ═══════════════════════════════════════════════════════
@@ -305,15 +247,39 @@ export const knowledgeApi = {
     return res.data?.data || { data: [], pagination: { page: 1, pageSize: 20, total: 0 } };
   },
 
-  /** 创建知识条目 */
-  async knowledgeCreate(data: KnowledgeCreatePayload): Promise<KnowledgeEntry> {
-    const res = await http.post('/knowledge', data);
+  /** 读取 existing candidate/Recipe 的完整 wire，供 reviewer 无损编辑。 */
+  async knowledgeGet(id: string): Promise<KnowledgeEntry> {
+    const res = await http.get(`/knowledge/${encodeURIComponent(id)}`);
     return res.data?.data;
   },
 
   /** 更新知识条目 */
-  async knowledgeUpdate(id: string, data: Partial<KnowledgeEntry>): Promise<KnowledgeEntry> {
-    const res = await http.patch(`/knowledge/${id}`, data);
+  async knowledgeUpdate(id: string, data: Record<string, unknown>): Promise<KnowledgeEntry> {
+    const res = await http.patch(`/knowledge/${encodeURIComponent(id)}`, data);
+    return res.data?.data;
+  },
+
+  /** 读取与 Core publish 同源的确定性结构 readiness；只读且不会触发索引维护。 */
+  async getKnowledgeRetrievalReadiness(id: string): Promise<RetrievalReadinessReport> {
+    const res = await http.get(`/knowledge/${encodeURIComponent(id)}/retrieval-readiness`);
+    return res.data?.data;
+  },
+
+  /** 读取当前 Recipe vector generation 指针和 manifest；只用于 reviewer 观测。 */
+  async getRecipeIndexGeneration(): Promise<RecipeIndexGenerationStatus> {
+    const res = await http.get('/commands/recipe-index-generation');
+    return res.data?.data;
+  },
+
+  /** 生成零写 migration 报告；Dashboard 不提供 rebuild/rollback 控件。 */
+  async previewRecipeIndexGeneration(): Promise<RecipeIndexGenerationDryRun> {
+    const res = await http.post('/commands/recipe-index-generation/dry-run');
+    return res.data?.data;
+  },
+
+  /** 仅在 UI 已完成显式确认后调用合法 lifecycle publish endpoint。 */
+  async knowledgePublish(id: string): Promise<KnowledgeEntry> {
+    const res = await http.patch(`/knowledge/${encodeURIComponent(id)}/publish`, { confirmed: true });
     return res.data?.data;
   },
 

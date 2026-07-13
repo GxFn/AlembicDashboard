@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, CheckCircle, Pencil, Check, Inbox, Layers, Loader2 } from 'lucide-react';
+import { Zap, CheckCircle, Pencil, Check, Layers, Loader2 } from 'lucide-react';
 import { ScanResultItem } from '../../types';
 import { categories, LANGUAGE_OPTIONS, normalizeLanguageId, importPlaceholder } from '../../constants';
 import { ICON_SIZES } from '../../constants/icons';
@@ -31,7 +31,6 @@ interface ScanResultCardProps {
   /* callbacks */
   handleUpdateScanResult: (index: number, updates: any) => void;
   handleSaveExtracted: (res: any) => void;
-  handlePromoteToCandidate?: (res: ScanResultItem, index: number) => void;
   isSavingRecipe?: boolean;
 }
 
@@ -120,7 +119,6 @@ const ScanResultCard: React.FC<ScanResultCardProps> = ({
   setExpandedEditIndex,
   handleUpdateScanResult,
   handleSaveExtracted,
-  handlePromoteToCandidate,
   isSavingRecipe = false,
 }) => {
   const { t } = useI18n();
@@ -182,26 +180,13 @@ const ScanResultCard: React.FC<ScanResultCardProps> = ({
             />
           </div>
           <div className="flex gap-2 shrink-0 pt-3">
-            {handlePromoteToCandidate && (
-              <button
-                onClick={() => handlePromoteToCandidate(res, i)}
-                className="text-xs px-4 py-2 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 bg-white dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/40 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 whitespace-nowrap"
-              >
-                <Inbox size={ICON_SIZES.md} />
-                Candidate
-              </button>
-            )}
             <button
               onClick={() => handleSaveExtracted(res)}
               disabled={isSavingRecipe}
-              className={`text-xs px-4 py-2 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap ${
-                hasCode && res.mode === 'full'
-                  ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/30 dark:border dark:border-blue-500/30'
-                  : 'bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500/20 dark:text-amber-300 dark:hover:bg-amber-500/30 dark:border dark:border-amber-500/30'
-              }`}
+              className="text-xs px-4 py-2 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/30 dark:border dark:border-blue-500/30"
             >
               {isSavingRecipe ? <Loader2 size={ICON_SIZES.md} className="animate-spin" /> : <CheckCircle size={ICON_SIZES.md} />}
-              {isSavingRecipe ? t('scanResult.saving') : hasCode ? t('scanResult.saveAsRecipe') : t('scanResult.saveAsKnowledge')}
+              {isSavingRecipe ? t('scanResult.openingReviewer') : t('scanResult.reviewExisting')}
             </button>
           </div>
         </div>

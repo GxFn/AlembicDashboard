@@ -714,8 +714,11 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                             {(cand.lifecycle === 'pending' || cand.lifecycle === 'staging') && (
                               <button
                                 onClick={async () => {
+                                  if (!window.confirm(t('recipeEditor.retrievalPublishConfirm'))) {
+                                    return;
+                                  }
                                   try {
-                                    await api.promoteCandidateToRecipe(cand.id);
+                                    await api.knowledgePublish(cand.id);
                                     notify(t('candidates.approveSuccess'), { title: t('candidates.approveSuccess') });
                                     onRefresh?.();
                                   } catch (err: unknown) {
@@ -886,8 +889,11 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                   {(cand.lifecycle === 'pending' || cand.lifecycle === 'staging') && (
                     <button
                       onClick={async () => {
+                        if (!window.confirm(t('recipeEditor.retrievalPublishConfirm'))) {
+                          return;
+                        }
                         try {
-                          await api.promoteCandidateToRecipe(cand.id);
+                          await api.knowledgePublish(cand.id);
                           notify(t('candidates.approveSuccess'), { title: t('candidates.approveSuccess') });
                           onRefresh?.();
                         } catch (err: unknown) {

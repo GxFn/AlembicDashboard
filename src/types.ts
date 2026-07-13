@@ -1,3 +1,5 @@
+import type { RecipeRetrievalProfileWire } from './generated/api-types';
+
 export interface RecipeStats {
   authority: number;
   guardUsageCount: number;
@@ -78,6 +80,10 @@ export interface Recipe {
   headers?: string[];
   createdAt?: string | number | null;
   updatedAt?: string | number | null;
+  /** Core 生成且可审阅的内嵌检索事实；派生 readiness/generation 不写回此字段。 */
+  retrievalProfile?: RecipeRetrievalProfileWire | null;
+  /** 仅供无损 PATCH 投影使用的后端完整快照，不作为独立前端真相源。 */
+  wireSnapshot?: Record<string, unknown>;
 }
 
 export type RuntimeMode = 'daemon' | 'api' | 'plugin' | 'unknown' | (string & {});
@@ -664,6 +670,7 @@ export type KnowledgeQuality = KnowledgeQualityWire;
 export type KnowledgeStats = KnowledgeStatsWire;
 export type KnowledgeConstraints = KnowledgeConstraintsWire;
 export type KnowledgeRelations = KnowledgeRelationsWire;
+export type RecipeRetrievalProfile = RecipeRetrievalProfileWire;
 
 /** V3 统一知识条目（API 返回的 wire format — 全 camelCase） */
 export type KnowledgeEntry = KnowledgeEntryWire;

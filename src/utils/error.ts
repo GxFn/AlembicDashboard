@@ -42,9 +42,6 @@ export function getErrorMessage(err: unknown, fallback = 'Unknown error'): strin
   if (typeof err === 'string') {
     return err;
   }
-  if (err instanceof Error) {
-    return err.message;
-  }
   if (isAxiosLikeError(err)) {
     const data = err.response?.data;
     if (data) {
@@ -68,6 +65,9 @@ export function getErrorMessage(err: unknown, fallback = 'Unknown error'): strin
     if (err.message) {
       return err.message;
     }
+  }
+  if (err instanceof Error) {
+    return err.message;
   }
   // 通用 { message: string } 对象
   if (typeof err === 'object' && err !== null && 'message' in err) {

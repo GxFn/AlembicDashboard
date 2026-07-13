@@ -26,6 +26,36 @@
  */
 export type KnowledgeLifecycle = 'pending' | 'staging' | 'active' | 'evolving' | 'decaying' | 'deprecated';
 export type KnowledgeKind = 'rule' | 'pattern' | 'fact';
+/** Recipe 内嵌的可追溯检索事实；它是知识真相的一部分，不是派生索引状态。 */
+export interface RecipeRetrievalFactWire {
+    term?: string;
+    text?: string;
+    language: string;
+    provenanceRefs: string[];
+}
+export interface RecipeRetrievalProfileWire {
+    schemaVersion: string;
+    primaryLanguage: string;
+    summary: {
+        primary: string;
+        technicalEnglish: string;
+    };
+    concepts: Array<RecipeRetrievalFactWire & {
+        term: string;
+    }>;
+    scenarios: Array<RecipeRetrievalFactWire & {
+        text: string;
+    }>;
+    exclusions: Array<RecipeRetrievalFactWire & {
+        text: string;
+    }>;
+    provenance: {
+        evidenceRefs: string[];
+        sourceFieldRefs: string[];
+        sourceContentHash: string;
+        generator: string;
+    };
+}
 export interface KnowledgeContentWire {
     pattern: string;
     markdown: string;
@@ -127,6 +157,7 @@ export interface KnowledgeEntryWire {
     dontClause: string;
     coreCode: string;
     usageGuide: string;
+    retrievalProfile: RecipeRetrievalProfileWire | null;
     content: KnowledgeContentWire;
     relations: KnowledgeRelationsWire;
     constraints: KnowledgeConstraintsWire;
@@ -545,12 +576,12 @@ export const DASHBOARD_JOB_KINDS: readonly DashboardJobKind[] = [
 ];
 
 // ════════════════════════════════════════════════════════════════════
-// HTTP route contract table (31 routes, contract version 1)
+// HTTP route contract table (36 routes, contract version 1)
 // ════════════════════════════════════════════════════════════════════
 
 export const DASHBOARD_API_CONTRACT_VERSION = 1;
 
-export type DashboardApiSchemaId = 'schema-1' | 'schema-2';
+export type DashboardApiSchemaId = 'schema-1' | 'schema-2' | 'schema-3';
 
 export const DASHBOARD_API_RESPONSE_SCHEMAS: Readonly<Record<DashboardApiSchemaId, Record<string, unknown>>> = {
   "schema-1": {
@@ -909,6 +940,106 @@ export const DASHBOARD_API_RESPONSE_SCHEMAS: Readonly<Record<DashboardApiSchemaI
           },
           "taxonomyVersion": {
             "const": 1
+          }
+        }
+      }
+    }
+  },
+  "schema-3": {
+    "type": "object",
+    "required": [
+      "success",
+      "data"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "success": {
+        "type": "boolean"
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ready",
+          "schemaVersion",
+          "profileHash",
+          "documentSetHash",
+          "violations",
+          "warnings"
+        ],
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "profileHash": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documentSetHash": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "provenanceRefs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -1732,6 +1863,70 @@ export const DASHBOARD_API_ROUTES: readonly DashboardApiRouteContract[] = [
       "/api/v1/modules",
       "/api/v1/candidates"
     ],
+    "contractId": "I22.getKnowledgeRetrievalReadiness",
+    "errorKinds": [
+      "invalid-input",
+      "unavailable",
+      "timeout",
+      "not-found",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "exposureClasses": [
+      "public",
+      "consumer-needed",
+      "diagnostic"
+    ],
+    "fixtureIds": [
+      "knowledge-readiness.native",
+      "knowledge-readiness.compatibility",
+      "knowledge-readiness.blocked",
+      "knowledge-readiness.runtime-warnings",
+      "knowledge-readiness.not-found"
+    ],
+    "functionClass": "rest-query",
+    "method": "get",
+    "operationId": "getKnowledgeRetrievalReadiness",
+    "path": "/knowledge/{knowledgeId}/retrieval-readiness",
+    "registryRowId": "I22",
+    "summary": "Read-only Core Recipe retrieval readiness report",
+    "supportedScenarios": [
+      "success",
+      "unavailable-runtime",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "tags": [
+      "Knowledge"
+    ],
+    "responseSchemas": {
+      "200": "schema-3",
+      "206": "schema-2",
+      "400": "schema-2",
+      "404": "schema-2",
+      "424": "schema-2",
+      "500": "schema-2",
+      "501": "schema-2",
+      "502": "schema-2",
+      "503": "schema-2",
+      "504": "schema-2"
+    }
+  },
+  {
+    "artifactPolicy": "Workflow and resident search summaries inline; reports/snapshots by artifactRef and degraded resident search state by canonical degraded telemetry.",
+    "capabilityDiscovery": [
+      "/api/v1/knowledge",
+      "/api/v1/modules",
+      "/api/v1/candidates"
+    ],
     "contractId": "I22.searchKnowledge",
     "errorKinds": [
       "invalid-input",
@@ -1987,6 +2182,286 @@ export const DASHBOARD_API_ROUTES: readonly DashboardApiRouteContract[] = [
     ],
     "tags": [
       "Knowledge"
+    ],
+    "responseSchemas": {
+      "200": "schema-1",
+      "206": "schema-2",
+      "400": "schema-2",
+      "404": "schema-2",
+      "424": "schema-2",
+      "500": "schema-2",
+      "501": "schema-2",
+      "502": "schema-2",
+      "503": "schema-2",
+      "504": "schema-2"
+    }
+  },
+  {
+    "artifactPolicy": "Workflow and resident search summaries inline; reports/snapshots by artifactRef and degraded resident search state by canonical degraded telemetry.",
+    "capabilityDiscovery": [
+      "/api/v1/knowledge",
+      "/api/v1/modules",
+      "/api/v1/candidates"
+    ],
+    "contractId": "I22.getRecipeIndexGeneration",
+    "errorKinds": [
+      "invalid-input",
+      "unavailable",
+      "timeout",
+      "not-found",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "exposureClasses": [
+      "public",
+      "consumer-needed",
+      "diagnostic"
+    ],
+    "fixtureIds": [
+      "knowledge.success",
+      "search.success",
+      "search.degraded",
+      "workflow.unavailable",
+      "workflow.degraded",
+      "workflow.partial",
+      "workflow.capability-mismatch",
+      "workflow.provider-error",
+      "workflow.host-failure",
+      "workflow.internal-error"
+    ],
+    "functionClass": "rest-command",
+    "method": "get",
+    "operationId": "getRecipeIndexGeneration",
+    "path": "/commands/recipe-index-generation",
+    "registryRowId": "I22",
+    "summary": "Recipe vector generation status",
+    "supportedScenarios": [
+      "success",
+      "unavailable-runtime",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "tags": [
+      "Knowledge",
+      "Commands"
+    ],
+    "responseSchemas": {
+      "200": "schema-1",
+      "206": "schema-2",
+      "400": "schema-2",
+      "404": "schema-2",
+      "424": "schema-2",
+      "500": "schema-2",
+      "501": "schema-2",
+      "502": "schema-2",
+      "503": "schema-2",
+      "504": "schema-2"
+    }
+  },
+  {
+    "artifactPolicy": "Workflow and resident search summaries inline; reports/snapshots by artifactRef and degraded resident search state by canonical degraded telemetry.",
+    "capabilityDiscovery": [
+      "/api/v1/knowledge",
+      "/api/v1/modules",
+      "/api/v1/candidates"
+    ],
+    "contractId": "I22.previewRecipeIndexGeneration",
+    "errorKinds": [
+      "invalid-input",
+      "unavailable",
+      "timeout",
+      "not-found",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "exposureClasses": [
+      "public",
+      "consumer-needed",
+      "diagnostic"
+    ],
+    "fixtureIds": [
+      "knowledge.success",
+      "search.success",
+      "search.degraded",
+      "workflow.unavailable",
+      "workflow.degraded",
+      "workflow.partial",
+      "workflow.capability-mismatch",
+      "workflow.provider-error",
+      "workflow.host-failure",
+      "workflow.internal-error"
+    ],
+    "functionClass": "rest-command",
+    "method": "post",
+    "operationId": "previewRecipeIndexGeneration",
+    "path": "/commands/recipe-index-generation/dry-run",
+    "registryRowId": "I22",
+    "summary": "Preview Recipe vector generation without writes",
+    "supportedScenarios": [
+      "success",
+      "unavailable-runtime",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "tags": [
+      "Knowledge",
+      "Commands"
+    ],
+    "responseSchemas": {
+      "200": "schema-1",
+      "206": "schema-2",
+      "400": "schema-2",
+      "404": "schema-2",
+      "424": "schema-2",
+      "500": "schema-2",
+      "501": "schema-2",
+      "502": "schema-2",
+      "503": "schema-2",
+      "504": "schema-2"
+    }
+  },
+  {
+    "artifactPolicy": "Workflow and resident search summaries inline; reports/snapshots by artifactRef and degraded resident search state by canonical degraded telemetry.",
+    "capabilityDiscovery": [
+      "/api/v1/knowledge",
+      "/api/v1/modules",
+      "/api/v1/candidates"
+    ],
+    "contractId": "I22.rebuildRecipeIndexGeneration",
+    "errorKinds": [
+      "invalid-input",
+      "unavailable",
+      "timeout",
+      "not-found",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "exposureClasses": [
+      "public",
+      "consumer-needed",
+      "diagnostic"
+    ],
+    "fixtureIds": [
+      "knowledge.success",
+      "search.success",
+      "search.degraded",
+      "workflow.unavailable",
+      "workflow.degraded",
+      "workflow.partial",
+      "workflow.capability-mismatch",
+      "workflow.provider-error",
+      "workflow.host-failure",
+      "workflow.internal-error"
+    ],
+    "functionClass": "rest-command",
+    "method": "post",
+    "operationId": "rebuildRecipeIndexGeneration",
+    "path": "/commands/recipe-index-generation/rebuild",
+    "registryRowId": "I22",
+    "summary": "Build, verify, and atomically activate a Recipe vector generation",
+    "supportedScenarios": [
+      "success",
+      "unavailable-runtime",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "tags": [
+      "Knowledge",
+      "Commands"
+    ],
+    "responseSchemas": {
+      "200": "schema-1",
+      "206": "schema-2",
+      "400": "schema-2",
+      "404": "schema-2",
+      "424": "schema-2",
+      "500": "schema-2",
+      "501": "schema-2",
+      "502": "schema-2",
+      "503": "schema-2",
+      "504": "schema-2"
+    }
+  },
+  {
+    "artifactPolicy": "Workflow and resident search summaries inline; reports/snapshots by artifactRef and degraded resident search state by canonical degraded telemetry.",
+    "capabilityDiscovery": [
+      "/api/v1/knowledge",
+      "/api/v1/modules",
+      "/api/v1/candidates"
+    ],
+    "contractId": "I22.rollbackRecipeIndexGeneration",
+    "errorKinds": [
+      "invalid-input",
+      "unavailable",
+      "timeout",
+      "not-found",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "exposureClasses": [
+      "public",
+      "consumer-needed",
+      "diagnostic"
+    ],
+    "fixtureIds": [
+      "knowledge.success",
+      "search.success",
+      "search.degraded",
+      "workflow.unavailable",
+      "workflow.degraded",
+      "workflow.partial",
+      "workflow.capability-mismatch",
+      "workflow.provider-error",
+      "workflow.host-failure",
+      "workflow.internal-error"
+    ],
+    "functionClass": "rest-command",
+    "method": "post",
+    "operationId": "rollbackRecipeIndexGeneration",
+    "path": "/commands/recipe-index-generation/rollback",
+    "registryRowId": "I22",
+    "summary": "Roll back active Recipe vector generation",
+    "supportedScenarios": [
+      "success",
+      "unavailable-runtime",
+      "degraded",
+      "partial",
+      "capability-mismatch",
+      "provider-error",
+      "host-failure",
+      "internal-error"
+    ],
+    "tags": [
+      "Knowledge",
+      "Commands"
     ],
     "responseSchemas": {
       "200": "schema-1",

@@ -1,7 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Save, Eye, Edit3, Loader2, Shield, Lightbulb, BookOpen, FileText, FileCode, Code2, Tag } from 'lucide-react';
-import { Recipe } from '../../types';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Save, Eye, Edit3, Loader2, Shield, Lightbulb, BookOpen, FileText, FileCode, Code2, Tag, AlertTriangle, RefreshCw, Database, Rocket, Plus, Trash2 } from 'lucide-react';
+import type { Recipe, RecipeRetrievalProfile } from '../../types';
 import api from '../../api';
+import { canPublishRecipe } from '../../api/recipeReviewer';
+import type {
+  RecipeIndexGenerationDryRun,
+  RecipeIndexGenerationStatus,
+  RetrievalReadinessReport,
+} from '../../api/recipeReviewer';
 import MarkdownWithHighlight from '../Shared/MarkdownWithHighlight';
 import HighlightedCodeEditor from '../Shared/HighlightedCodeEditor';
 import CodeBlock from '../Shared/LazyCodeBlock';
@@ -17,7 +23,16 @@ interface RecipeEditorProps {
   handleSaveRecipe: () => void;
   closeRecipeEdit: () => void;
   isSavingRecipe?: boolean;
+  onPublished?: () => void;
 }
+
+type ReviewLoadState<T> =
+  | { status: 'idle' | 'loading'; data: null; error: null }
+  | { status: 'success'; data: T; error: null }
+  | { status: 'empty'; data: null; error: null }
+  | { status: 'error'; data: null; error: string };
+
+const idleReviewState = <T,>(): ReviewLoadState<T> => ({ status: 'idle', data: null, error: null });
 
 const defaultStats = {
   authority: 0,
@@ -28,16 +43,235 @@ const defaultStats = {
   authorityScore: 0
 };
 
-const RecipeEditor: React.FC<RecipeEditorProps> = ({ editingRecipe, setEditingRecipe, handleSaveRecipe, closeRecipeEdit, isSavingRecipe = false }) => {
+type EditableRetrievalFact = Record<string, unknown> & {
+  language: string;
+  provenanceRefs: string[];
+  term?: string;
+  text?: string;
+};
+
+function splitReferenceLines(value: string): string[] {
+  return value.split(/[\n,]/).map(item => item.trim()).filter(Boolean);
+}
+
+function RetrievalFactEditor({
+  items,
+  valueKey,
+  title,
+  emptyText,
+  defaultLanguage,
+  onChange,
+}: {
+  items: EditableRetrievalFact[];
+  valueKey: 'term' | 'text';
+  title: string;
+  emptyText: string;
+  defaultLanguage: string;
+  onChange: (next: EditableRetrievalFact[]) => void;
+}) {
+  const update = (index: number, patch: Partial<EditableRetrievalFact>) => {
+    onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-[var(--fg-secondary)]">{title}</span>
+        <button
+          type="button"
+          onClick={() => onChange([...items, { [valueKey]: '', language: defaultLanguage, provenanceRefs: [] }])}
+          className="inline-flex items-center gap-1 rounded-md border border-[var(--border-default)] px-2 py-1 text-[11px] font-medium text-[var(--fg-secondary)] hover:bg-[var(--bg-subtle)]"
+        >
+          <Plus size={11} />
+          {title}
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-[var(--border-default)] px-3 py-2 text-xs text-[var(--fg-muted)]">{emptyText}</p>
+      ) : items.map((item, index) => (
+        <div key={`${valueKey}-${index}`} className="grid gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 md:grid-cols-[minmax(0,1fr)_120px_36px]">
+          <div className="space-y-2">
+            <input
+              aria-label={`${title} ${index + 1}`}
+              value={typeof item[valueKey] === 'string' ? item[valueKey] : ''}
+              onChange={event => update(index, { [valueKey]: event.target.value })}
+              className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 py-2 text-sm"
+            />
+            <input
+              aria-label={`${title} provenance ${index + 1}`}
+              value={item.provenanceRefs.join(', ')}
+              onChange={event => update(index, { provenanceRefs: splitReferenceLines(event.target.value) })}
+              className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.5 py-1.5 font-mono text-[11px]"
+              placeholder="field:title, source:1-3"
+            />
+          </div>
+          <input
+            aria-label={`${title} language ${index + 1}`}
+            value={item.language}
+            onChange={event => update(index, { language: event.target.value })}
+            className="h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 text-xs"
+          />
+          <button
+            type="button"
+            aria-label={`Remove ${title} ${index + 1}`}
+            onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-red-50 hover:text-red-600"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const RecipeEditor: React.FC<RecipeEditorProps> = ({ editingRecipe, setEditingRecipe, handleSaveRecipe, closeRecipeEdit, isSavingRecipe = false, onPublished }) => {
   const { t } = useI18n();
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
+  const [readinessState, setReadinessState] = useState<ReviewLoadState<RetrievalReadinessReport>>(idleReviewState);
+  const [generationState, setGenerationState] = useState<ReviewLoadState<RecipeIndexGenerationStatus>>(idleReviewState);
+  const [dryRunState, setDryRunState] = useState<ReviewLoadState<RecipeIndexGenerationDryRun>>(idleReviewState);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  const recipeId = editingRecipe.id?.trim() || '';
+
+  const loadRetrievalReview = useCallback(async () => {
+    if (!recipeId) {
+      const message = t('recipeEditor.retrievalMissingId');
+      setReadinessState({ status: 'error', data: null, error: message });
+      setGenerationState({ status: 'error', data: null, error: message });
+      return;
+    }
+
+    setReadinessState({ status: 'loading', data: null, error: null });
+    setGenerationState({ status: 'loading', data: null, error: null });
+    const [readinessResult, generationResult] = await Promise.allSettled([
+      api.getKnowledgeRetrievalReadiness(recipeId),
+      api.getRecipeIndexGeneration(),
+    ]);
+    if (!isMountedRef.current) {
+      return;
+    }
+
+    if (readinessResult.status === 'fulfilled' && readinessResult.value) {
+      setReadinessState({ status: 'success', data: readinessResult.value, error: null });
+    } else if (readinessResult.status === 'fulfilled') {
+      setReadinessState({ status: 'empty', data: null, error: null });
+    } else {
+      setReadinessState({
+        status: 'error',
+        data: null,
+        error: getErrorMessage(readinessResult.reason, t('recipeEditor.retrievalLoadFailed')),
+      });
+    }
+
+    if (generationResult.status === 'fulfilled' && generationResult.value) {
+      setGenerationState({ status: 'success', data: generationResult.value, error: null });
+    } else if (generationResult.status === 'fulfilled') {
+      setGenerationState({ status: 'empty', data: null, error: null });
+    } else {
+      setGenerationState({
+        status: 'error',
+        data: null,
+        error: getErrorMessage(generationResult.reason, t('recipeEditor.retrievalGenerationFailed')),
+      });
+    }
+  }, [recipeId, t]);
+
+  useEffect(() => {
+    void loadRetrievalReview();
+  }, [loadRetrievalReview]);
+
+  const handleGenerationDryRun = async () => {
+    setDryRunState({ status: 'loading', data: null, error: null });
+    try {
+      const report = await api.previewRecipeIndexGeneration();
+      if (isMountedRef.current) {
+        setDryRunState(report
+          ? { status: 'success', data: report, error: null }
+          : { status: 'empty', data: null, error: null });
+      }
+    } catch (err: unknown) {
+      if (isMountedRef.current) {
+        setDryRunState({
+          status: 'error',
+          data: null,
+          error: getErrorMessage(err, t('recipeEditor.retrievalDryRunFailed')),
+        });
+      }
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!recipeId || publishing || !canPublishRecipe(readinessState.data)) {
+      return;
+    }
+    if (!window.confirm(t('recipeEditor.retrievalPublishConfirm'))) {
+      return;
+    }
+
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const published = await api.knowledgePublish(recipeId);
+      if (!isMountedRef.current) {
+        return;
+      }
+      setEditingRecipe({
+        ...editingRecipe,
+        status: published?.lifecycle || 'active',
+        wireSnapshot: published ? { ...published } : editingRecipe.wireSnapshot,
+      });
+      onPublished?.();
+      await loadRetrievalReview();
+    } catch (err: unknown) {
+      const message = getErrorMessage(err, t('recipeEditor.retrievalPublishFailed'));
+      console.warn('Recipe publish failed after explicit confirmation:', {
+        recipeId,
+        lifecycle: editingRecipe.status,
+        message,
+      });
+      if (isMountedRef.current) {
+        setPublishError(message);
+        await loadRetrievalReview();
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setPublishing(false);
+      }
+    }
+  };
+
+  const initializeRetrievalProfile = () => {
+    const profile: RecipeRetrievalProfile = {
+      schemaVersion: '1',
+      primaryLanguage: editingRecipe.language || '',
+      summary: { primary: '', technicalEnglish: '' },
+      concepts: [],
+      scenarios: [],
+      exclusions: [],
+      provenance: {
+        evidenceRefs: [],
+        sourceFieldRefs: [],
+        sourceContentHash: '',
+        generator: 'dashboard-reviewer',
+      },
+    };
+    setEditingRecipe({ ...editingRecipe, retrievalProfile: profile });
+  };
+
+  const updateRetrievalProfile = (profile: RecipeRetrievalProfile) => {
+    setEditingRecipe({ ...editingRecipe, retrievalProfile: profile });
+  };
 
   const codeLang = (() => {
     const l = (editingRecipe.language || '').toLowerCase();
@@ -63,6 +297,315 @@ const RecipeEditor: React.FC<RecipeEditorProps> = ({ editingRecipe, setEditingRe
     if (isNaN(ms)) return '';
     return new Date(ms).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
+
+  const retrievalProfile = editingRecipe.retrievalProfile;
+  const publishableLifecycle = editingRecipe.status === 'pending' || editingRecipe.status === 'staging';
+  const readinessReport = readinessState.status === 'success' ? readinessState.data : null;
+  const retrievalReviewPanel = (
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-indigo-200 bg-indigo-50/30 p-5 dark:border-indigo-500/30 dark:bg-indigo-500/5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-[var(--fg-primary)]">{t('recipeEditor.retrievalProfileTitle')}</h3>
+            <p className="mt-1 text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalProfileHint')}</p>
+          </div>
+          {retrievalProfile && (
+            <span className="rounded-full border border-indigo-200 bg-white px-2.5 py-1 font-mono text-[11px] text-indigo-700 dark:bg-transparent dark:text-indigo-300">
+              schema {retrievalProfile.schemaVersion}
+            </span>
+          )}
+        </div>
+
+        {!retrievalProfile ? (
+          <div className="rounded-xl border border-dashed border-indigo-200 bg-[var(--bg-surface)] p-4">
+            <p className="text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalEmpty')}</p>
+            {viewMode === 'edit' && (
+              <button
+                type="button"
+                onClick={initializeRetrievalProfile}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700"
+              >
+                <Plus size={13} /> {t('recipeEditor.retrievalCreateProfile')}
+              </button>
+            )}
+          </div>
+        ) : viewMode === 'edit' ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+                <span>{t('recipeEditor.retrievalSchemaVersion')}</span>
+                <input
+                  value={retrievalProfile.schemaVersion}
+                  onChange={event => updateRetrievalProfile({ ...retrievalProfile, schemaVersion: event.target.value })}
+                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-normal"
+                />
+              </label>
+              <label className="space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+                <span>{t('recipeEditor.retrievalPrimaryLanguage')}</span>
+                <input
+                  value={retrievalProfile.primaryLanguage}
+                  onChange={event => updateRetrievalProfile({ ...retrievalProfile, primaryLanguage: event.target.value })}
+                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-normal"
+                />
+              </label>
+            </div>
+            <label className="block space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+              <span>{t('recipeEditor.retrievalPrimarySummary')}</span>
+              <textarea
+                value={retrievalProfile.summary.primary}
+                onChange={event => updateRetrievalProfile({
+                  ...retrievalProfile,
+                  summary: { ...retrievalProfile.summary, primary: event.target.value },
+                })}
+                rows={3}
+                className="w-full resize-y rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-normal"
+              />
+            </label>
+            <label className="block space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+              <span>{t('recipeEditor.retrievalTechnicalSummary')}</span>
+              <textarea
+                value={retrievalProfile.summary.technicalEnglish}
+                onChange={event => updateRetrievalProfile({
+                  ...retrievalProfile,
+                  summary: { ...retrievalProfile.summary, technicalEnglish: event.target.value },
+                })}
+                rows={3}
+                className="w-full resize-y rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm font-normal"
+              />
+            </label>
+            <RetrievalFactEditor
+              title={t('recipeEditor.retrievalConcepts')}
+              emptyText={t('recipeEditor.retrievalNoFacts')}
+              items={retrievalProfile.concepts as unknown as EditableRetrievalFact[]}
+              valueKey="term"
+              defaultLanguage={retrievalProfile.primaryLanguage}
+              onChange={concepts => updateRetrievalProfile({
+                ...retrievalProfile,
+                concepts: concepts as unknown as RecipeRetrievalProfile['concepts'],
+              })}
+            />
+            <RetrievalFactEditor
+              title={t('recipeEditor.retrievalScenarios')}
+              emptyText={t('recipeEditor.retrievalNoFacts')}
+              items={retrievalProfile.scenarios as unknown as EditableRetrievalFact[]}
+              valueKey="text"
+              defaultLanguage={retrievalProfile.primaryLanguage}
+              onChange={scenarios => updateRetrievalProfile({
+                ...retrievalProfile,
+                scenarios: scenarios as unknown as RecipeRetrievalProfile['scenarios'],
+              })}
+            />
+            <RetrievalFactEditor
+              title={t('recipeEditor.retrievalExclusions')}
+              emptyText={t('recipeEditor.retrievalNoFacts')}
+              items={retrievalProfile.exclusions as unknown as EditableRetrievalFact[]}
+              valueKey="text"
+              defaultLanguage={retrievalProfile.primaryLanguage}
+              onChange={exclusions => updateRetrievalProfile({
+                ...retrievalProfile,
+                exclusions: exclusions as unknown as RecipeRetrievalProfile['exclusions'],
+              })}
+            />
+            <div className="grid gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] p-4 md:grid-cols-2">
+              <label className="space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+                <span>{t('recipeEditor.retrievalSourceFields')}</span>
+                <textarea
+                  value={retrievalProfile.provenance.sourceFieldRefs.join('\n')}
+                  onChange={event => updateRetrievalProfile({
+                    ...retrievalProfile,
+                    provenance: {
+                      ...retrievalProfile.provenance,
+                      sourceFieldRefs: splitReferenceLines(event.target.value),
+                    },
+                  })}
+                  rows={4}
+                  className="w-full resize-y rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-xs font-normal"
+                />
+              </label>
+              <label className="space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+                <span>{t('recipeEditor.retrievalEvidenceRefs')}</span>
+                <textarea
+                  value={retrievalProfile.provenance.evidenceRefs.join('\n')}
+                  onChange={event => updateRetrievalProfile({
+                    ...retrievalProfile,
+                    provenance: {
+                      ...retrievalProfile.provenance,
+                      evidenceRefs: splitReferenceLines(event.target.value),
+                    },
+                  })}
+                  rows={4}
+                  className="w-full resize-y rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-xs font-normal"
+                />
+              </label>
+              <label className="space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+                <span>{t('recipeEditor.retrievalSourceHash')}</span>
+                <input
+                  value={retrievalProfile.provenance.sourceContentHash}
+                  onChange={event => updateRetrievalProfile({
+                    ...retrievalProfile,
+                    provenance: { ...retrievalProfile.provenance, sourceContentHash: event.target.value },
+                  })}
+                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 font-mono text-xs font-normal"
+                />
+              </label>
+              <label className="space-y-1 text-xs font-bold text-[var(--fg-secondary)]">
+                <span>{t('recipeEditor.retrievalGenerator')}</span>
+                <input
+                  value={retrievalProfile.provenance.generator}
+                  onChange={event => updateRetrievalProfile({
+                    ...retrievalProfile,
+                    provenance: { ...retrievalProfile.provenance, generator: event.target.value },
+                  })}
+                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-normal"
+                />
+              </label>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+                <div className="text-[10px] font-bold uppercase text-[var(--fg-muted)]">{t('recipeEditor.retrievalPrimarySummary')}</div>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--fg-primary)]">{retrievalProfile.summary.primary || t('recipeEditor.retrievalEmpty')}</p>
+              </div>
+              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+                <div className="text-[10px] font-bold uppercase text-[var(--fg-muted)]">{t('recipeEditor.retrievalTechnicalSummary')}</div>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--fg-primary)]">{retrievalProfile.summary.technicalEnglish || t('recipeEditor.retrievalEmpty')}</p>
+              </div>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-3">
+              {([
+                [t('recipeEditor.retrievalConcepts'), retrievalProfile.concepts.map(item => item.term)],
+                [t('recipeEditor.retrievalScenarios'), retrievalProfile.scenarios.map(item => item.text)],
+                [t('recipeEditor.retrievalExclusions'), retrievalProfile.exclusions.map(item => item.text)],
+              ] as Array<[string, string[]]>).map(([label, values]) => (
+                <div key={label} className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+                  <div className="text-[10px] font-bold uppercase text-[var(--fg-muted)]">{label}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {values.length > 0 ? values.map((value, index) => (
+                      <span key={`${label}-${index}`} className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{value}</span>
+                    )) : <span className="text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalNoFacts')}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] p-4">
+              <div className="text-[10px] font-bold uppercase text-[var(--fg-muted)]">{t('recipeEditor.retrievalSourceFields')}</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {retrievalProfile.provenance.sourceFieldRefs.map(reference => (
+                  <code key={reference} className="rounded bg-[var(--bg-surface)] px-2 py-1 text-[11px] text-[var(--fg-secondary)]">{reference}</code>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5" aria-live="polite">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Shield size={16} className="text-emerald-600" />
+              <h3 className="text-sm font-bold">{t('recipeEditor.retrievalReadinessTitle')}</h3>
+            </div>
+            <button type="button" onClick={() => void loadRetrievalReview()} className="rounded-md p-1.5 text-[var(--fg-muted)] hover:bg-[var(--bg-subtle)]" title={t('recipeEditor.retrievalRetry')}>
+              <RefreshCw size={14} className={readinessState.status === 'loading' ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          {readinessState.status === 'loading' || readinessState.status === 'idle' ? (
+            <p className="text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalLoading')}</p>
+          ) : readinessState.status === 'empty' ? (
+            <p className="text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalEmpty')}</p>
+          ) : readinessState.status === 'error' ? (
+            <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
+              {readinessState.error}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${readinessReport?.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  {readinessReport?.ready ? t('recipeEditor.retrievalReady') : t('recipeEditor.retrievalBlocked')}
+                </span>
+                <code className="text-[11px] text-[var(--fg-muted)]">schema {readinessReport?.schemaVersion || '—'}</code>
+              </div>
+              <dl className="grid gap-2 text-[11px]">
+                <div><dt className="font-bold text-[var(--fg-muted)]">profileHash</dt><dd className="break-all font-mono text-[var(--fg-secondary)]">{readinessReport?.profileHash || '—'}</dd></div>
+                <div><dt className="font-bold text-[var(--fg-muted)]">documentSetHash</dt><dd className="break-all font-mono text-[var(--fg-secondary)]">{readinessReport?.documentSetHash || '—'}</dd></div>
+              </dl>
+              {readinessReport && readinessReport.violations.length > 0 && (
+                <ul className="space-y-2">
+                  {readinessReport.violations.map((violation, index) => (
+                    <li key={`${violation.code}-${index}`} className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                      <code className="font-bold">{violation.code}</code>
+                      {violation.field && <span className="ml-2 font-mono text-[11px]">{violation.field}</span>}
+                      <p className="mt-1">{violation.message}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {readinessReport && readinessReport.warnings.length > 0 && (
+                <ul className="space-y-2">
+                  {readinessReport.warnings.map((warning, index) => (
+                    <li key={`${warning.code}-${index}`} className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                      <div className="flex items-start gap-2"><AlertTriangle size={13} className="mt-0.5 shrink-0" /><div><code className="font-bold">{warning.code}</code><p className="mt-1">{warning.message}</p></div></div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-[11px] text-[var(--fg-muted)]">{t('recipeEditor.retrievalWarningNonGate')}</p>
+            </div>
+          )}
+          {publishError && <div aria-live="assertive" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{publishError}</div>}
+          {publishableLifecycle && (
+            <button
+              type="button"
+              onClick={() => void handlePublish()}
+              disabled={publishing || !canPublishRecipe(readinessReport)}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {publishing ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+              {publishing ? t('recipeEditor.retrievalPublishing') : t('recipeEditor.retrievalPublish')}
+            </button>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5" aria-live="polite">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Database size={16} className="text-blue-600" />
+              <h3 className="text-sm font-bold">{t('recipeEditor.retrievalGenerationTitle')}</h3>
+            </div>
+            <button type="button" onClick={() => void loadRetrievalReview()} className="rounded-md p-1.5 text-[var(--fg-muted)] hover:bg-[var(--bg-subtle)]" title={t('recipeEditor.retrievalRetry')}>
+              <RefreshCw size={14} className={generationState.status === 'loading' ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          {generationState.status === 'loading' || generationState.status === 'idle' ? (
+            <p className="text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalLoading')}</p>
+          ) : generationState.status === 'empty' ? (
+            <p className="text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalEmpty')}</p>
+          ) : generationState.status === 'error' ? (
+            <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">{generationState.error}</div>
+          ) : (
+            <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-[var(--bg-subtle)] p-3 text-[11px] text-[var(--fg-secondary)]">{JSON.stringify(generationState.data, null, 2)}</pre>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleGenerationDryRun()}
+            disabled={dryRunState.status === 'loading'}
+            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-500/10 dark:text-blue-300"
+          >
+            {dryRunState.status === 'loading' ? <Loader2 size={13} className="animate-spin" /> : <Database size={13} />}
+            {dryRunState.status === 'loading' ? t('recipeEditor.retrievalDryRunRunning') : t('recipeEditor.retrievalDryRun')}
+          </button>
+          {dryRunState.status === 'success' && (
+            <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-[var(--bg-subtle)] p-3 text-[11px] text-[var(--fg-secondary)]">{JSON.stringify(dryRunState.data, null, 2)}</pre>
+          )}
+          {dryRunState.status === 'empty' && <p className="mt-3 text-xs text-[var(--fg-muted)]">{t('recipeEditor.retrievalEmpty')}</p>}
+          {dryRunState.status === 'error' && <div aria-live="assertive" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{dryRunState.error}</div>}
+        </section>
+      </div>
+    </div>
+  );
 
   return (
   <PageOverlay className="z-40 flex items-center justify-center p-4">
@@ -156,6 +699,8 @@ const RecipeEditor: React.FC<RecipeEditorProps> = ({ editingRecipe, setEditingRe
           />
         </div>
 
+        {retrievalReviewPanel}
+
         {/* Markdown 文档 */}
         <div>
           <label className="block text-xs font-bold text-[var(--fg-muted)] uppercase mb-1.5 flex items-center gap-1.5">
@@ -231,6 +776,8 @@ const RecipeEditor: React.FC<RecipeEditorProps> = ({ editingRecipe, setEditingRe
           </div>
           );
         })()}
+
+        {retrievalReviewPanel}
 
         {/* Description */}
         {editingRecipe.description && (

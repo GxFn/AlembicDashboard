@@ -24,6 +24,7 @@ import { projectScopeApi } from './projectScope';
 import { projectsApi } from './projects';
 import { searchApi } from './search';
 import { skillsApi } from './skills';
+import { strictTestApi } from './strictTest';
 
 export const api = {
   ...fetchDataApi,
@@ -38,6 +39,7 @@ export const api = {
   ...searchApi,
   ...guardApi,
   ...skillsApi,
+  strictTest: strictTestApi,
   ...authApi,
   ...evolutionApi,
 };
@@ -77,6 +79,13 @@ export {
 } from './guard';
 export { normalizeRuntimeBoundary } from './fetchData';
 export { buildModuleScanViewModel, normalizeModuleScanProjectResult } from './moduleScan';
+export {
+  createStrictTestApi,
+  isStrictTestApiProblem,
+  strictTestApi,
+  StrictTestApiProblem,
+  StrictTestContractError,
+} from './strictTest';
 
 /* ── named 恒等出口（类型 50） ───────────────────────── */
 export type {
@@ -160,3 +169,9 @@ export type {
   GuardRunProviderRecord,
   GuardViolationProviderRecord,
 } from './guard';
+export type {
+  StrictTestApiClient,
+  StrictTestHttpRequest,
+  StrictTestHttpResponse,
+  StrictTestHttpTransport,
+} from './strictTest';

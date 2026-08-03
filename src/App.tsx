@@ -24,6 +24,7 @@ import { useGenerateSocket } from './hooks/useGenerateSocket';
 import { useLlmStatus } from './hooks/useLlmStatus';
 import { useProjectsControl } from './hooks/useProjectsControl';
 import { useTabNavigation } from './hooks/useTabNavigation';
+import { useStrictTestRun } from './hooks/useStrictTestRun';
 import { useI18n } from './i18n';
 import LoginView from './components/Views/LoginView';
 import ErrorBoundary from './components/Shared/ErrorBoundary';
@@ -127,6 +128,7 @@ const App: React.FC = () => {
 
   // State
   const [data, setData] = useState<ProjectData | null>(null);
+  const strictTest = useStrictTestRun(data?.projectRoot ?? null);
   const [searchQuery, setSearchQuery] = useState('');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -584,58 +586,10 @@ const App: React.FC = () => {
   }
   };
 
-  /** 冷启动：快速骨架 + 异步逐维度填充（v5 async fill） */
-  const handleColdStart = async () => {
-  if (isScanning) return;
-  if (abortControllerRef.current) abortControllerRef.current.abort();
-  const controller = new AbortController();
-  abortControllerRef.current = controller;
-
-  // 自动跳转到 Candidates 页面展示结果
-  navigateToTab('candidates');
-  setIsScanning(true);
-  setScanResults([]);
-  setGuardAudit(null);
-  setScanFileList([]);
-  setScanProgress({ current: 0, total: 100, status: t('app.coldStart.collecting') });
-  bootstrap.resetSession();
-
-  try {
-    const result = await api.bootstrap(controller.signal);
-    setScanProgress({ current: 100, total: 100, status: t('app.coldStart.skeletonCreated') });
-
-    // 如果返回了 bootstrapSession，初始化到 socket hook
-    if (result.bootstrapSession) {
-      bootstrap.initFromApiResponse({ ...result.bootstrapSession, activeJob: result.job || null });
-    }
-
-    // 刷新候选列表
-    fetchData();
-
-    const report = result.report || {};
-    const targetCount = result.targets?.length || 0;
-    const fileCount = report.totals?.files || 0;
-    const graphEdges = report.totals?.graphEdges || 0;
-    const guardInfo = result.guardSummary;
-    const guardMsg = guardInfo ? `, ${t('app.coldStart.guardSuffix', { count: guardInfo.totalViolations })}` : '';
-
-    notify(
-      t('app.coldStart.skeletonDetail', { targets: targetCount, files: fileCount, deps: graphEdges }) + guardMsg
-    );
-  } catch (err: unknown) {
-    if (isAxiosCancel(err)) return;
-    const timeout = isTimeoutError(err);
-    const msg = timeout
-      ? t('app.coldStart.timeout')
-      : getErrorMessage(err);
-    notify(msg, { type: 'error' });
-  } finally {
-    if (abortControllerRef.current === controller) {
-    setIsScanning(false);
-    setScanProgress({ current: 0, total: 0, status: '' });
-    abortControllerRef.current = null;
-    }
-  }
+  /** Candidates 的两个入口只唤起 Main strict-test authority，不触碰 bootstrap job。 */
+  const handleStrictTestStart = () => {
+    navigateToTab('candidates');
+    void strictTest.start();
   };
 
   /** 增量扫描：保留已有 Recipe，重新分析并补齐缺失知识（API AI 自动补齐） */
@@ -1035,10 +989,11 @@ const App: React.FC = () => {
         isPendingTarget={isPendingTarget}
         handleDeleteCandidate={handleDeleteCandidate} 
         onEditRecipe={openRecipeEdit}
-        onColdStart={handleColdStart}
+        onColdStart={handleStrictTestStart}
         onRescan={handleRescan}
         isScanning={isScanning}
-        isBootstrapping={bootstrap.session?.status === 'running'}
+        strictTestState={strictTest.state}
+        isStrictTestRunning={strictTest.isBusy}
         onRefresh={fetchData}
         onAuditCandidate={(cand, targetName) => {
         const candCode = (cand.content?.pattern || '').trim();

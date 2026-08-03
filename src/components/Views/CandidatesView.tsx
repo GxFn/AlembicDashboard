@@ -20,6 +20,8 @@ import { formatSourceLabel, getSourceLabelInfo } from '../../utils/SourceLabels'
 import Select from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Drawer } from '../Layout/Drawer';
+import StrictTestStatusPanel from './StrictTestStatusPanel';
+import type { StrictTestRunState } from '../../strictTest/StrictTestRunController';
 
 const SILENT_LABEL_KEYS: Record<string, string> = { _watch: 'silentLabels.watch', _draft: 'silentLabels.draft', _cli: 'silentLabels.cli', _pending: 'silentLabels.pending', _recipe: 'silentLabels.recipe' };
 
@@ -99,8 +101,9 @@ interface CandidatesViewProps {
   onColdStart?: () => void;
   onRescan?: () => void;
   isScanning?: boolean;
-  /** bootstrap 任务是否正在进行（隐藏冷启动按钮和空状态） */
-  isBootstrapping?: boolean;
+  strictTestState: StrictTestRunState;
+  /** strict-test authority 正在 preflight/start/poll 时隐藏重复入口。 */
+  isStrictTestRunning?: boolean;
   onRefresh?: () => void;
 }
 
@@ -192,7 +195,8 @@ const ConfidenceRing: React.FC<{ value: number | null | undefined; size?: number
 const CandidatesView: React.FC<CandidatesViewProps> = ({
   data, isShellTarget, isSilentTarget = () => false, isPendingTarget = () => false,
   handleDeleteCandidate, handleDeleteAllInTarget,
-  onAuditCandidate, onAuditAllInTarget, onEditRecipe, onColdStart, onRescan, isScanning, isBootstrapping, onRefresh,
+  onAuditCandidate, onAuditAllInTarget, onEditRecipe, onColdStart, onRescan, isScanning,
+  strictTestState, isStrictTestRunning, onRefresh,
 }) => {
   const { t } = useI18n();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -267,39 +271,40 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* ── 扫描操作 ── */}
-          {!isBootstrapping && (
+          {!isStrictTestRunning && (
             <>
               {hasBootstrapped ? (
                 /* 已 bootstrap：有候选时在 header 显示增量扫描，无候选时增量扫描在空状态区 */
                 onRescan && hasCandidates && (
                   <button
                     onClick={onRescan}
-                    disabled={isScanning}
+                    disabled={isScanning || isStrictTestRunning}
                     className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                      isScanning
+                      isScanning || isStrictTestRunning
                         ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
                         : 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20'
                     }`}
                     title={t('candidates.rescanTitle')}
                   >
-                    {isScanning ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                    {isScanning ? t('common.loading') : t('candidates.rescanBtn')}
+                    {isScanning || isStrictTestRunning ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    {isScanning || isStrictTestRunning ? t('common.loading') : t('candidates.rescanBtn')}
                   </button>
                 )
               ) : onColdStart && (
                 /* 无 Recipes：显示冷启动 */
                 <button
+                  data-testid="candidates-strict-test-cold-start-header"
                   onClick={onColdStart}
-                  disabled={isScanning}
+                  disabled={isScanning || isStrictTestRunning}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                    isScanning
+                    isScanning || isStrictTestRunning
                       ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
                       : 'text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20'
                   }`}
                   title={t('candidates.coldStartTitle')}
                 >
-                  {isScanning ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
-                  {isScanning ? t('common.loading') : t('candidates.sourceBootstrap')}
+                  {isScanning || isStrictTestRunning ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+                  {isScanning || isStrictTestRunning ? t('common.loading') : t('candidates.sourceBootstrap')}
                 </button>
               )}
             </>
@@ -317,24 +322,27 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
               </div>
             </div>
           )}
-          {/* ── 清理重建（最右侧） ── */}
-          {!isBootstrapping && onColdStart && hasBootstrapped && (
+          {/* 已有内容时允许显式启动一个新的、仍然非破坏的 private strict run。 */}
+          {!isStrictTestRunning && onColdStart && hasBootstrapped && (
             <button
+              data-testid="candidates-strict-test-rerun"
               onClick={onColdStart}
-              disabled={isScanning}
+              disabled={isScanning || isStrictTestRunning}
               className={`ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] transition-all ${
-                isScanning
+                isScanning || isStrictTestRunning
                   ? 'text-[var(--fg-muted)] cursor-not-allowed'
-                  : 'text-[var(--fg-muted)] hover:text-red-600 hover:bg-red-50'
+                  : 'text-violet-600 dark:text-violet-400 hover:bg-violet-500/10'
               }`}
-              title={t('candidates.cleanRebuildTitle')}
+              title={t('candidates.strictTestRunAgainTitle')}
             >
-              {isScanning ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-              {t('candidates.cleanRebuildBtn')}
+              {isScanning || isStrictTestRunning ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {t('candidates.strictTestRunAgain')}
             </button>
           )}
         </div>
       </div>
+
+      <StrictTestStatusPanel state={strictTestState} />
 
       {/* ── Target 切换标签栏 ── */}
       {candidateEntries.length > 0 && (
@@ -373,7 +381,7 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
 
       {/* ── 内容区域 ── */}
       <div className="flex-1 overflow-y-auto pr-1 pb-6">
-        {(!data?.candidates || Object.keys(data.candidates).length === 0) && !isBootstrapping && (
+        {(!data?.candidates || Object.keys(data.candidates).length === 0) && !isStrictTestRunning && (
           <div className="h-72 flex flex-col items-center justify-center bg-[var(--bg-surface)] rounded-2xl border border-dashed border-[var(--border-default)] text-[var(--fg-muted)]">
             <div className="w-16 h-16 rounded-2xl bg-[var(--bg-subtle)] flex items-center justify-center mb-4">
               <Inbox size={32} className="text-[var(--fg-muted)]" />
@@ -388,15 +396,15 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
                 {onRescan && (
                   <button
                     onClick={onRescan}
-                    disabled={isScanning}
+                    disabled={isScanning || isStrictTestRunning}
                     className={`mt-4 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                      isScanning
+                      isScanning || isStrictTestRunning
                         ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
                         : 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20'
                     }`}
                   >
-                    {isScanning ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                    {isScanning ? t('common.loading') : t('candidates.rescanBtn')}
+                    {isScanning || isStrictTestRunning ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                    {isScanning || isStrictTestRunning ? t('common.loading') : t('candidates.rescanBtn')}
                   </button>
                 )}
                 <p className="mt-3 text-[11px] text-[var(--fg-muted)]">
@@ -408,16 +416,17 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
               <>
                 {onColdStart && (
                   <button
+                    data-testid="candidates-strict-test-cold-start-empty"
                     onClick={onColdStart}
-                    disabled={isScanning}
+                    disabled={isScanning || isStrictTestRunning}
                     className={`mt-4 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                      isScanning
+                      isScanning || isStrictTestRunning
                         ? 'text-[var(--fg-muted)] bg-[var(--bg-subtle)] cursor-not-allowed'
                         : 'text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/20'
                     }`}
                   >
-                    {isScanning ? <Loader2 size={16} className="animate-spin" /> : <Rocket size={16} />}
-                    {isScanning ? t('common.loading') : t('candidates.sourceBootstrap')}
+                    {isScanning || isStrictTestRunning ? <Loader2 size={16} className="animate-spin" /> : <Rocket size={16} />}
+                    {isScanning || isStrictTestRunning ? t('common.loading') : t('candidates.sourceBootstrap')}
                   </button>
                 )}
                 <p className="mt-3 text-[11px] text-[var(--fg-muted)]">
@@ -428,8 +437,8 @@ const CandidatesView: React.FC<CandidatesViewProps> = ({
           </div>
         )}
 
-        {/* Bootstrap 进行中且无候选内容时，显示等待提示 */}
-        {(!data?.candidates || Object.keys(data.candidates).length === 0) && isBootstrapping && (
+        {/* strict-test 长运行时，具体权威 phase 在上方 panel；此处只保留空列表占位。 */}
+        {(!data?.candidates || Object.keys(data.candidates).length === 0) && isStrictTestRunning && (
           <div className="h-72 flex flex-col items-center justify-center bg-[var(--bg-surface)] rounded-2xl border border-dashed border-violet-500/30 text-[var(--fg-muted)]">
             <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center mb-4">
               <Loader2 size={32} className="text-violet-400 animate-spin" />

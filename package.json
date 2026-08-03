@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "lint": "node scripts/lint-dashboard.mjs",
-    "test": "node --test scripts/dashboard-contract.test.mjs",
+    "test": "node --test scripts/dashboard-contract.test.mjs scripts/strict-test-contract.test.mjs",
     "typecheck": "tsc --noEmit",
     "check:api-types-drift": "node scripts/check-generated-api-types.mjs",
     "check:space-boundary": "node scripts/check-space-boundary.mjs",

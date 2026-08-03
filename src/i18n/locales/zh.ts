@@ -331,7 +331,7 @@ export const zh = {
     updatedAt: '更新时间',
     // CandidatesView hardcoded strings
     coldStartTitle: '项目扫描：结构收集 + 多维度 Candidate 创建',
-    emptyHint: '点击下方按钮启动项目扫描，或使用 CLI 命令手动创建',
+    emptyHint: '冷启动入口当前不可用；可使用 CLI 命令手动创建',
     emptyHintIde: '或在 Codex 宿主 Agent 中说「帮我扫描项目」',
     rescanBtn: '增量扫描',
     rescanTitle: '增量扫描：保留已有 Recipe，重新分析项目，补齐缺失知识',

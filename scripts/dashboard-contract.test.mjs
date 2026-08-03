@@ -2143,3 +2143,21 @@ test('recipe reviewer UI exposes resilient profile, readiness, generation, and e
     assert.match(enRecipeEditor, new RegExp(`${key}:`), `en recipeEditor locale must define ${key}`);
   }
 });
+
+test('Candidates cold-start stays unavailable without legacy or replacement network calls', () => {
+  const app = read('src/App.tsx');
+  const candidates = read('src/components/Views/CandidatesView.tsx');
+  const zh = read('src/i18n/locales/zh.ts');
+  const en = read('src/i18n/locales/en.ts');
+  const candidatesStart = app.indexOf('<CandidatesView');
+  const candidatesEnd = app.indexOf('/>', candidatesStart);
+  const candidatesProps = app.slice(candidatesStart, candidatesEnd);
+
+  assert.doesNotMatch(app, /const handleColdStart/);
+  assert.doesNotMatch(app, /api\.bootstrap\(/);
+  assert.doesNotMatch(candidatesProps, /onColdStart=/);
+  assert.match(candidates, /onColdStart\?: \(\) => void/);
+  assert.match(candidates, /onColdStart &&/);
+  assert.match(zh, /emptyHint: '冷启动入口当前不可用/);
+  assert.match(en, /emptyHint: 'Cold start is currently unavailable/);
+});

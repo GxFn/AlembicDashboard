@@ -334,7 +334,7 @@ export const en: DeepString<typeof zh> = {
     updatedAt: 'Updated',
     // CandidatesView
     coldStartTitle: 'Project Scan: structural collection + multi-dimension Candidate creation',
-    emptyHint: 'Click the button below to start a project scan, or use CLI to create manually',
+    emptyHint: 'Cold start is currently unavailable; use the CLI to create manually',
     emptyHintIde: 'or say "scan project" through the Codex host agent',
     rescanBtn: 'Incremental Scan',
     rescanTitle: 'Incremental Scan: preserve existing Recipes, re-analyze project, fill knowledge gaps',

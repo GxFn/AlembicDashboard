@@ -807,7 +807,7 @@ export const en: DeepString<typeof zh> = {
     about: 'About',
     pageTitle: 'Alembic Guide',
     subtitle: 'Connect AI runtime, project knowledge, and maintainer review: Self-evolving knowledge mining · Governing AI coding output · Multi-language support',
-    techSpecs: 'Node.js ≥ 22 · Codex Plugin · MCP tools · Skills · Alembic API AI · AST · Vector',
+    techSpecs: 'Node.js ≥ 24 · Codex Plugin · MCP tools · Skills · Alembic API AI · AST · Vector',
     viewGithub: 'View on GitHub',
     fullDocs: 'Full Documentation',
     tokenUsageLast7Days: 'Token Usage (Last 7 Days)',

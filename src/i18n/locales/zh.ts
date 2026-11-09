@@ -804,7 +804,7 @@ export const zh = {
     about: '关于',
     pageTitle: 'Alembic 使用说明',
     subtitle: '连接开发者、AI 与项目知识库：知识挖掘自我进化 · 规范治理 AI 编码产出 · 多语言支持',
-    techSpecs: 'Node.js ≥ 22 · Codex Plugin · MCP 工具 · Skills · Alembic API AI · AST · Vector',
+    techSpecs: 'Node.js ≥ 24 · Codex Plugin · MCP 工具 · Skills · Alembic API AI · AST · Vector',
     viewGithub: '查看 GitHub',
     fullDocs: '完整文档',
     tokenUsageLast7Days: 'Token 用量（近 7 日）',
